@@ -7,16 +7,20 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-class Message(BaseModel):
-    role: Literal["system", "user", "assistant", "tool"]
-    content: str
-
-
 class ToolCall(BaseModel):
     """A tool call *proposed* by the model. The model never executes anything."""
 
     name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class Message(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str
+    # assistant turns that proposed tool calls (so the model sees its own earlier calls)
+    tool_calls: list[ToolCall] | None = None
+    # tool turns: which tool this result belongs to
+    tool_name: str | None = None
 
 
 class GenerateResult(BaseModel):

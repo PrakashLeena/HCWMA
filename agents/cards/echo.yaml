@@ -1,0 +1,20 @@
+# Dummy agent for Step 7: proves Router -> agent -> tool -> back. Disable it once real
+# agents cover these requests.
+id: echo
+name: Echo Test Agent
+status: enabled
+description: >
+  Test agent. Repeats back what the user asked it to echo or repeat, and can tell the
+  current date and time on this PC.
+handles:
+  - echo or repeat back a message ("echo hello", "say back ...")
+  - test whether delegation works
+  - what time or date is it on this PC
+does_not_handle:
+  - files, folders, programs, the internet or anything else
+tools: [get_system_time]
+permission_tier: T0
+approval_required: []
+memory_scopes: [task]
+system_prompt: prompts/echo.md
+limits: { max_steps: 4, timeout_s: 120 }

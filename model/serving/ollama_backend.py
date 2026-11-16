@@ -68,7 +68,7 @@ class OllamaBackend:
             options["temperature"] = temperature
         payload: dict[str, Any] = {
             "model": self.config.ollama_model,
-            "messages": [m.model_dump() for m in messages],
+            "messages": [_to_ollama(m) for m in messages],
             "stream": True,
             "think": self.config.think,
             "keep_alive": self.config.keep_alive,
@@ -131,6 +131,17 @@ class OllamaBackend:
         loaded = self._get_json("/api/ps").get("models", [])
         mine = [m for m in loaded if m.get("name") == self.config.ollama_model]
         return {"runtime": "ollama", "version": version, "loaded": mine}
+
+
+def _to_ollama(message: Message) -> dict[str, Any]:
+    out: dict[str, Any] = {"role": message.role, "content": message.content}
+    if message.tool_calls:
+        out["tool_calls"] = [
+            {"function": {"name": c.name, "arguments": c.arguments}} for c in message.tool_calls
+        ]
+    if message.tool_name:
+        out["tool_name"] = message.tool_name
+    return out
 
 
 def _parse_tool_call(tc: dict[str, Any]) -> ToolCall:
