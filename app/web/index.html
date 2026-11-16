@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HCWMA</title>
+  <link rel="stylesheet" href="/static/chat.css">
+</head>
+<body>
+  <header>
+    <h1>HCWMA</h1>
+    <span id="status" class="status">checking…</span>
+    <button id="forget" type="button" class="link" hidden>Forget token</button>
+  </header>
+
+  <main id="messages" aria-live="polite"></main>
+
+  <form id="token-form" class="panel" hidden>
+    <label for="token-input">API token</label>
+    <p class="hint">Run <code>python -m backend.auth.token</code> in the project folder and paste
+      the result here. It is kept only until you close this tab.</p>
+    <div class="row">
+      <input id="token-input" type="password" autocomplete="off" spellcheck="false" required>
+      <button type="submit">Unlock</button>
+    </div>
+  </form>
+
+  <form id="chat-form" class="panel" hidden>
+    <div class="row">
+      <textarea id="chat-input" rows="2" placeholder="Message HCWMA (Enter to send, Shift+Enter for a new line)" required></textarea>
+      <button id="send" type="submit">Send</button>
+    </div>
+  </form>
+
+  <script src="/static/chat.js"></script>
+</body>
+</html>

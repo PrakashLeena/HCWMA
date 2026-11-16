@@ -1,0 +1,9 @@
+# HCWMA local backend — master document sections 10.3 and 11.
+# The backend refuses to start with any host other than 127.0.0.1 (architecture rule 8).
+# The per-install API token is NOT here: it lives in the OS credential store (rule 11).
+
+host: 127.0.0.1
+port: 8765
+
+# Reply length cap for /chat. Larger values mean longer waits on CPU (~8 tok/s).
+chat_max_tokens: 512

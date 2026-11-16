@@ -4,3 +4,7 @@ ruff==0.17.5
 pyyaml==6.0.3
 pydantic==2.14.3   # step 3: validated model config and result types
 psutil==7.2.2      # step 3: RAM measurement in the model benchmark
+fastapi==0.162.5   # step 5: local backend API
+uvicorn==0.54.0    # step 5: ASGI server for the backend (127.0.0.1 only)
+keyring==25.7.0    # step 5: per-install API token in the OS credential store
+httpx==0.28.1      # step 5: FastAPI test client
