@@ -4,8 +4,8 @@ Tick a step only when its "Done when" test in `docs/BUILD_PLAN.md` passes.
 
 ## Milestone 1 — the factory works with one agent
 
-- [✓] Step 0 — Planning and decisions (`docs/DECISIONS.md` filled in)
-- [✓] Step 1 — PC foundation (tools installed, repo created)
+- [] Step 0 — Planning and decisions (`docs/DECISIONS.md` filled in)
+- [] Step 1 — PC foundation (tools installed, repo created)
 - [x] Step 2 — Development environment
 - [x] Step 3 — Qwen baseline running locally
 - [ ] Step 4 — Source exploration (optional, does not block)
