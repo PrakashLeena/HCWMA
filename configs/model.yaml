@@ -1,17 +1,23 @@
 # HCWMA model — master document sections 5.4 and 5.5.
 # Filled from docs/DECISIONS.md. Changing checkpoint or runtime is a change to this file only.
-# Step 3 confirms the exact Ollama tag, license and benchmark numbers.
+# Step 3 (2026-11-16): Ollama tag qwen3.5:4b confirmed = Q4_K_M, Apache 2.0, tools + vision.
 
 checkpoint: Qwen3.5-4B
 fallback_checkpoint: Qwen3.5-2B
 runtime: ollama
-ollama_model: qwen3.5:4b      # to be confirmed in Step 3
+ollama_model: qwen3.5:4b      # confirmed on ollama.com/library/qwen3.5 (Q4_K_M)
 quantization: Q4_K_M
 device: cpu                   # Intel Iris Xe, no NVIDIA GPU
 
 endpoint:
   host: 127.0.0.1
   port: 11434                 # Ollama default
+
+# Inference options (model/serving/).
+context_length: 8192          # num_ctx; long prompts beyond this are truncated by Ollama
+think: false                  # Qwen thinking mode off: keeps routing and tool calls fast on CPU
+keep_alive: 30m               # how long Ollama keeps the model loaded after the last request
+request_timeout_s: 600
 
 # One model instance, one request at a time (model_queue.py).
 max_parallel_requests: 1

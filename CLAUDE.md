@@ -71,6 +71,9 @@ python -m venv .venv            # once
 pip install -r requirements.txt
 pytest -q                       # all tests
 ruff check . && ruff format .   # lint + format
+ollama pull qwen3.5:4b          # local model (needs Ollama running on 127.0.0.1:11434)
+python -m model.serving.chat    # chat with the model in the terminal
+python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU)
 python -m backend.api           # start local backend (after step 5)
 ```
 
