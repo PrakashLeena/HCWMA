@@ -1,0 +1,77 @@
+# Router test cases (build plan Step 7, master document 4.2 and 4.3).
+# expect: an agent id from the catalogue in 4.3 (or `echo`), `clarify` (unclear: the Router
+# must ask) or `answer` (small talk / about HCWMA / nothing can do it: the Router replies).
+#
+# `pytest` checks this file's shape. `python -m agents.router.eval_routing` runs the cases
+# against the real local model: only cases whose agent is enabled in agents/cards/ (plus
+# clarify/answer cases) are scored; the rest are reported as "agent not built yet".
+# Draft by Claude Code on 2026-11-17 — owner to review.
+
+cases:
+  # --- echo (Step 7 dummy agent) ---
+  - { message: "echo hello world", expect: echo }
+  - { message: "Please repeat back: the quick brown fox", expect: echo }
+  - { message: "What time is it right now?", expect: echo }
+  - { message: "what's today's date on this PC?", expect: echo }
+
+  # --- file_system ---
+  - { message: "I'm missing one of my project files, it was called annek-proposal", expect: file_system }
+  - { message: "Where did I save the budget spreadsheet last week?", expect: file_system }
+  - { message: "Which folders are taking up the most disk space?", expect: file_system }
+  - { message: "Did I delete report.docx? Check the recycle bin", expect: file_system }
+  - { message: "Show me the files I changed today", expect: file_system }
+
+  # --- coding ---
+  - { message: "Write a Python script that renames all .jpeg files to .jpg", expect: coding }
+  - { message: "Explain what this function does: def f(x): return x and x[0]", expect: coding }
+  - { message: "Scaffold a new FastAPI project in the workspace", expect: coding }
+
+  # --- debugging ---
+  - { message: "My tests fail with KeyError: 'user_id', can you find out why?", expect: debugging }
+  - { message: "Here is a stack trace from my app, what is going wrong?", expect: debugging }
+  - { message: "pytest is red after my last change, help me fix it", expect: debugging }
+
+  # --- image_editing ---
+  - { message: "Resize all photos in my holiday folder to 1080 pixels wide", expect: image_editing }
+  - { message: "Convert this PNG to JPG and crop it to a square", expect: image_editing }
+
+  # --- web_research ---
+  - { message: "Search the web for reviews of the Framework 13 laptop", expect: web_research }
+  - { message: "Summarize this article for me: https://example.com/news/item", expect: web_research }
+
+  # --- app_automation ---
+  - { message: "Open my browser and fill in the contact form on my website", expect: app_automation }
+  - { message: "Click the export button in the accounting app", expect: app_automation }
+
+  # --- memory_librarian ---
+  - { message: "Remember that my sister's birthday is on 12 March", expect: memory_librarian }
+  - { message: "Forget what I told you about my old address", expect: memory_librarian }
+
+  # --- tool_builder ---
+  - { message: "Build a new tool that can read my smart thermostat's local API", expect: tool_builder }
+
+  # --- communication ---
+  - { message: "Draft a reply to the last email from my landlord", expect: communication }
+  - { message: "Find the message where Sam sent me the meeting link", expect: communication }
+
+  # --- planner ---
+  - { message: "Remind me tomorrow at 9 to call the bank", expect: planner }
+  - { message: "What's on my calendar for Friday?", expect: planner }
+
+  # --- documents_study ---
+  - { message: "Summarize my lecture notes on thermodynamics into one page", expect: documents_study }
+  - { message: "Help me outline my history assignment about the industrial revolution", expect: documents_study }
+
+  # --- answer (small talk, about HCWMA, nothing can do it) ---
+  - { message: "hi!", expect: answer }
+  - { message: "thanks, that was helpful", expect: answer }
+  - { message: "What can you do?", expect: answer }
+  - { message: "Order me a pizza from the place down the road", expect: answer }
+
+  # --- clarify (unclear: ask, never guess) ---
+  - { message: "do it again", expect: clarify }
+  - { message: "fix it", expect: clarify }
+  - { message: "can you handle that file", expect: clarify }
+  - { message: "change the thing we talked about", expect: clarify }
+  - { message: "make it better", expect: clarify }
+  - { message: "open it", expect: clarify }

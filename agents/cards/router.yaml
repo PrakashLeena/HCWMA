@@ -1,0 +1,16 @@
+id: router
+name: Router
+kind: router
+status: enabled
+description: >
+  Understands the request, picks the sub-agent, delegates, collects the result and asks a
+  clarifying question when unsure. Has no file, shell or network tools (rule 2).
+handles: []
+does_not_handle:
+  - any work that needs tools (delegated instead)
+tools: []
+permission_tier: T0
+approval_required: []
+memory_scopes: [episodic, task]
+system_prompt: prompts/router.md
+limits: { max_steps: 1, timeout_s: 60 }

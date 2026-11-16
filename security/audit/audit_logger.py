@@ -110,6 +110,7 @@ class AuditLogger:
         from_agent: str,
         to_agent: str,
         outcome: str = "delegated",
+        reason: str = "",
     ) -> AuditRecord:
         record = AuditRecord(
             event="delegation",
@@ -118,6 +119,7 @@ class AuditLogger:
             agent=from_agent,
             target_agent=to_agent,
             outcome=outcome,
+            reason=reason[:300],
         )
         self.write(record)
         return record

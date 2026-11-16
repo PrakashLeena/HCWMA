@@ -2,15 +2,19 @@
 
 - Reached on 127.0.0.1 only; requests with any other Host header are refused.
 - `/chat` needs the per-install token as `Authorization: Bearer <token>`.
+- Every chat request goes to the Router (step 7), which delegates to sub-agents. The
+  Router and its tool gateway (local MCP server) live as long as the app (lifespan).
 - Inference goes through the shared model queue (architecture rule 3).
-- No tools are offered to the model here. The Router and agents arrive in step 7.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
+from typing import Protocol
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse
@@ -18,7 +22,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from agents.runtime.model_queue import ModelQueue
+from agents.router.router import RouterReply
 from backend.auth.token import token_matches
 from backend.config import BackendConfig
 from backend.schemas.chat import ChatRequest, ChatResponse, HealthResponse
@@ -28,11 +32,14 @@ logger = logging.getLogger("hcwma.backend")
 
 WEB_DIR = Path(__file__).resolve().parents[2] / "app" / "web"
 
-SYSTEM_PROMPT = (
-    "You are HCWMA, a private assistant running on the owner's own PC. "
-    "Answer clearly and briefly. You cannot open files, run programs or use the "
-    "internet yet; say so if asked to."
-)
+
+class ChatHandler(Protocol):
+    """The Router (agents.router.router.Router) or a test double."""
+
+    async def handle(self, conversation: list[Message]) -> RouterReply: ...
+
+
+HandlerFactory = Callable[[], AbstractAsyncContextManager[ChatHandler]]
 
 _SECURITY_HEADERS = {
     "Content-Security-Policy": (
@@ -44,11 +51,17 @@ _SECURITY_HEADERS = {
 }
 
 
-def create_app(queue: ModelQueue, token: str, config: BackendConfig) -> FastAPI:
+def create_app(handler_factory: HandlerFactory, token: str, config: BackendConfig) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
 
-    app = FastAPI(title="HCWMA", docs_url=None, redoc_url=None, openapi_url=None)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        async with handler_factory() as handler:
+            app.state.handler = handler
+            yield
+
+    app = FastAPI(title="HCWMA", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     # No CORS middleware on purpose: no other origin may call this API.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[config.host])
 
@@ -79,23 +92,27 @@ def create_app(queue: ModelQueue, token: str, config: BackendConfig) -> FastAPI:
         return HealthResponse(status="ok")
 
     @app.post("/chat", dependencies=[Depends(require_token)])
-    def chat(request: ChatRequest) -> ChatResponse:
-        messages = [Message(role="system", content=SYSTEM_PROMPT)]
-        messages += [Message(role=t.role, content=t.content) for t in request.messages]
+    async def chat(request: ChatRequest, http: Request) -> ChatResponse:
+        conversation = [Message(role=t.role, content=t.content) for t in request.messages]
+        start = time.perf_counter()
         try:
-            result = queue.generate(messages, tools=None, max_tokens=config.chat_max_tokens)
+            reply = await http.app.state.handler.handle(conversation)
         except Exception as exc:
             # Log the error type only: no message content and no runtime internals.
-            logger.error("model call failed: %s", type(exc).__name__)
+            logger.error("chat request failed: %s", type(exc).__name__)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="the local model is not available; check that Ollama is running",
             ) from None
         return ChatResponse(
-            reply=result.text.strip(),
-            completion_tokens=result.completion_tokens,
-            tokens_per_s=round(result.tokens_per_s, 2),
-            total_s=round(result.total_s, 2),
+            reply=reply.reply.strip(),
+            action=reply.action,
+            status=reply.status,
+            agents=reply.agents,
+            tool_calls=reply.tool_calls,
+            stopped_by=reply.stopped_by,
+            task_id=reply.task_id,
+            total_s=round(time.perf_counter() - start, 2),
         )
 
     @app.get("/", include_in_schema=False)

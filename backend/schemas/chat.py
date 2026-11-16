@@ -32,8 +32,12 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    completion_tokens: int
-    tokens_per_s: float
+    action: Literal["delegate", "clarify", "answer"]
+    status: Literal["done", "needs_approval", "needs_clarification", "failed"]
+    agents: list[str]
+    tool_calls: int
+    stopped_by: str | None = None
+    task_id: str
     total_s: float
 
 

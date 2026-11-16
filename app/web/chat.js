@@ -67,7 +67,7 @@ async function checkHealth() {
 async function send(text) {
   history.push({ role: "user", content: text });
   addMessage("user", text);
-  const pending = addMessage("assistant pending", "Qwen is thinking…");
+  const pending = addMessage("assistant pending", "HCWMA is working…");
   sendButton.disabled = true;
   try {
     const response = await fetch("/chat", {
@@ -98,7 +98,9 @@ async function send(text) {
     addMessage(
       "assistant",
       body.reply,
-      body.completion_tokens + " tokens · " + body.tokens_per_s + " tok/s · " + body.total_s + " s",
+      (body.agents.length ? "router → " + body.agents.join(" → ") : "router") +
+        " · " + body.status + (body.stopped_by ? " (stopped: " + body.stopped_by + ")" : "") +
+        " · " + body.tool_calls + " tool calls · " + body.total_s + " s",
     );
   } catch {
     pending.remove();
