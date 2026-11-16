@@ -1,0 +1,67 @@
+# HCWMA permissions — master document sections 9.3 and 9.4.
+# Filled from docs/DECISIONS.md. Making any default less strict needs the owner's approval.
+# Paths are relative to the repository root unless they start with "~" or a drive/root.
+
+tiers:
+  T0:
+    scope: File metadata and index lookups in approved folders
+    default: allow
+  T1:
+    scope: Read file contents in approved folders; read process and disk info
+    default: allow
+  T2:
+    scope: Create and edit inside the HCWMA workspace; run code in the sandbox
+    default: allow
+  T3:
+    scope: Write, move, rename or restore outside the workspace; non-allowlisted shell; app automation
+    default: approval_required
+  T4:
+    scope: Delete; install software; system settings; elevation; anything touching credentials
+    default: deny
+
+# Folders HCWMA may index and read. Owner decision 2026-11-16: none yet.
+approved_folders: []
+
+# Sandbox for agent-written code and files (gitignored).
+workspace: workspace
+
+# Never read, indexed or written by any agent tool.
+protected_paths:
+  # credential and key stores
+  - ~/.ssh
+  - ~/.gnupg
+  - ~/.aws
+  - ~/.azure
+  - ~/.config/gcloud
+  - ~/AppData/Roaming/Microsoft/Credentials
+  - ~/AppData/Local/Microsoft/Credentials
+  - ~/AppData/Roaming/Microsoft/Protect
+  - ~/AppData/Roaming/KeePass
+  - ~/AppData/Roaming/Bitwarden
+  - ~/AppData/Local/1Password
+  # browser profiles
+  - ~/AppData/Local/Google/Chrome/User Data
+  - ~/AppData/Local/Microsoft/Edge/User Data
+  - ~/AppData/Roaming/Mozilla/Firefox/Profiles
+  - ~/AppData/Local/BraveSoftware/Brave-Browser/User Data
+  # OS system directories
+  - C:/Windows
+  - C:/Program Files
+  - C:/Program Files (x86)
+  - C:/ProgramData
+  # HCWMA policy, audit and secrets
+  - security/
+  - configs/permissions.yaml
+
+# Extra off-limits folders chosen by the owner. Owner decision 2026-11-16: none.
+blocked_folders: []
+
+# Deleting always moves to the Recycle Bin (send2trash). Never permanent delete.
+delete_mode: recycle_bin
+
+limits:
+  max_delegation_depth: 3
+  max_tool_calls_per_task: 20
+
+# Quarantined Tool Builder output needs owner approval before first use.
+generated_tools_require_approval: true

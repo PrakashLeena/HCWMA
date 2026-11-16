@@ -1,0 +1,20 @@
+# HCWMA model — master document sections 5.4 and 5.5.
+# Filled from docs/DECISIONS.md. Changing checkpoint or runtime is a change to this file only.
+# Step 3 confirms the exact Ollama tag, license and benchmark numbers.
+
+checkpoint: Qwen3.5-4B
+fallback_checkpoint: Qwen3.5-2B
+runtime: ollama
+ollama_model: qwen3.5:4b      # to be confirmed in Step 3
+quantization: Q4_K_M
+device: cpu                   # Intel Iris Xe, no NVIDIA GPU
+
+endpoint:
+  host: 127.0.0.1
+  port: 11434                 # Ollama default
+
+# One model instance, one request at a time (model_queue.py).
+max_parallel_requests: 1
+
+# Full safetensors copy, kept for research/source inspection only. Never loaded for serving.
+research_checkpoint_dir: Qwen3.5-4B-Base

@@ -1,0 +1,19 @@
+[project]
+name = "hcwma"
+version = "0.0.1"
+description = "Private local AI assistant (agent factory) running on the owner's PC"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["Qwen3.5-4B-Base", "workspace", "model/source"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S104"]  # asserts; tests search for "0.0.0.0" strings
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
