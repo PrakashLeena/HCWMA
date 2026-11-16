@@ -1,6 +1,6 @@
 """Score the Router against `tests/agents/routing_cases.yaml` with the real local model:
 
-    python -m agents.router.eval_routing            (~3 s per case on CPU)
+    python -m agents.router.eval_routing            (~15 s per case on CPU)
 
 Only routing decisions are made (no agent runs, no tools). Cases whose expected agent is
 not enabled yet are listed as skipped, not scored.
@@ -32,6 +32,9 @@ class RoutingCase(BaseModel):
 
     message: str
     expect: str
+    # An agent this request must never go to. Lets a near-miss case be scored even while
+    # its expected agent is not built yet (add-agent skill: "must NOT route to it").
+    must_not: str | None = None
 
 
 def load_cases(path: Path = CASES_PATH) -> list[RoutingCase]:
@@ -68,18 +71,20 @@ async def run() -> int:
     scored = passed = 0
     skipped: list[str] = []
     for case in load_cases():
-        if case.expect not in enabled and case.expect not in ROUTER_ACTIONS:
+        expect_known = case.expect in enabled or case.expect in ROUTER_ACTIONS
+        if not expect_known and case.must_not not in enabled:
             skipped.append(case.expect)
             continue
         start = time.perf_counter()
         decision = await classifier.classify([Message(role="user", content=case.message)])
         got = outcome(decision)
-        ok = got == case.expect
+        ok = got == case.expect if expect_known else got != case.must_not
         scored += 1
         passed += ok
         mark = "PASS" if ok else "FAIL"
         print(
-            f"{mark}  {time.perf_counter() - start:4.1f}s  expect={case.expect:<9} "
+            f"{mark}  {time.perf_counter() - start:4.1f}s  "
+            f"expect={case.expect if expect_known else 'not ' + str(case.must_not):<15} "
             f"got={got:<9} conf={decision.confidence:.2f}  {case.message!r}"
         )
     print(
