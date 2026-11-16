@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# Model weights (never commit)
+Qwen3.5-4B-Base/
+models/
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+*.onnx
+
+# Agent sandbox
+workspace/
+
+# PC file index and memory stores
+memory/pc_index/data/
+memory/storage/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs and audit output
+logs/
+*.log
+security/audit/logs/
+
+# Browser profiles / Playwright auth state
+browser_profiles/
+playwright/.auth/
+*.storage_state.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
