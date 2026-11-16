@@ -74,7 +74,8 @@ ruff check . && ruff format .   # lint + format
 ollama pull qwen3.5:4b          # local model (needs Ollama running on 127.0.0.1:11434)
 python -m model.serving.chat    # chat with the model in the terminal
 python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU)
-python -m backend.api           # start local backend (after step 5)
+python -m backend.api           # start local backend + chat page on http://127.0.0.1:8765/
+python -m backend.auth.token    # print the per-install API token (--rotate for a new one)
 ```
 
 Keep this section current when commands change.

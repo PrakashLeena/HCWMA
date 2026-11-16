@@ -9,7 +9,7 @@ Tick a step only when its "Done when" test in `docs/BUILD_PLAN.md` passes.
 - [x] Step 2 — Development environment
 - [x] Step 3 — Qwen baseline running locally
 - [ ] Step 4 — Source exploration (optional, does not block)
-- [ ] Step 5 — Backend and chat UI
+- [x] Step 5 — Backend and chat UI
 - [ ] Step 6 — Tool foundation (MCP, permissions, audit)
 - [ ] Step 7 — Agent runtime and Router
 - [ ] Step 8 — File & System agent
@@ -37,3 +37,4 @@ Add one line per finished step: date, commit, anything the next step should know
 
 - 2026-11-16 Step 2: package skeleton (master doc §12), pinned requirements (pytest, ruff, pyyaml), configs/permissions.yaml (no approved folders yet, strict defaults) and configs/model.yaml (Ollama, CPU, 127.0.0.1:11434). Steps 0 and 1 are not ticked yet: the Product section of DECISIONS.md is still blank, and the owner should confirm `claude --version`. Step 3: confirm the Ollama tag `qwen3.5:4b` and the license; Qwen3.5-4B-Base/ inside the repo is gitignored and kept for research only.
 - 2026-11-17 Step 3: Ollama `qwen3.5:4b` (Q4_K_M, CPU, thinking off) behind `model/serving/` and `agents/runtime/model_queue.py` (one request at a time). Numbers in `docs/benchmarks.md`; owner confirmed the terminal chat. Step 5: call the model only through `model_queue.py`.
+- 2026-11-17 Step 5: FastAPI backend on 127.0.0.1:8765 (`python -m backend.api`), `/health` open, `/chat` needs `Authorization: Bearer <token>`; token in the OS credential store via keyring (`python -m backend.auth.token`). Chat page in `app/web/` keeps the token per tab (sessionStorage) and holds the history client-side. `/chat` calls the model queue directly with no tools: Step 7 should put the Router behind it. Step 9: the desktop shell should hand the token to the page so the owner need not paste it. Later: Starlette's test client deprecates `httpx` in favour of `httpx2`.

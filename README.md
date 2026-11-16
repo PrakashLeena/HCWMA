@@ -24,6 +24,7 @@ ruff check .
 
 - `configs/permissions.yaml` — permission tiers T0–T4, approved folders, protected paths.
 - `configs/model.yaml` — model checkpoint, runtime and local endpoint.
+- `configs/backend.yaml` — local backend host (always `127.0.0.1`) and port.
 - `.env.example` — non-secret local settings. Secrets go in the OS credential store.
 
 Model weights, `workspace/`, logs, the PC index and `.env` are never committed.
