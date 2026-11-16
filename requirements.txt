@@ -2,3 +2,5 @@
 pytest==9.2.0
 ruff==0.17.5
 pyyaml==6.0.3
+pydantic==2.14.3   # step 3: validated model config and result types
+psutil==7.2.2      # step 3: RAM measurement in the model benchmark
