@@ -9,3 +9,4 @@ uvicorn==0.54.0    # step 5: ASGI server for the backend (127.0.0.1 only)
 keyring==25.7.0    # step 5: per-install API token in the OS credential store
 httpx==0.28.1      # step 5: FastAPI test client
 mcp==2.3.0         # step 6: local MCP server/client over stdio (official SDK)
+watchdog==6.0.0    # step 8: file watcher that keeps the PC file index fresh

@@ -112,7 +112,7 @@ def test_low_confidence_delegation_becomes_a_question(tmp_path: Path) -> None:
 
 
 def test_unknown_or_router_agent_is_never_delegated_to(tmp_path: Path) -> None:
-    for target in ("file_system", "router", "shell"):
+    for target in ("coding", "router", "shell"):  # coding: in the catalogue, not built yet
         model = ScriptedModel(router=route(steps=[{"agent": target, "goal": "x"}]))
         reply, s = _ask(tmp_path / target, model, "find my file")
         assert reply.action == "clarify", target

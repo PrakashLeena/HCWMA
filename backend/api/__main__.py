@@ -13,7 +13,9 @@ from backend.config import load_backend_config
 def main() -> int:
     config = load_backend_config()
     app = create_app(
-        handler_factory=lambda: open_router(max_tokens=config.chat_max_tokens),
+        handler_factory=lambda: open_router(
+            max_tokens=config.chat_max_tokens, keep_file_index_fresh=True
+        ),
         token=get_or_create_token(),
         config=config,
     )

@@ -30,8 +30,11 @@ class CapabilityCatalog:
 
 def default_catalog() -> CapabilityCatalog:
     """The hand-written tools shipped with HCWMA. Later steps add theirs here."""
+    from integrations.adapters.pc.file_tools import default_file_tool_specs
     from integrations.adapters.pc.system_time import get_system_time_spec
 
     catalog = CapabilityCatalog()
     catalog.register(get_system_time_spec())
+    for spec in default_file_tool_specs():  # step 8: read-only file tools
+        catalog.register(spec)
     return catalog

@@ -20,6 +20,20 @@ cases:
   - { message: "Which folders are taking up the most disk space?", expect: file_system }
   - { message: "Did I delete report.docx? Check the recycle bin", expect: file_system }
   - { message: "Show me the files I changed today", expect: file_system }
+  - { message: "I can't find my thesis draft anywhere on this laptop", expect: file_system }
+  - { message: "Where is the file called invoice-march.pdf?", expect: file_system }
+  - { message: "How much free space is left on my C drive?", expect: file_system }
+  - { message: "What are the biggest files in my documents?", expect: file_system }
+  - { message: "Find all the spreadsheets I worked on this week", expect: file_system }
+  - { message: "I think I deleted my holiday photos folder by accident, is it still in the bin?", expect: file_system }
+
+  # --- near misses: about files, but not the File & System agent's job ---
+  - { message: "Open notes.txt and summarize what it says", expect: documents_study, must_not: file_system }
+  - { message: "Write a script that finds duplicate files in a folder", expect: coding, must_not: file_system }
+  - { message: "My file parser crashes with a UnicodeDecodeError, fix it", expect: debugging, must_not: file_system }
+  - { message: "Download the latest Python installer from python.org", expect: web_research, must_not: file_system }
+  - { message: "Crop this photo file to a square and save a copy", expect: image_editing, must_not: file_system }
+  - { message: "Email the budget file to my accountant", expect: communication, must_not: file_system }
 
   # --- coding ---
   - { message: "Write a Python script that renames all .jpeg files to .jpg", expect: coding }
