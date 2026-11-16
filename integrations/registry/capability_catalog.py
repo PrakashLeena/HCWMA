@@ -1,0 +1,37 @@
+"""Capability catalogue: every tool HCWMA knows about (master document 6.4).
+
+Only tools with status `approved` are exposed over MCP or callable. Quarantined and
+disabled tools stay registered so the owner can review them.
+"""
+
+from __future__ import annotations
+
+from integrations.mcp.tool_schemas import ToolSpec
+
+
+class CapabilityCatalog:
+    def __init__(self) -> None:
+        self._tools: dict[str, ToolSpec] = {}
+
+    def register(self, spec: ToolSpec) -> None:
+        if spec.name in self._tools:
+            raise ValueError(f"tool '{spec.name}' is already registered")
+        self._tools[spec.name] = spec
+
+    def get(self, name: str) -> ToolSpec | None:
+        return self._tools.get(name)
+
+    def all_tools(self) -> list[ToolSpec]:
+        return sorted(self._tools.values(), key=lambda s: s.name)
+
+    def callable_tools(self) -> list[ToolSpec]:
+        return [s for s in self.all_tools() if s.manifest.status == "approved"]
+
+
+def default_catalog() -> CapabilityCatalog:
+    """The hand-written tools shipped with HCWMA. Later steps add theirs here."""
+    from integrations.adapters.pc.system_time import get_system_time_spec
+
+    catalog = CapabilityCatalog()
+    catalog.register(get_system_time_spec())
+    return catalog
