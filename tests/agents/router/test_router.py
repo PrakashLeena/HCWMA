@@ -4,10 +4,12 @@ clarifying question. Real registry, runtime, policy layer and MCP server; script
 from __future__ import annotations
 
 import inspect
+import logging
 from pathlib import Path
 from typing import Any
 
 import anyio
+import pytest
 
 from agents.router import classifier as classifier_module
 from agents.router import router as router_module
@@ -131,6 +133,30 @@ def test_invalid_model_output_is_a_question_not_a_guess(tmp_path: Path) -> None:
         reply, _ = _ask(tmp_path, model, "hello")
         assert reply.action == "clarify"
         assert reply.reply == classifier_module.FALLBACK_QUESTION
+
+
+@pytest.mark.parametrize(
+    ("raw", "reason"),
+    [
+        ("not json", "invalid routing JSON"),
+        ('{"action": "run_shell", "confidence": 1}', "invalid routing JSON"),
+        # What the model returned for "What can you do?" in the routing eval (conf 0.00).
+        ('{"action":"answer","confidence":0.95}', "empty `answer`"),
+        ('{"action":"answer","confidence":1,"answer":"  "}', "empty `answer`"),
+    ],
+)
+def test_every_rejected_router_output_is_logged_with_the_raw_text(
+    raw: str, reason: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    router_classifier = classifier_module.Classifier(None, None)  # type: ignore[arg-type]
+    with caplog.at_level(logging.WARNING, logger=classifier_module.log.name):
+        decision = router_classifier.check(raw)
+    assert decision.action == "clarify"
+    assert decision.confidence == 0.0
+    assert len(caplog.records) == 1
+    message = caplog.records[0].getMessage()
+    assert reason in message
+    assert repr(raw) in message
 
 
 def test_router_can_answer_small_talk(tmp_path: Path) -> None:

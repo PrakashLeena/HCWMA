@@ -12,6 +12,7 @@ change here (rule 4). Anything the model returns is re-checked in code:
 from __future__ import annotations
 
 import json
+import logging
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -21,10 +22,13 @@ from agents.registry.card import AgentCard
 from agents.runtime.agent_runtime import AgentRuntime
 from model.serving import Message
 
+log = logging.getLogger(__name__)
+
 DEFAULT_CONFIDENCE_THRESHOLD = 0.6
 MAX_HISTORY_TURNS = 6
 MAX_ROUTE_STEPS = 3
 ROUTER_MAX_TOKENS = 300  # short prompts, low output limit: routing stays fast (5.5)
+RAW_LOG_CHARS = 1000
 FALLBACK_QUESTION = "I'm not sure what you'd like me to do. Could you say a bit more?"
 
 
@@ -97,11 +101,13 @@ class Classifier:
         """Validate the model's JSON and apply the code-side routing rules."""
         try:
             decision = RoutingDecision.model_validate(json.loads(raw))
-        except (json.JSONDecodeError, ValidationError, TypeError):
+        except (json.JSONDecodeError, ValidationError, TypeError) as exc:
+            _log_failure(f"invalid routing JSON ({type(exc).__name__})", raw)
             return _clarify(FALLBACK_QUESTION)
 
         if decision.action == "answer":
             if not decision.answer.strip():
+                _log_failure("action 'answer' with an empty `answer`", raw)
                 return _clarify(FALLBACK_QUESTION)
             return decision
         if decision.action == "clarify":
@@ -114,6 +120,11 @@ class Classifier:
         if decision.confidence < self.threshold:
             return _clarify(decision.question.strip() or FALLBACK_QUESTION, decision.confidence)
         return decision
+
+
+def _log_failure(reason: str, raw: str) -> None:
+    """Every routing parse failure is logged with the model's raw output (capped)."""
+    log.warning("router output rejected: %s; raw=%r", reason, raw[:RAW_LOG_CHARS])
 
 
 def _clarify(question: str, confidence: float = 0.0) -> RoutingDecision:

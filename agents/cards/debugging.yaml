@@ -18,6 +18,10 @@ handles:
   - a function returns the wrong result
   - find the cause of a bug and fix it
   - read a log or stack trace and say what is wrong
+  - wrong output, e.g. wrong average, function returns None instead of the sum
+  - an error message such as TypeError, even when no file is named (it asks which file)
+  - an off-by-one or other bug in a loop
+  - run the tests and fix whatever fails
 does_not_handle:
   - writing a new program from scratch (→ coding)
   - explaining code that works (→ coding)
