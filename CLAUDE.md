@@ -88,3 +88,10 @@ python -m agents.router.demo_approvals  # Step 9 check: restore asks first, deny
 ```
 
 Keep this section current when commands change.
+Searches before reading entire files
+Uses subagents to explore and brings
+you only the summary
+→ Shows you the diff, not the full file → Doesn't repeat what you've already decided
+or
+Warns you when it's time to compact start from scratch
+Short responses by default
