@@ -37,7 +37,8 @@ from agents.runtime.task_envelope import (
     TaskResult,
     ToolCallRecord,
 )
-from integrations.mcp.tool_schemas import PermissionTier, ToolResult
+from integrations.mcp.tool_schemas import CallerContext, PermissionTier, ToolResult
+from memory.service import MemoryService
 from model.serving import GenerateResult, Message
 from security.audit.audit_logger import AuditLogger
 from security.permissions.config import Limits
@@ -71,6 +72,7 @@ class ToolGateway(Protocol):
         arguments: dict[str, Any],
         *,
         owner_wait: Callable[[], AbstractContextManager[None]] | None = None,
+        context: CallerContext | None = None,
     ) -> ToolResult: ...
 
 
@@ -119,8 +121,11 @@ class AgentRuntime:
         audit: AuditLogger,
         limits: Limits,
         max_tokens: int = 512,
+        memory: MemoryService | None = None,
     ) -> None:
         self.registry = registry
+        # Shared memory service (step 10). None: agents get no memory (tests, demos).
+        self.memory = memory
         self._queue = queue
         self._gateway = gateway
         self._audit = audit
@@ -236,6 +241,21 @@ class AgentRuntime:
         request = f"Task from {envelope.from_agent}: {envelope.goal}"
         if envelope.context.user_message:
             request += f"\n\nThe user's own words: {envelope.context.user_message}"
+        if self.memory is not None:
+            # Only the scopes on this agent's card; quoted and labelled as data (rule 13).
+            block = self.memory.recall_block(
+                f"{envelope.goal} {envelope.context.user_message}",
+                agent_id=card.id,
+                allowed_scopes=card.memory_scopes,
+            )
+            if block:
+                request += f"\n\n{block}"
+        context = CallerContext(
+            agent_id=grant.agent_id,
+            task_id=envelope.task_id,
+            memory_scopes=tuple(card.memory_scopes),
+            owner_words=envelope.context.user_message,
+        )
         messages = [
             Message(role="system", content=f"{self.registry.prompt_for(card)}\n\n{RUNTIME_RULES}"),
             Message(role="user", content=request),
@@ -275,7 +295,12 @@ class AgentRuntime:
                 # Always through the gateway, even for tools off the allowlist, so the
                 # refusal is checked and audited in one place.
                 outcome = await self._gateway.call_tool(
-                    envelope.task_id, grant, call.name, call.arguments, owner_wait=owner_wait
+                    envelope.task_id,
+                    grant,
+                    call.name,
+                    call.arguments,
+                    owner_wait=owner_wait,
+                    context=context,
                 )
                 records.append(
                     ToolCallRecord(tool=call.name, ok=outcome.ok, error_code=outcome.error_code)

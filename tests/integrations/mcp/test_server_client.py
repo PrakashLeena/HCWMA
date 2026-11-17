@@ -101,3 +101,14 @@ def test_real_stdio_server_discovers_and_calls_get_system_time() -> None:
     assert "get_system_time" in names
     assert result.ok, result.error
     assert result.data["utc"].endswith("+00:00")
+
+
+def test_tool_server_opens_the_same_memory_folder_as_the_backend() -> None:
+    import os
+
+    from integrations.mcp.client import local_server_params
+
+    env = local_server_params().env or {}
+    # conftest points HCWMA_DATA_DIR at a temp folder; the child process must see it too
+    assert env["HCWMA_DATA_DIR"] == os.environ["HCWMA_DATA_DIR"]
+    assert "LOCALAPPDATA" in env or os.name != "nt"

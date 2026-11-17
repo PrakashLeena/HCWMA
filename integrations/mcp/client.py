@@ -6,6 +6,7 @@ permissions and writes the audit log before and after every call.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from types import TracebackType
@@ -13,20 +14,28 @@ from typing import Any
 
 import mcp_types as types
 from mcp import Client, StdioServerParameters
+from mcp.client.stdio import get_default_environment
 from pydantic import ValidationError
 
 from integrations.mcp.tool_schemas import ToolResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# Settings the tool server must share with the backend. The MCP SDK starts the server with
+# a minimal environment, so these are passed on explicitly (build step 10: both processes
+# must open the same memory folder).
+SHARED_ENV = ("HCWMA_DATA_DIR",)
 DEFAULT_CALL_TIMEOUT_S = 60.0
 
 
 def local_server_params() -> StdioServerParameters:
     """Spawn `python -m integrations.mcp.server` with this interpreter, from the repo root."""
+    env = get_default_environment()
+    env.update({k: os.environ[k] for k in SHARED_ENV if os.environ.get(k)})
     return StdioServerParameters(
         command=sys.executable,
         args=["-m", "integrations.mcp.server"],
         cwd=REPO_ROOT,
+        env=env,
     )
 
 

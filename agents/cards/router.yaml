@@ -11,6 +11,7 @@ does_not_handle:
 tools: []
 permission_tier: T0
 approval_required: []
-memory_scopes: [episodic, task]
+# Memory policy 5: the Router reads profile/preferences and recent summaries only.
+memory_scopes: [profile, summaries, task]
 system_prompt: prompts/router.md
 limits: { max_steps: 1, timeout_s: 60 }

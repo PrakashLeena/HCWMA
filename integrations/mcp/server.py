@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from functools import partial
 from typing import Any
 
 import anyio
@@ -20,7 +21,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from pydantic import ValidationError
 
-from integrations.mcp.tool_schemas import ToolResult
+from integrations.mcp.tool_schemas import CALLER_KEY, CallerContext, ToolResult
 from integrations.registry.capability_catalog import CapabilityCatalog, default_catalog
 
 SERVER_NAME = "hcwma-local-tools"
@@ -39,14 +40,27 @@ async def execute(catalog: CapabilityCatalog, name: str, arguments: dict[str, An
     spec = catalog.get(name)
     if spec is None or spec.manifest.status != "approved":
         return ToolResult.failure("unknown_tool", f"no approved tool named '{name}'")
+    arguments = dict(arguments)
+    raw_caller = arguments.pop(CALLER_KEY, None)
+    caller: CallerContext | None = None
+    if spec.caller_context:
+        try:
+            caller = CallerContext.model_validate(raw_caller)
+        except ValidationError:
+            return ToolResult.failure("invalid_arguments", f"'{name}' needs the caller context")
+    elif raw_caller is not None:
+        return ToolResult.failure("invalid_arguments", "invalid arguments: _caller")
     try:
         args = spec.input_model.model_validate(arguments)
     except ValidationError as exc:
         fields = sorted({".".join(map(str, e["loc"])) or "<root>" for e in exc.errors()})
         return ToolResult.failure("invalid_arguments", f"invalid arguments: {', '.join(fields)}")
+    call = (
+        partial(spec.handler, args, caller) if spec.caller_context else partial(spec.handler, args)
+    )
     try:
         with anyio.fail_after(spec.manifest.timeout_s):
-            output = await anyio.to_thread.run_sync(spec.handler, args, abandon_on_cancel=True)
+            output = await anyio.to_thread.run_sync(call, abandon_on_cancel=True)
         output = spec.output_model.model_validate(output)
     except TimeoutError:
         return ToolResult.failure("timeout", f"'{name}' exceeded {spec.manifest.timeout_s}s")

@@ -205,3 +205,31 @@ def test_api_docs_are_not_exposed(client: TestClient) -> None:
 def test_create_app_refuses_an_empty_token(model: FakeRouter) -> None:
     with pytest.raises(ValueError):
         create_app(handler_factory=model.factory, token="", config=BackendConfig())
+
+
+# ---------- step 10: one session summary per chat, after the reply ----------
+
+
+class SummarizingRouter(FakeRouter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.summaries: list[tuple[int, str]] = []
+
+    async def summarize(self, conversation: list[Message], session_id: str) -> bool:
+        self.summaries.append((len(conversation), session_id))
+        return True
+
+
+def test_session_summary_is_scheduled_after_the_reply() -> None:
+    router = SummarizingRouter()
+    app = create_app(
+        handler_factory=router.factory,
+        token=TOKEN,
+        config=BackendConfig(host="127.0.0.1", port=8765, chat_max_tokens=64),
+    )
+    with TestClient(app, base_url=BASE_URL) as c:
+        ok = c.post("/chat", json={**_chat("hi"), "session_id": "abcd-1234-ef"}, headers=AUTH)
+        none = c.post("/chat", json=_chat("hi"), headers=AUTH)
+        bad = c.post("/chat", json={**_chat("hi"), "session_id": "../x"}, headers=AUTH)
+    assert ok.status_code == 200 and none.status_code == 200 and bad.status_code == 422
+    assert router.summaries == [(1, "abcd-1234-ef")]

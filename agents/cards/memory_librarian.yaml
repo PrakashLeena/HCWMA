@@ -1,0 +1,37 @@
+# Memory (Librarian) agent (build step 10; master document 4.3, 8; docs/memory-policy.md).
+# The only agent that writes, deletes or lists long-term memory. Forgetting asks the owner
+# first (memory_delete, T3); "forget everything" is a one-time T4 approval. The tier is T4
+# only so that memory_forget_all is on the card at all.
+# Draft by Claude Code on 2026-11-17 — owner to review.
+id: memory_librarian
+name: Memory Librarian
+status: enabled
+description: >
+  Remembers what the owner asks it to remember (facts, preferences, notes for an agent),
+  shows what HCWMA remembers, and forgets entries when the owner asks. Also refreshes the
+  PC file index. Never stores passwords, keys, card or ID numbers.
+handles:
+  - remember this / remember that / note that / keep in mind
+  - my preference (reply style, language, "keep answers short")
+  - what do you remember about me / show my memory
+  - forget that / forget what I told you about X / delete a memory
+  - forget everything / erase all memory
+  - refresh or rebuild the file index
+does_not_handle:
+  - answering a question that memory already answers (the Router does that)
+  - finding, restoring, moving or deleting files on the PC (→ file_system)
+  - reminders, calendar or to-do items at a time (→ planner)
+  - reading what is inside files or web pages
+tools:
+  - memory_search
+  - memory_write
+  - memory_delete
+  - memory_forget_all
+  - reindex_folder
+permission_tier: T4
+approval_required: [memory_delete, memory_forget_all]
+memory_scopes: [profile, episodic, summaries, skill_notes, pc_index, task]
+# Never write this agent's goals as episodic memory: "forget X" would store X again.
+record_outcomes: false
+system_prompt: prompts/memory_librarian.md
+limits: { max_steps: 5, timeout_s: 300 }

@@ -25,6 +25,7 @@ from integrations.mcp.client import McpToolClient
 from integrations.mcp.server import build_server
 from integrations.mcp.tool_schemas import ToolManifest, ToolSpec
 from integrations.registry.capability_catalog import CapabilityCatalog, default_catalog
+from memory.service import MemoryService
 from model.serving import GenerateResult, Message, ToolCall
 from security.approvals.approval_service import ApprovalService, PendingApproval
 from security.audit.audit_logger import AuditLogger
@@ -169,6 +170,7 @@ async def stack(
     agents_dir: Path | None = None,
     catalog: CapabilityCatalog | None = None,
     approval_timeout_s: float | None = None,
+    memory: MemoryService | None = None,
 ) -> AsyncIterator[Stack]:
     """`approval_timeout_s`: add the Step 9 approval service and stop control (None = the
     stack has no way to show a prompt, so nothing that needs approval can run)."""
@@ -191,9 +193,10 @@ async def stack(
             gateway=policy,
             audit=audit,
             limits=config.limits,
+            memory=memory,
         )
         stop = StopControl(audit, approvals)
-        router = Router(runtime, stop=stop, approvals=approvals)
+        router = Router(runtime, stop=stop, approvals=approvals, memory=memory)
         yield Stack(router, runtime, audit, model, registry, policy, approvals, stop)
 
 

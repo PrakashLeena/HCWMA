@@ -14,6 +14,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from integrations.mcp.tool_schemas import PermissionTier
+from memory.scopes import KNOWN_SCOPES
 from security.permissions.permission_manager import AgentGrant
 
 AGENTS_DIR = Path(__file__).resolve().parents[1]
@@ -44,7 +45,12 @@ class AgentCard(BaseModel):
     tools: list[str] = Field(default_factory=list)
     permission_tier: PermissionTier
     approval_required: list[str] = Field(default_factory=list)
+    # Memory the agent may read (master document 8; memory policy section 5).
     memory_scopes: list[str] = Field(default_factory=list)
+    # Write a short episodic note when this agent finishes a task (memory policy 4).
+    # Off for agents whose goals must not be repeated into memory (the Librarian: a
+    # "forget X" goal would otherwise store X again).
+    record_outcomes: bool = True
     system_prompt: str = Field(min_length=1)  # path relative to agents/
     limits: CardLimits = Field(default_factory=CardLimits)
 
@@ -59,6 +65,9 @@ class AgentCard(BaseModel):
             raise ValueError("a worker card needs at least one 'handles' entry for routing")
         if len(set(self.tools)) != len(self.tools):
             raise ValueError("duplicate tool in 'tools'")
+        unknown = set(self.memory_scopes) - KNOWN_SCOPES
+        if unknown:
+            raise ValueError(f"unknown memory scopes: {sorted(unknown)}")
         extra = set(self.approval_required) - set(self.tools)
         if extra:
             raise ValueError(f"approval_required names tools not on the card: {sorted(extra)}")

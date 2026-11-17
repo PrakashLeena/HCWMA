@@ -70,13 +70,19 @@ class Classifier:
         self._runtime = runtime
         self.threshold = threshold
 
-    def system_prompt(self) -> str:
+    def system_prompt(self, memory_block: str = "") -> str:
         base = self._registry.prompt_for(self._registry.router)
-        return f"{base}\n\n## Available agents\n\n{render_catalogue(self._registry.workers())}"
+        prompt = f"{base}\n\n## Available agents\n\n{render_catalogue(self._registry.workers())}"
+        if memory_block:
+            # Quoted data from the memory service (Router card scopes only), never rules.
+            prompt += f"\n\n## What HCWMA remembers\n\n{memory_block}"
+        return prompt
 
-    async def classify(self, conversation: list[Message]) -> RoutingDecision:
+    async def classify(
+        self, conversation: list[Message], memory_block: str = ""
+    ) -> RoutingDecision:
         turns = [m for m in conversation if m.role in ("user", "assistant")][-MAX_HISTORY_TURNS:]
-        messages = [Message(role="system", content=self.system_prompt())]
+        messages = [Message(role="system", content=self.system_prompt(memory_block))]
         messages += [Message(role=m.role, content=m.content) for m in turns]
         result = await self._runtime.generate(
             messages,

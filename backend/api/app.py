@@ -18,7 +18,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 from typing import Protocol
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
@@ -100,7 +100,9 @@ def create_app(handler_factory: HandlerFactory, token: str, config: BackendConfi
         return HealthResponse(status="ok")
 
     @app.post("/chat", dependencies=[Depends(require_token)])
-    async def chat(request: ChatRequest, http: Request) -> ChatResponse:
+    async def chat(
+        request: ChatRequest, http: Request, background: BackgroundTasks
+    ) -> ChatResponse:
         conversation = [Message(role=t.role, content=t.content) for t in request.messages]
         start = time.perf_counter()
         try:
@@ -112,6 +114,10 @@ def create_app(handler_factory: HandlerFactory, token: str, config: BackendConfi
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="the local model is not available; check that Ollama is running",
             ) from None
+        summarize = getattr(http.app.state.handler, "summarize", None)
+        if summarize is not None and request.session_id:
+            # After the reply is sent (step 10): one short summary per chat session.
+            background.add_task(summarize, conversation, request.session_id)
         return ChatResponse(
             reply=reply.reply.strip(),
             action=reply.action,
