@@ -8,6 +8,7 @@ not enabled yet are listed as skipped, not scored.
 
 from __future__ import annotations
 
+import argparse
 import time
 from pathlib import Path
 
@@ -56,7 +57,7 @@ class _NoGateway:
         raise RuntimeError("routing eval never calls tools")
 
 
-async def run() -> int:
+async def run(expect: set[str] | None = None, match: list[str] | None = None) -> int:
     registry = AgentRegistry.from_dir()
     runtime = AgentRuntime(
         registry=registry,
@@ -71,6 +72,8 @@ async def run() -> int:
     scored = passed = 0
     skipped: list[str] = []
     for case in load_cases():
+        if expect is not None and case.expect not in expect and case.message not in (match or []):
+            continue
         expect_known = case.expect in enabled or case.expect in ROUTER_ACTIONS
         if not expect_known and case.must_not not in enabled:
             skipped.append(case.expect)
@@ -95,7 +98,12 @@ async def run() -> int:
 
 
 def main() -> None:
-    raise SystemExit(anyio.run(run))
+    parser = argparse.ArgumentParser(description="Score the Router on routing_cases.yaml")
+    parser.add_argument("--expect", nargs="+", help="only cases whose expected agent is listed")
+    parser.add_argument("--message", action="append", help="also run the case with this message")
+    args = parser.parse_args()
+    expect = set(args.expect) if args.expect else None
+    raise SystemExit(anyio.run(run, expect, args.message))
 
 
 if __name__ == "__main__":

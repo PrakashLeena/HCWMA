@@ -1,0 +1,22 @@
+PASS  64.3s  expect=debugging       got=debugging conf=0.90  'My file parser crashes with a UnicodeDecodeError, fix it'
+PASS  38.6s  expect=debugging       got=debugging conf=0.90  'My script crashes with IndexError: list index out of range, please fix it'
+PASS  40.3s  expect=debugging       got=debugging conf=0.90  "My tests fail with KeyError: 'user_id', can you find out why?"
+PASS  37.4s  expect=debugging       got=debugging conf=0.90  'Here is a stack trace from my app, what is going wrong?'
+PASS  36.7s  expect=debugging       got=debugging conf=0.90  'pytest is red after my last change, help me fix it'
+PASS  38.8s  expect=debugging       got=debugging conf=0.90  'test_total fails with AssertionError: 90 != 100, find the bug'
+PASS  37.7s  expect=debugging       got=debugging conf=0.90  'My script prints the wrong average, what is wrong with it?'
+PASS  36.3s  expect=debugging       got=debugging conf=0.90  'Why does my function return None instead of the sum?'
+PASS  36.2s  expect=debugging       got=debugging conf=0.90  'Run the tests in the shop project and fix whatever fails'
+PASS  38.2s  expect=debugging       got=debugging conf=0.90  'I get ZeroDivisionError when the list is empty, can you fix it?'
+PASS  38.1s  expect=debugging       got=debugging conf=0.90  'The last log says TypeError: unsupported operand, what caused it?'
+PASS  36.9s  expect=debugging       got=debugging conf=0.90  'My program crashes with a traceback, make it work again'
+PASS  37.0s  expect=debugging       got=debugging conf=0.90  'There is an off-by-one bug in my loop, find and fix it'
+FAIL  40.1s  expect=answer          got=clarify   conf=0.90  'My laptop shows a blue screen error, what should I do?'
+PASS  44.4s  expect=not memory_librarian got=clarify   conf=0.90  'Remind me on Friday to pay the rent'
+PASS  45.4s  expect=answer          got=answer    conf=0.90  'How much RAM is this laptop using right now?'
+PASS  77.9s  expect=answer          got=answer    conf=0.95  'hi!'
+PASS  36.1s  expect=answer          got=answer    conf=0.95  'thanks, that was helpful'
+PASS  98.2s  expect=answer          got=answer    conf=0.95  'What can you do?'
+PASS  78.7s  expect=answer          got=answer    conf=0.95  'Order me a pizza from the place down the road'
+
+scored 19/20; skipped 0 (agent not built yet: )

@@ -22,6 +22,7 @@ handles:
   - run a script or its tests and report the result
 does_not_handle:
   - a program that crashes or tests that fail and need the cause found (→ debugging)
+  - fix failing tests (→ debugging)
   - finding, moving, restoring or deleting files on the PC (→ file_system)
   - code outside the coding workspace, installing packages, or anything on the internet
   - languages other than Python (it can write the text, but cannot run it)
