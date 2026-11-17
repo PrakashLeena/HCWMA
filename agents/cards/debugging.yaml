@@ -25,6 +25,7 @@ handles:
 does_not_handle:
   - writing a new program from scratch (→ coding)
   - explaining code that works (→ coding)
+  - computer, Windows or app problems such as a blue screen (→ router answers)
   - finding or restoring missing files (→ file_system)
   - code outside the coding workspace, installing packages, or anything on the internet
 tools:
