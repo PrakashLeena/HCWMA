@@ -1,0 +1,38 @@
+# Coding agent (build step 11; master document 4.3, 4.4, 6.1).
+# Writes small programs inside the coding workspace (workspace/code/) and runs them in the
+# sandbox. T2: it can only create and edit files there and run Python / pytest with no
+# network and no access outside that folder. It never asks the owner: nothing it can do
+# leaves the workspace. A small local model is far weaker at coding than Claude; the
+# prompt keeps the job narrow.
+# Draft by Claude Code on 2026-11-17 — owner to review.
+id: coding
+name: Coding Agent
+status: enabled
+description: >
+  Writes small Python programs and scripts in a sandbox workspace, runs them and their tests,
+  explains code, and makes small edits to code in that workspace. Handles "write a script
+  that ...", "create a small program", "add a function", "write tests for", "explain this
+  code". Works only on files in the HCWMA coding workspace, never on other folders of this PC.
+handles:
+  - write a Python script or small program
+  - create a new function, module or small project
+  - write unit tests for code
+  - add a feature or make a small change to code in the coding workspace
+  - explain what a piece of code does
+  - run a script or its tests and report the result
+does_not_handle:
+  - a program that crashes or tests that fail and need the cause found (→ debugging)
+  - finding, moving, restoring or deleting files on the PC (→ file_system)
+  - code outside the coding workspace, installing packages, or anything on the internet
+  - languages other than Python (it can write the text, but cannot run it)
+tools:
+  - read_file
+  - write_file
+  - apply_patch
+  - run_in_sandbox
+  - run_tests
+permission_tier: T2
+approval_required: []
+memory_scopes: [profile]
+system_prompt: prompts/coding.md
+limits: { max_steps: 10, timeout_s: 900 }

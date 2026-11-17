@@ -58,3 +58,8 @@ Numbers in `docs/benchmarks.md`.
 - File contents for search: no (unchanged)
 - Memory tool manifests (`memory_search`, `memory_write`, `memory_delete`,
   `memory_forget_all`, `reindex_folder`) approved by the owner
+
+## Coding tools (Step 11, decided 2026-11-17)
+
+- Coding tool manifests (`read_file`, `write_file`, `apply_patch`, `run_in_sandbox`, `run_tests`,
+  `read_logs`) approved by the owner; they work only inside `workspace/code/`

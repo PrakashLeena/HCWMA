@@ -31,6 +31,7 @@ class CapabilityCatalog:
 def default_catalog() -> CapabilityCatalog:
     """The hand-written tools shipped with HCWMA. Later steps add theirs here."""
     from integrations.adapters.local_data.memory_tools import default_memory_tool_specs
+    from integrations.adapters.pc.code_tools import default_code_tool_specs
     from integrations.adapters.pc.file_tools import default_file_tool_specs
     from integrations.adapters.pc.file_write_tools import default_file_write_tool_specs
     from integrations.adapters.pc.system_time import get_system_time_spec
@@ -42,5 +43,7 @@ def default_catalog() -> CapabilityCatalog:
     for spec in default_file_write_tool_specs():  # step 9: restore / move / delete (T3, T4)
         catalog.register(spec)
     for spec in default_memory_tool_specs():  # step 10: the Librarian's memory tools
+        catalog.register(spec)
+    for spec in default_code_tool_specs():  # step 11: coding workspace tools (quarantined)
         catalog.register(spec)
     return catalog

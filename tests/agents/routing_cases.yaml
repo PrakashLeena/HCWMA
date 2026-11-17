@@ -44,11 +44,41 @@ cases:
   - { message: "Write a Python script that renames all .jpeg files to .jpg", expect: coding }
   - { message: "Explain what this function does: def f(x): return x and x[0]", expect: coding }
   - { message: "Scaffold a new FastAPI project in the workspace", expect: coding }
+  # step 11
+  - { message: "Write a small program that counts the words in a text file", expect: coding }
+  - { message: "Create a Python function that checks whether a number is prime, with tests", expect: coding }
+  - { message: "Make me a script that prints the first 20 Fibonacci numbers", expect: coding }
+  - { message: "Write unit tests for my calculator module", expect: coding }
+  - { message: "Add a subtract function to calc.py", expect: coding }
+  - { message: "Build a command-line todo list in Python", expect: coding }
+  - { message: "Write a Python class for a bank account and run it to show it works", expect: coding }
+  - { message: "What does this code do: [x * 2 for x in range(5) if x % 2]", expect: coding }
+  # near misses: code-related, but not the Coding agent
+  - { message: "Find my python script called backup.py, I lost it", expect: file_system, must_not: coding }
+  - { message: "My script crashes with IndexError: list index out of range, please fix it", expect: debugging, must_not: coding }
+  - { message: "Search the web for the best Python tutorial", expect: web_research, must_not: coding }
+  - { message: "Remember that I prefer tabs over spaces in my code", expect: memory_librarian, must_not: coding }
+  - { message: "Which of my folders has the most Python files?", expect: file_system, must_not: coding }
 
   # --- debugging ---
   - { message: "My tests fail with KeyError: 'user_id', can you find out why?", expect: debugging }
   - { message: "Here is a stack trace from my app, what is going wrong?", expect: debugging }
   - { message: "pytest is red after my last change, help me fix it", expect: debugging }
+  # step 11
+  - { message: "test_total fails with AssertionError: 90 != 100, find the bug", expect: debugging }
+  - { message: "My script prints the wrong average, what is wrong with it?", expect: debugging }
+  - { message: "Why does my function return None instead of the sum?", expect: debugging }
+  - { message: "Run the tests in the shop project and fix whatever fails", expect: debugging }
+  - { message: "I get ZeroDivisionError when the list is empty, can you fix it?", expect: debugging }
+  - { message: "The last log says TypeError: unsupported operand, what caused it?", expect: debugging }
+  - { message: "My program crashes with a traceback, make it work again", expect: debugging }
+  - { message: "There is an off-by-one bug in my loop, find and fix it", expect: debugging }
+  # near misses: about a bug or an error, but not the Debugging agent
+  - { message: "Write a new program that parses CSV files", expect: coding, must_not: debugging }
+  - { message: "Explain how a for loop works in Python", expect: coding, must_not: debugging }
+  - { message: "My laptop shows a blue screen error, what should I do?", expect: answer, must_not: debugging }
+  - { message: "Is my deleted notes.txt still in the Recycle Bin?", expect: file_system, must_not: debugging }
+  - { message: "The website returns error 500, look up what that means", expect: web_research, must_not: debugging }
 
   # --- image_editing ---
   - { message: "Resize all photos in my holiday folder to 1080 pixels wide", expect: image_editing }
