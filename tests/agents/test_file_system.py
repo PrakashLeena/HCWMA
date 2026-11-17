@@ -30,6 +30,7 @@ from tests.pc_layout import Layout, make_layout, write
 
 AGENT = "file_system"
 READ_ONLY_TOOLS = {"search_files", "list_recent_files", "check_recycle_bin", "get_disk_usage"}
+WRITE_TOOLS = {"restore_file", "move_file", "delete_file"}
 MISSING = "I'm missing one of my project files, it was called annek-proposal"
 
 
@@ -76,18 +77,23 @@ def _tool_data(message: Message) -> dict[str, Any]:
 # ---------- card ----------
 
 
-def test_card_is_read_only_and_matches_the_catalogue() -> None:
+def test_card_matches_the_catalogue_and_every_write_tool_needs_approval() -> None:
     registry = AgentRegistry.from_dir()
     card = registry.get(AGENT)
     assert card is not None and card.enabled and card.kind == "worker"
-    assert set(card.tools) == READ_ONLY_TOOLS
-    assert card.permission_tier == "T1" and card.approval_required == []
+    assert set(card.tools) == READ_ONLY_TOOLS | WRITE_TOOLS
+    assert set(card.approval_required) == WRITE_TOOLS
     catalog = default_catalog()
     for tool in card.tools:
         spec = catalog.get(tool)
         assert spec is not None, f"{tool} is not in the tool catalogue"
         assert spec.manifest.permission_tier <= card.permission_tier
-        assert spec.manifest.side_effects == "none"
+        if tool in READ_ONLY_TOOLS:
+            assert spec.manifest.side_effects == "none"
+            assert spec.manifest.permission_tier <= "T1"
+        else:
+            assert spec.manifest.approval_required
+            assert spec.manifest.permission_tier >= "T3"
     prompt = registry.prompt_for(card)
     for must_say in ("only", "data", "Never invent", "NEEDS_CLARIFICATION", "not found"):
         assert must_say in prompt

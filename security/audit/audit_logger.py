@@ -54,7 +54,7 @@ class AuditRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ts: str = Field(default_factory=_now)
-    event: Literal["tool_call", "delegation"]
+    event: Literal["tool_call", "delegation", "approval", "stop"]
     task_id: str
     parent_task_id: str | None = None
     agent: str
@@ -120,6 +120,41 @@ class AuditLogger:
             target_agent=to_agent,
             outcome=outcome,
             reason=reason[:300],
+        )
+        self.write(record)
+        return record
+
+    def approval(
+        self,
+        *,
+        task_id: str,
+        agent: str,
+        tool: str,
+        args: dict[str, Any],
+        outcome: str,
+        reason: str = "",
+    ) -> AuditRecord:
+        """An approval prompt and what became of it (requested, approved, denied, …)."""
+        record = AuditRecord(
+            event="approval",
+            task_id=task_id,
+            agent=agent,
+            tool=tool,
+            args=summarize_args(args),
+            outcome=outcome,
+            reason=reason[:300],
+        )
+        self.write(record)
+        return record
+
+    def stop(self, *, task_ids: list[str], approvals_cancelled: int) -> AuditRecord:
+        """The owner pressed "Stop everything"."""
+        record = AuditRecord(
+            event="stop",
+            task_id=",".join(task_ids)[:300] or "-",
+            agent="owner",
+            outcome="stopped",
+            reason=f"{len(task_ids)} task(s) halted, {approvals_cancelled} approval(s) withdrawn",
         )
         self.write(record)
         return record

@@ -1,28 +1,41 @@
-# File & System agent (build step 8; master document 4.3, 4.4, 4.6).
-# Read-only in this step: restore_file, move_file and delete_file arrive with the approval
-# workflow in Step 9 and will be listed under approval_required then.
+# File & System agent (build steps 8 and 9; master document 4.3, 4.4, 4.6).
+# Step 9 added restore_file, move_file (T3) and delete_file (T4). The tier is T4 so that
+# delete_file is on the card at all; every one of the three stops at the owner's approval
+# prompt before it runs, and delete only ever moves a file to the Recycle Bin.
 # Draft by Claude Code on 2026-11-17 — owner to review.
 id: file_system
 name: File & System Agent
 status: enabled
 description: >
-  Finds files on this PC and reports on disk space. Handles "I lost a file", "where is X",
-  "what did I change recently", "is it in the Recycle Bin", "what is using my disk".
-  Read-only: it looks and reports, it does not open, change, move, restore or delete files.
+  Finds files on this PC, reports on disk space, and can restore a file from the Recycle
+  Bin, move or rename a file, or delete a file (to the Recycle Bin). Handles "I lost a
+  file", "where is X", "what did I change recently", "is it in the Recycle Bin", "restore
+  it", "move this file", "delete this file", "what is using my disk". Changes are made only
+  after the owner approves each one.
 handles:
   - missing or lost file
   - find a file by name, type or date
   - files changed or created recently
   - check whether a deleted file is in the Recycle Bin
+  - restore a deleted file from the Recycle Bin
+  - move or rename a file
+  - delete a file (it goes to the Recycle Bin)
   - disk usage, free space, largest files and folders
 does_not_handle:
   - reading, summarizing or editing what is inside a file (→ coding / documents)
-  - restoring, moving, renaming or deleting files (not available yet)
+  - folders, many files at once, or emptying the Recycle Bin
   - the current time or date (→ echo)
   - anything on the internet
-tools: [search_files, list_recent_files, check_recycle_bin, get_disk_usage]
-permission_tier: T1
-approval_required: []
+tools:
+  - search_files
+  - list_recent_files
+  - check_recycle_bin
+  - get_disk_usage
+  - restore_file
+  - move_file
+  - delete_file
+permission_tier: T4
+approval_required: [restore_file, move_file, delete_file]
 memory_scopes: [pc_index, task]
 system_prompt: prompts/file_system.md
 limits: { max_steps: 6, timeout_s: 420 }

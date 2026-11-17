@@ -39,7 +39,8 @@ Numbers in `docs/benchmarks.md`.
 
 ## Product
 
-- Desktop shell (Tauri / Electron / PySide / browser-only for now):
+- Desktop shell (Tauri / Electron / PySide / browser-only for now): PySide6 (decided 2026-11-17; Python only, pinned pip install into `.venv`, no system software)
+- T4 approval path: one-time owner approval per exact action (same task, tool and arguments), single use, expires after a few minutes, no "always allow"; `configs/permissions.yaml` defaults stay as they are (decided 2026-11-17)
 - Daily-life agents wanted first:
 - Self-built tools need owner approval before first use (default: yes):
 - Image editing needs generative features (default: no):

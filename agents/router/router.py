@@ -13,7 +13,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from agents.router.classifier import Classifier, RoutingDecision
-from agents.runtime.agent_runtime import AgentRuntime
+from agents.runtime.agent_runtime import OWNER_DENIED, AgentRuntime
+from agents.runtime.stop import STOPPED_BY_OWNER, StopControl
 from agents.runtime.task_envelope import (
     TaskContext,
     TaskEnvelope,
@@ -22,6 +23,7 @@ from agents.runtime.task_envelope import (
     new_task_id,
 )
 from model.serving import Message
+from security.approvals.approval_service import ApprovalService
 
 ROUTER_DEPTH = 0
 
@@ -37,15 +39,42 @@ class RouterReply(BaseModel):
 
 
 class Router:
-    def __init__(self, runtime: AgentRuntime, classifier: Classifier | None = None) -> None:
+    def __init__(
+        self,
+        runtime: AgentRuntime,
+        classifier: Classifier | None = None,
+        *,
+        stop: StopControl | None = None,
+        approvals: ApprovalService | None = None,
+    ) -> None:
         self._runtime = runtime
         self._classifier = classifier or Classifier(runtime.registry, runtime)
         self.id = runtime.registry.router.id
+        # Held for the desktop app (backend endpoints). The Router never answers a prompt
+        # and has no tool to do so: only the owner can, through the backend.
+        self.stop = stop
+        self.approvals = approvals
 
     async def handle(self, conversation: list[Message]) -> RouterReply:
         if not conversation or conversation[-1].role != "user":
             raise ValueError("the conversation must end with a user message")
         task_id = new_task_id()
+        if self.stop is None:
+            return await self._handle(task_id, conversation)
+        reply: RouterReply | None = None
+        with self.stop.track(task_id) as scope:
+            reply = await self._handle(task_id, conversation)
+        if scope.cancelled_caught or reply is None:
+            return RouterReply(
+                task_id=task_id,
+                action="answer",
+                reply="Stopped. Everything HCWMA was doing has been halted.",
+                status="failed",
+                stopped_by=STOPPED_BY_OWNER,
+            )
+        return reply
+
+    async def _handle(self, task_id: str, conversation: list[Message]) -> RouterReply:
         decision = await self._classifier.classify(conversation)
 
         if decision.action == "clarify":
@@ -76,7 +105,9 @@ class Router:
                 parent_task_id=task_id,
                 depth=ROUTER_DEPTH + 1,
                 context=TaskContext(user_message=user_message),
-                read_only=True,  # writes need the approval workflow (Step 9)
+                # The agent gets its own card grant. Anything above T2 still stops at the
+                # approval prompt in the policy layer (build step 9).
+                read_only=False,
             )
             done.append(envelope)
             if _result(envelope).status != "done":
@@ -110,7 +141,9 @@ def _compose(envelopes: list[TaskEnvelope]) -> str:
         elif result.status == "needs_clarification":
             parts.append(result.summary)
         elif result.status == "needs_approval":
-            parts.append(f"I need your approval to continue: {result.summary}")
+            parts.append(f"Nothing was changed, because it was not approved: {result.summary}")
+        elif result.stopped_by == OWNER_DENIED:
+            parts.append(result.summary)
         else:
             parts.append(f"The {env.to_agent} agent could not finish: {result.summary}")
     return "\n\n".join(parts)

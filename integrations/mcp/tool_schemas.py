@@ -51,7 +51,8 @@ ToolRoute = Literal["pc", "official_api", "custom_api", "browser", "desktop", "l
 SideEffects = Literal["none", "writes", "external_action"]
 ErrorCode = Literal[
     "denied",
-    "needs_approval",
+    "needs_approval",  # nobody approved it (no prompt possible, or the prompt ran out)
+    "approval_denied",  # the owner said no
     "unknown_tool",
     "invalid_arguments",
     "timeout",
@@ -103,6 +104,9 @@ class ToolSpec:
     input_model: type[BaseModel]
     output_model: type[BaseModel]
     handler: Callable[[Any], BaseModel]
+    # Plain-language "what will happen" for the approval prompt, built from the validated
+    # arguments by code (never by the model). Must not change anything.
+    describe: Callable[[Any], str] | None = None
 
     @property
     def name(self) -> str:

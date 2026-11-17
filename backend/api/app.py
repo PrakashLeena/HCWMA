@@ -5,6 +5,8 @@
 - Every chat request goes to the Router (step 7), which delegates to sub-agents. The
   Router and its tool gateway (local MCP server) live as long as the app (lifespan).
 - Inference goes through the shared model queue (architecture rule 3).
+- `/approvals` and `/stop` (step 9) are how the owner answers an approval prompt and halts
+  every agent. Like `/chat`, they need the token.
 """
 
 from __future__ import annotations
@@ -25,6 +27,12 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from agents.router.router import RouterReply
 from backend.auth.token import token_matches
 from backend.config import BackendConfig
+from backend.schemas.approvals import (
+    ApprovalDecision,
+    DecisionResponse,
+    PendingApprovals,
+    StopReport,
+)
 from backend.schemas.chat import ChatRequest, ChatResponse, HealthResponse
 from model.serving import Message
 
@@ -114,6 +122,33 @@ def create_app(handler_factory: HandlerFactory, token: str, config: BackendConfi
             task_id=reply.task_id,
             total_s=round(time.perf_counter() - start, 2),
         )
+
+    # --- build step 9: approval prompts and the stop control -------------------------------
+    # These are the only way to answer a prompt or to stop. They need the per-install token,
+    # so only the owner's app can use them; no agent or tool has a path to them. They are
+    # `async def` on purpose: both services must be driven from the event loop.
+
+    @app.get("/approvals", dependencies=[Depends(require_token)])
+    async def approvals(http: Request) -> PendingApprovals:
+        service = getattr(http.app.state.handler, "approvals", None)
+        return PendingApprovals(pending=service.pending() if service else [])
+
+    @app.post("/approvals/{approval_id}", dependencies=[Depends(require_token)])
+    async def decide(approval_id: str, body: ApprovalDecision, http: Request) -> DecisionResponse:
+        service = getattr(http.app.state.handler, "approvals", None)
+        if service is None or not service.decide(approval_id, body.decision == "approve"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="that approval is no longer waiting (answered, expired or stopped)",
+            )
+        return DecisionResponse(id=approval_id, decision=body.decision)
+
+    @app.post("/stop", dependencies=[Depends(require_token)])
+    async def stop(http: Request) -> StopReport:
+        control = getattr(http.app.state.handler, "stop", None)
+        if control is None:
+            return StopReport(stopped_tasks=0, cancelled_approvals=0)
+        return control.stop_all()
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:

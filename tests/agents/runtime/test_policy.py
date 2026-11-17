@@ -3,6 +3,7 @@ is written, and a call from an agent without permission is refused."""
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -120,9 +121,9 @@ def test_approval_required_tool_blocked_when_not_approved(tmp_path: Path) -> Non
     assert calls == []  # never reached the tool
     assert audit.read_all()[-1].outcome == "needs_approval"
 
-    approved = _run_in_process(cat, audit, agent, "move_thing", approved=True)
-    assert approved.ok
-    assert calls == ["move_thing"]
+    # Step 9: there is no "approved" flag a caller could pass to get past the check.
+    assert "approved" not in inspect.signature(PolicyLayer.call_tool).parameters
+    assert "approved" not in inspect.signature(PermissionManager.check).parameters
 
 
 def test_unknown_tool_and_bad_args_are_refused_and_audited(tmp_path: Path) -> None:

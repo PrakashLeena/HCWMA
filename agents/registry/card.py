@@ -74,7 +74,10 @@ class AgentCard(BaseModel):
     def grant(self) -> AgentGrant:
         """The agent's own permissions, exactly as the card declares them."""
         return AgentGrant(
-            agent_id=self.id, tools=frozenset(self.tools), max_tier=self.permission_tier
+            agent_id=self.id,
+            tools=frozenset(self.tools),
+            max_tier=self.permission_tier,
+            approval_required=frozenset(self.approval_required),
         )
 
     def load_prompt(self, agents_dir: Path = AGENTS_DIR) -> str:

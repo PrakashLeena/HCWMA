@@ -5,11 +5,14 @@ Rules, in order — the first that fails decides:
 2. The tool must be `approved` (rule 12: quarantined / disabled tools are never callable).
 3. The tool's tier must not exceed the agent's maximum tier.
 4. The tier default from `configs/permissions.yaml`: `deny` refuses, `approval_required`
-   needs an owner approval, `allow` passes. A manifest with `approval_required` also needs
-   approval whatever its tier.
+   needs an owner approval, `allow` passes. A manifest or an agent card that marks the tool
+   `approval_required` also needs approval whatever its tier.
 
-T4 is refused even with an approval in this step; the explicit-approval path for T4 is
-decided with the approval workflow (Step 9).
+T4 keeps the default `deny` (owner decision 2026-11-17): a T4 tool never comes back
+"allowed" from here. The only way it runs is `needs_approval` followed by a one-time owner
+approval of that exact action, which the policy layer obtains from the approval service
+(`security/approvals/approval_service.py`). This class takes no "approved" flag on purpose:
+no caller can claim an approval.
 """
 
 from __future__ import annotations
@@ -37,6 +40,8 @@ class AgentGrant(BaseModel):
     agent_id: str
     tools: frozenset[str]
     max_tier: PermissionTier
+    # Tools the agent's card says always need the owner, whatever their tier.
+    approval_required: frozenset[str] = frozenset()
 
     def delegated_from(self, parent: AgentGrant) -> AgentGrant:
         """Delegation never raises privilege: keep the lower of the two grants (9.5)."""
@@ -44,6 +49,7 @@ class AgentGrant(BaseModel):
             agent_id=self.agent_id,
             tools=self.tools & parent.tools,
             max_tier=min(self.max_tier, parent.max_tier),
+            approval_required=self.approval_required | parent.approval_required,
         )
 
 
@@ -62,9 +68,7 @@ class PermissionManager:
     def __init__(self, config: PermissionsConfig) -> None:
         self._config = config
 
-    def check(
-        self, agent: AgentGrant, manifest: ToolManifest, approved: bool = False
-    ) -> PermissionDecision:
+    def check(self, agent: AgentGrant, manifest: ToolManifest) -> PermissionDecision:
         name = manifest.name
         if name not in agent.tools:
             return _deny(f"tool '{name}' is not on agent '{agent.agent_id}' allowlist")
@@ -77,13 +81,23 @@ class PermissionManager:
             )
         default = self._config.tiers[tier.value].default
         if default == "deny":
-            return _deny(f"tier {tier.value} tools are denied by default")
-        if default == "approval_required" or manifest.approval_required:
-            if not approved:
-                return PermissionDecision(
-                    outcome="needs_approval", reason=f"tool '{name}' needs owner approval"
-                )
-            return PermissionDecision(outcome="allowed", reason="owner approved")
+            if tier != PermissionTier.T4:
+                return _deny(f"tier {tier.value} tools are denied by default")
+            return PermissionDecision(
+                outcome="needs_approval",
+                reason=(
+                    f"tool '{name}' is tier T4: denied unless the owner approves this exact "
+                    "action, once"
+                ),
+            )
+        if (
+            default == "approval_required"
+            or manifest.approval_required
+            or name in agent.approval_required
+        ):
+            return PermissionDecision(
+                outcome="needs_approval", reason=f"tool '{name}' needs owner approval"
+            )
         return PermissionDecision(outcome="allowed", reason=f"tier {tier.value} allowed")
 
 

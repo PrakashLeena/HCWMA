@@ -1,4 +1,4 @@
-// HCWMA chat page (build step 5).
+// HCWMA chat page (build step 5; approval prompts and Stop added in step 9).
 // The API token is kept in sessionStorage: it is gone when the tab closes and is never
 // written to disk by this page. Model replies are shown with textContent, never as HTML.
 "use strict";
@@ -13,6 +13,8 @@ const chatForm = el("chat-form");
 const chatInput = el("chat-input");
 const sendButton = el("send");
 const forgetButton = el("forget");
+const stopButton = el("stop");
+const approvalsEl = el("approvals");
 
 const history = []; // [{role, content}] — the conversation so far, kept in this tab only
 
@@ -34,7 +36,104 @@ function showLocked(locked) {
   tokenForm.hidden = !locked;
   chatForm.hidden = locked;
   forgetButton.hidden = locked;
+  stopButton.hidden = locked;
+  if (locked) renderApprovals([]);
   (locked ? tokenInput : chatInput).focus();
+}
+
+// ---- build step 9: approval prompts and the stop control ----
+// A tool call that needs the owner pauses on the backend. This page asks every second
+// whether something is waiting and shows it with Approve / Deny. Only these buttons (and
+// the token behind them) can answer; nothing typed into the chat can.
+
+function authHeaders() {
+  return { "Content-Type": "application/json", "Authorization": "Bearer " + memoryToken };
+}
+
+function renderApprovals(pending) {
+  const wanted = new Set(pending.map((p) => p.id));
+  for (const card of Array.from(approvalsEl.children)) {
+    if (!wanted.has(card.dataset.id)) card.remove();
+  }
+  for (const item of pending) {
+    let card = approvalsEl.querySelector('[data-id="' + item.id + '"]');
+    if (!card) {
+      card = buildApprovalCard(item);
+      approvalsEl.appendChild(card);
+    }
+    card.querySelector(".who").textContent =
+      item.agent + " wants to use " + item.tool + " (tier " + item.tier + ") · " +
+      "waits " + item.expires_in_s + " s more, then counts as not approved";
+  }
+  approvalsEl.hidden = pending.length === 0;
+}
+
+function buildApprovalCard(item) {
+  const card = document.createElement("div");
+  card.className = "approval";
+  card.dataset.id = item.id;
+  card.setAttribute("role", "alertdialog");
+  const title = document.createElement("h2");
+  title.textContent = "HCWMA needs your approval";
+  const what = document.createElement("p");
+  what.className = "what";
+  what.textContent = item.summary; // text only, never HTML
+  const who = document.createElement("p");
+  who.className = "who";
+  const row = document.createElement("div");
+  row.className = "row";
+  const deny = document.createElement("button");
+  deny.type = "button";
+  deny.className = "quiet";
+  deny.textContent = "Deny";
+  const approve = document.createElement("button");
+  approve.type = "button";
+  approve.textContent = "Approve once";
+  deny.addEventListener("click", () => decide(item.id, "deny", card));
+  approve.addEventListener("click", () => decide(item.id, "approve", card));
+  row.append(deny, approve);
+  card.append(title, what, who, row);
+  return card;
+}
+
+async function decide(id, decision, card) {
+  for (const button of card.querySelectorAll("button")) button.disabled = true;
+  try {
+    const response = await fetch("/approvals/" + encodeURIComponent(id), {
+      method: "POST", headers: authHeaders(), body: JSON.stringify({ decision }),
+    });
+    if (!response.ok) addMessage("error", "That request was no longer waiting for an answer.");
+  } catch {
+    addMessage("error", "Could not reach the backend.");
+  }
+  pollApprovals();
+}
+
+async function pollApprovals() {
+  if (!memoryToken) return;
+  try {
+    const response = await fetch("/approvals", { headers: authHeaders() });
+    if (response.ok) renderApprovals((await response.json()).pending);
+  } catch { /* the health line already shows when the backend is gone */ }
+}
+
+async function stopEverything() {
+  stopButton.disabled = true;
+  try {
+    const response = await fetch("/stop", { method: "POST", headers: authHeaders() });
+    if (response.ok) {
+      const body = await response.json();
+      // A halted request reports "Stopped" itself, in its own reply.
+      if (!body.stopped_tasks) addMessage("error", "Nothing was running.");
+    } else {
+      addMessage("error", "Stop failed (" + response.status + ").");
+    }
+  } catch {
+    addMessage("error", "Could not reach the backend to stop it.");
+  } finally {
+    stopButton.disabled = false;
+    pollApprovals();
+  }
 }
 
 function addMessage(kind, text, meta) {
@@ -72,7 +171,7 @@ async function send(text) {
   try {
     const response = await fetch("/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + memoryToken },
+      headers: authHeaders(),
       body: JSON.stringify({ messages: history }),
     });
     pending.remove();
@@ -141,5 +240,8 @@ forgetButton.addEventListener("click", () => {
   showLocked(true);
 });
 
+stopButton.addEventListener("click", stopEverything);
+
 showLocked(!memoryToken);
 checkHealth();
+setInterval(pollApprovals, 1000);

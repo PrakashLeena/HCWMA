@@ -13,11 +13,13 @@ from agents.router.router import Router
 from agents.runtime.agent_runtime import AgentRuntime
 from agents.runtime.model_queue import ModelQueue, get_model_queue
 from agents.runtime.policy import PolicyLayer
+from agents.runtime.stop import StopControl
 from integrations.mcp.client import McpToolClient, local_server_params
 from integrations.mcp.server import build_server
 from integrations.registry.capability_catalog import CapabilityCatalog, default_catalog
 from memory.pc_index.index import FileIndex
 from memory.pc_index.watcher import IndexService
+from security.approvals.approval_service import DEFAULT_APPROVAL_TIMEOUT_S, ApprovalService
 from security.audit.audit_logger import AuditLogger, get_audit_logger
 from security.permissions.path_check import PathPolicy
 from security.permissions.permission_manager import PermissionManager, load_permissions_config
@@ -42,6 +44,7 @@ async def open_router(
     registry: AgentRegistry | None = None,
     catalog: CapabilityCatalog | None = None,
     keep_file_index_fresh: bool = False,
+    approval_timeout_s: float = DEFAULT_APPROVAL_TIMEOUT_S,
 ) -> AsyncIterator[Router]:
     """Start the local MCP server (stdio child process) and yield a ready Router.
 
@@ -56,11 +59,13 @@ async def open_router(
         if keep_file_index_fresh:
             await stack.enter_async_context(file_index_service())
         client = await stack.enter_async_context(McpToolClient(transport))
+        approvals = ApprovalService(audit, timeout_s=approval_timeout_s)
         policy = PolicyLayer(
             client=client,
             catalog=catalog or default_catalog(),
             permissions=PermissionManager(config),
             audit=audit,
+            approvals=approvals,
         )
         runtime = AgentRuntime(
             registry=registry,
@@ -70,4 +75,4 @@ async def open_router(
             limits=config.limits,
             max_tokens=max_tokens,
         )
-        yield Router(runtime)
+        yield Router(runtime, stop=StopControl(audit, approvals), approvals=approvals)
