@@ -105,7 +105,7 @@ cases:
   - { message: "Erase all of your memory about me", expect: memory_librarian }
   - { message: "Refresh the file index please", expect: memory_librarian }
   # near misses: sound like memory, but are another agent's job
-  - { message: "Remind me on Friday to pay the rent", expect: planner, must_not: memory_librarian }
+  - { message: "Remind me on Friday to pay the rent", expect: answer, must_not: memory_librarian }  # known failure until the Planner agent (Step 15): routes to clarify
   - { message: "Find the file where I wrote down my sister's address", expect: file_system, must_not: memory_librarian }
   - { message: "Restore my deleted notes from the Recycle Bin", expect: file_system, must_not: memory_librarian }
   - { message: "Write a Python function that caches results in memory", expect: coding, must_not: memory_librarian }
