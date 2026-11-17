@@ -34,7 +34,7 @@ def test_shipped_cards_load() -> None:
     registry = AgentRegistry.from_dir(REPO_AGENTS / "cards")
     assert registry.router.id == "router"
     assert registry.router.tools == []
-    assert [c.id for c in registry.workers()] == ["echo", "file_system"]
+    assert [c.id for c in registry.workers()] == ["echo", "file_system", "memory_librarian"]
     assert registry.prompt_for(registry.router).startswith("# HCWMA Router")
 
 

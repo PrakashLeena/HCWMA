@@ -16,5 +16,6 @@ tools: [get_system_time]
 permission_tier: T0
 approval_required: []
 memory_scopes: [task]
+record_outcomes: false  # a test agent; its tasks are not worth remembering
 system_prompt: prompts/echo.md
 limits: { max_steps: 4, timeout_s: 120 }

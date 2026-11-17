@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -54,7 +54,7 @@ class AuditRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ts: str = Field(default_factory=_now)
-    event: Literal["tool_call", "delegation", "approval", "stop"]
+    event: Literal["tool_call", "delegation", "approval", "stop", "memory"]
     task_id: str
     parent_task_id: str | None = None
     agent: str
@@ -158,6 +158,55 @@ class AuditLogger:
         )
         self.write(record)
         return record
+
+    def memory(
+        self,
+        *,
+        action: str,
+        outcome: str,
+        agent: str = "system",
+        task_id: str | None = None,
+        reason: str = "",
+        details: dict[str, Any] | None = None,
+    ) -> AuditRecord:
+        """A change to long-term memory (write, refusal, delete, clean-up, backup, restore,
+        export). `details` holds ids, scopes and counts only — never the remembered text."""
+        record = AuditRecord(
+            event="memory",
+            task_id=task_id or "-",
+            agent=agent,
+            tool=action,
+            args=summarize_args(details or {}),
+            outcome=outcome,
+            reason=reason[:300],
+        )
+        self.write(record)
+        return record
+
+    def prune(self, older_than_days: int) -> int:
+        """Retention (memory policy section 6): drop records older than the limit.
+        Returns how many were removed. Lines that cannot be read are kept."""
+        if not self.path.exists():
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat(
+            timespec="milliseconds"
+        )
+        with self._lock:
+            lines = self.path.read_text(encoding="utf-8").splitlines(keepends=True)
+            kept: list[str] = []
+            for line in lines:
+                try:
+                    old = json.loads(line)["ts"] < cutoff
+                except (ValueError, KeyError, TypeError):
+                    old = False
+                if not old:
+                    kept.append(line)
+            removed = len(lines) - len(kept)
+            if removed:
+                tmp = self.path.with_suffix(".jsonl.tmp")
+                tmp.write_text("".join(kept), encoding="utf-8")
+                tmp.replace(self.path)
+        return removed
 
     def read_all(self) -> list[AuditRecord]:
         if not self.path.exists():

@@ -82,7 +82,16 @@ python -m agents.router.demo       # Step 7 check: Router -> echo -> back, clari
 python -m agents.router.eval_routing  # score the Router on tests/agents/routing_cases.yaml (~15 s per case on CPU)
 python -m memory.pc_index           # rebuild the PC file index over approved folders + workspace/ (--watch keeps it fresh; the backend does this itself)
 python -m agents.router.demo_files   # Step 8 check: missing file found, honest not-found, protected file never shown, audit records (needs Ollama)
+python -m memory show               # what HCWMA remembers (also: export <folder> | backup | backups | restore <file> | forget <id> | cleanup | where)
+python -m agents.router.demo_memory  # Step 10 check: remember, recall after restart, scope refused, backup/restore, forget (needs Ollama; demo memory in workspace/step10_demo/)
 python -m agents.router.demo_approvals  # Step 9 check: restore asks first, deny blocks, Stop halts, unapproved T4 does not run (needs Ollama, ~5 min, uses the real Recycle Bin for one demo file in workspace/)
 ```
 
 Keep this section current when commands change.
+Searches before reading entire files
+Uses subagents to explore and brings
+you only the summary
+→ Shows you the diff, not the full file → Doesn't repeat what you've already decided
+or
+Warns you when it's time to compact start from scratch
+Short responses by default

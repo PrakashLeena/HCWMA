@@ -17,6 +17,9 @@ const stopButton = el("stop");
 const approvalsEl = el("approvals");
 
 const history = []; // [{role, content}] — the conversation so far, kept in this tab only
+// One id per chat (page load). HCWMA keeps one short summary per chat under it (step 10).
+const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" +
+  Math.random().toString(16).slice(2, 10));
 
 function getToken() {
   try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; }
@@ -172,7 +175,7 @@ async function send(text) {
     const response = await fetch("/chat", {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({ messages: history, session_id: sessionId }),
     });
     pending.remove();
     if (response.status === 401) {

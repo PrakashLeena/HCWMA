@@ -65,6 +65,22 @@ cases:
   # --- memory_librarian ---
   - { message: "Remember that my sister's birthday is on 12 March", expect: memory_librarian }
   - { message: "Forget what I told you about my old address", expect: memory_librarian }
+  # step 10
+  - { message: "Please remember that I prefer short answers", expect: memory_librarian }
+  - { message: "Note that my project files usually live in Documents/projects", expect: memory_librarian }
+  - { message: "Keep in mind that I am vegetarian", expect: memory_librarian }
+  - { message: "What do you remember about me?", expect: memory_librarian }
+  - { message: "Show me everything you have in memory", expect: memory_librarian }
+  - { message: "Forget that, I don't want you to keep it", expect: memory_librarian }
+  - { message: "Erase all of your memory about me", expect: memory_librarian }
+  - { message: "Refresh the file index please", expect: memory_librarian }
+  # near misses: sound like memory, but are another agent's job
+  - { message: "Remind me on Friday to pay the rent", expect: planner, must_not: memory_librarian }
+  - { message: "Find the file where I wrote down my sister's address", expect: file_system, must_not: memory_librarian }
+  - { message: "Restore my deleted notes from the Recycle Bin", expect: file_system, must_not: memory_librarian }
+  - { message: "Write a Python function that caches results in memory", expect: coding, must_not: memory_librarian }
+  - { message: "Delete the file old-notes.txt from my workspace", expect: file_system, must_not: memory_librarian }
+  - { message: "How much RAM is this laptop using right now?", expect: answer, must_not: memory_librarian }
 
   # --- tool_builder ---
   - { message: "Build a new tool that can read my smart thermostat's local API", expect: tool_builder }

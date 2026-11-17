@@ -47,3 +47,27 @@ def test_model_config_is_local_only() -> None:
 def test_no_config_binds_all_interfaces() -> None:
     for path in CONFIGS.glob("*.yaml"):
         assert "0.0.0.0" not in path.read_text(encoding="utf-8"), path.name
+
+
+def test_memory_config_matches_the_owner_decisions() -> None:
+    from memory.config import load_memory_config
+
+    cfg = load_memory_config()
+    assert cfg.data_dir == "default"  # outside the repository (owner decision 2026-11-17)
+    assert cfg.retention_days == {
+        "profile": None,
+        "episodic": 365,
+        "summaries": 90,
+        "skill_notes": None,
+    }
+    assert cfg.skill_note_review_days == 180 and cfg.audit_retention_days == 180
+    assert cfg.retrieval.max_entries == 5 and cfg.retrieval.max_tokens == 300
+    assert cfg.backup.every_hours == 24 and cfg.backup.keep == 7
+
+
+def test_memory_data_folder_is_outside_the_repository(monkeypatch) -> None:
+    from memory.config import default_data_dir
+
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\someone\AppData\Local")
+    assert default_data_dir().name == "HCWMA"
+    assert not default_data_dir().is_relative_to(Path(__file__).resolve().parents[1])

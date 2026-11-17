@@ -15,10 +15,13 @@ from backend.config import BackendConfig, load_backend_config
 
 
 def build_app(config: BackendConfig, token: str) -> FastAPI:
-    """The real backend: Router, tool gateway, approval service, PC file index + watcher."""
+    """The real backend: Router, tool gateway, approval service, PC file index + watcher,
+    memory service + its daily clean-up and backup job."""
     return create_app(
         handler_factory=lambda: open_router(
-            max_tokens=config.chat_max_tokens, keep_file_index_fresh=True
+            max_tokens=config.chat_max_tokens,
+            keep_file_index_fresh=True,
+            run_memory_maintenance=True,
         ),
         token=token,
         config=config,

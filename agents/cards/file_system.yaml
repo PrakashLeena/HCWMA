@@ -36,6 +36,8 @@ tools:
   - delete_file
 permission_tier: T4
 approval_required: [restore_file, move_file, delete_file]
-memory_scopes: [pc_index, task]
+# Step 10: past task outcomes and the owner's stated facts ("my projects live in ..."),
+# master document 4.6 step 2.
+memory_scopes: [pc_index, profile, episodic, task]
 system_prompt: prompts/file_system.md
 limits: { max_steps: 6, timeout_s: 420 }

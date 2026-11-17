@@ -1,0 +1,34 @@
+# HCWMA persistent memory — docs/memory-policy.md (owner decisions 2026-11-17).
+
+# Where the memory database and its backups live. "default" means the per-user application
+# data folder outside this repository: %LOCALAPPDATA%\HCWMA on Windows, otherwise
+# $XDG_DATA_HOME/hcwma or ~/.local/share/hcwma. The HCWMA_DATA_DIR environment variable
+# overrides it (tests use that; they never touch the real folder).
+data_dir: default
+
+# How long each layer is kept, in days. null = until the owner deletes it.
+retention_days:
+  profile: null
+  episodic: 365
+  summaries: 90
+  skill_notes: null
+# A skill note nobody used for this long is flagged for the owner's review (not deleted).
+skill_note_review_days: 180
+# Audit log lines older than this are removed by the daily clean-up.
+audit_retention_days: 180
+
+# What may go into one prompt. This laptop reads about 35 tokens/s, so keep it small.
+retrieval:
+  max_entries: 5
+  max_tokens: 300
+
+# One entry is one short fact.
+max_entry_chars: 500
+
+# Automatic backups while HCWMA runs (plus `python -m memory backup` on request).
+backup:
+  every_hours: 24
+  keep: 7
+
+# A session summary is written after every N user messages in a chat. 0 turns it off.
+summarize_every_turns: 4

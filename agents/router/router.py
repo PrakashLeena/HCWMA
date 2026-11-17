@@ -3,11 +3,17 @@
 It does not do the work; it decides who does. It has no tools of its own: it can only
 delegate (through the agent runtime), ask a clarifying question, or answer.
 
-Not yet here: pulling memory (Step 10), asking the Tool Builder when nothing fits (Step 13).
+Memory (step 10): before routing it pulls what its card's scopes allow (profile and
+session summaries) as quoted data; after a finished task it writes a one-line episodic
+outcome (from the routing goal, never from tool output); `summarize()` keeps one short
+summary per chat session. A memory failure never fails the request.
+
+Not yet here: asking the Tool Builder when nothing fits (Step 13).
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -22,8 +28,12 @@ from agents.runtime.task_envelope import (
     TaskStatus,
     new_task_id,
 )
+from memory.service import MemoryService
+from memory.summarization.summarizer import due, summarize
 from model.serving import Message
 from security.approvals.approval_service import ApprovalService
+
+log = logging.getLogger(__name__)
 
 ROUTER_DEPTH = 0
 
@@ -46,8 +56,10 @@ class Router:
         *,
         stop: StopControl | None = None,
         approvals: ApprovalService | None = None,
+        memory: MemoryService | None = None,
     ) -> None:
         self._runtime = runtime
+        self.memory = memory
         self._classifier = classifier or Classifier(runtime.registry, runtime)
         self.id = runtime.registry.router.id
         # Held for the desktop app (backend endpoints). The Router never answers a prompt
@@ -74,8 +86,50 @@ class Router:
             )
         return reply
 
+    def _recall(self, conversation: list[Message]) -> str:
+        if self.memory is None:
+            return ""
+        card = self._runtime.registry.router
+        try:
+            return self.memory.recall_block(
+                conversation[-1].content,
+                agent_id=card.id,
+                allowed_scopes=card.memory_scopes,
+                fill_profile=True,
+            )
+        except Exception:  # noqa: BLE001 - memory is a help, never a reason to fail
+            log.warning("memory recall failed")
+            return ""
+
+    def _record(self, task_id: str, envelopes: list[TaskEnvelope]) -> None:
+        """Episodic memory: one line per finished step, built from the routing goal."""
+        if self.memory is None:
+            return
+        for env in envelopes:
+            card = self._runtime.registry.get(env.to_agent)
+            if card is None or not card.record_outcomes or _result(env).status != "done":
+                continue
+            try:
+                self.memory.record_outcome(f"{card.name} did: {env.goal}", task_id=task_id)
+            except Exception:  # noqa: BLE001
+                log.warning("could not record the task outcome")
+
+    async def summarize(self, conversation: list[Message], session_id: str) -> bool:
+        """Save a one-sentence summary of this chat session when one is due."""
+        if self.memory is None or not due(conversation, self.memory.config.summarize_every_turns):
+            return False
+        try:
+            text = await summarize(conversation, self._runtime.generate)
+            return (
+                bool(text)
+                and self.memory.save_summary(text, session_id=session_id).entry is not None
+            )
+        except Exception:  # noqa: BLE001
+            log.warning("could not save the session summary")
+            return False
+
     async def _handle(self, task_id: str, conversation: list[Message]) -> RouterReply:
-        decision = await self._classifier.classify(conversation)
+        decision = await self._classifier.classify(conversation, self._recall(conversation))
 
         if decision.action == "clarify":
             return RouterReply(
@@ -112,6 +166,7 @@ class Router:
             done.append(envelope)
             if _result(envelope).status != "done":
                 break  # later steps depend on this one; do not carry on blindly
+        self._record(task_id, done)
 
         last = _result(done[-1])
         return RouterReply(

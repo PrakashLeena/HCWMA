@@ -25,7 +25,7 @@ import mcp_types as types
 from pydantic import ValidationError
 
 from integrations.mcp.client import McpToolClient
-from integrations.mcp.tool_schemas import ToolResult, ToolSpec
+from integrations.mcp.tool_schemas import CALLER_KEY, CallerContext, ToolResult, ToolSpec
 from integrations.registry.capability_catalog import CapabilityCatalog
 from security.approvals.approval_service import ApprovalService
 from security.audit.audit_logger import AuditLogger
@@ -71,9 +71,12 @@ class PolicyLayer:
         arguments: dict[str, Any],
         *,
         owner_wait: Callable[[], AbstractContextManager[None]] | None = None,
+        context: CallerContext | None = None,
     ) -> ToolResult:
         """`owner_wait`: entered while the call waits for the owner's answer, so the caller
-        can pause the agent's own time limit (the prompt has its own, shorter one)."""
+        can pause the agent's own time limit (the prompt has its own, shorter one).
+        `context`: trusted caller details for tools that need them (memory tools). It is
+        built by the runtime from the agent's card, never from the model's arguments."""
         start = time.perf_counter()
         waited = 0.0
 
@@ -141,9 +144,16 @@ class PolicyLayer:
                 )
             reason = f"owner approved ({answer.approval_id[:8]})"
 
-        result = await self._client.call_tool(
-            tool, arguments, timeout_s=spec.manifest.timeout_s + 5
-        )
+        sent = arguments
+        if spec.caller_context:
+            if context is None or context.agent_id != agent.agent_id:
+                return finish(
+                    ToolResult.failure("denied", f"'{tool}' needs a trusted caller context")
+                )
+            # The model's arguments were validated above with extra fields forbidden, so a
+            # model can never supply this key itself.
+            sent = {**arguments, CALLER_KEY: context.model_dump(mode="json")}
+        result = await self._client.call_tool(tool, sent, timeout_s=spec.manifest.timeout_s + 5)
         return finish(result, reason=reason if result.ok else "")
 
 

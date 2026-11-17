@@ -22,6 +22,8 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     messages: list[ChatTurn] = Field(min_length=1, max_length=MAX_TURNS)
+    # Random id the page picks per chat; groups the session summary (step 10). Optional.
+    session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9-]{8,64}$")
 
     @model_validator(mode="after")
     def _last_turn_is_user(self) -> ChatRequest:

@@ -46,3 +46,15 @@ Numbers in `docs/benchmarks.md`.
 - Image editing needs generative features (default: no):
 - Languages for voice:
 - Phone / second-device access wanted in this version (default: no):
+
+## Memory (Step 10, decided 2026-11-17)
+
+- Memory data folder: outside the repository, `%LOCALAPPDATA%\HCWMA` (`memory/` and `backups/`)
+- Retention: as in `docs/memory-policy.md` section 6 (summaries 90 days, episodic 1 year,
+  profile and skill notes until deleted, skill notes unused 180 days flagged, audit log 180 days)
+- Backups: daily while HCWMA runs plus `python -m memory backup`; next to the database in
+  `backups/`; newest 7 kept, older ones go to the Recycle Bin
+- Automatic session summaries are saved without asking (owner can list and delete them)
+- File contents for search: no (unchanged)
+- Memory tool manifests (`memory_search`, `memory_write`, `memory_delete`,
+  `memory_forget_all`, `reindex_folder`) approved by the owner

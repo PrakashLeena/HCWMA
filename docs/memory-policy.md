@@ -1,7 +1,7 @@
 # HCWMA Memory Policy
 
 Owner-approved rules for Step 10 (persistent memory). Claude Code builds exactly this.
-Items marked **[CONFIRM]** are defaults the owner should check before Step 10 starts.
+The [CONFIRM] items were confirmed by the owner on 2026-11-17 (section 11).
 Design reference: `docs/MASTER_DOCUMENT.md` section 8 and 9.
 
 ## 1. Principles
@@ -52,7 +52,7 @@ If a message contains a blocked item, store the rest and drop the blocked part s
 - The Router gets profile/preferences and recent summaries only.
 - Retrieved memory is placed in the prompt as quoted data, labelled as memory.
 
-## 6. Retention **[CONFIRM]**
+## 6. Retention (confirmed 2026-11-17)
 
 | Layer | Keep for |
 |-------|----------|
@@ -77,7 +77,7 @@ Expired entries are removed by a daily clean-up job that is itself logged.
 ## 8. Storage and backup
 
 - SQLite database in the HCWMA data folder, outside the repository and gitignored.
-- Backups: copy of the database to the backup folder on request and on a schedule **[CONFIRM: how often, and where]**. Encrypt backups that leave the PC.
+- Backups: copy of the database to the backup folder on request and daily (confirmed 2026-11-17: `%LOCALAPPDATA%\HCWMAackups`, newest 7 kept). Encrypt backups that leave the PC.
 - Restore must be tested on a clean folder.
 
 ## 9. Safety against bad memory
@@ -100,7 +100,8 @@ Expired entries are removed by a daily clean-up job that is itself logged.
 
 ## 11. Owner decisions needed
 
-- [ ] Retention periods in section 6 (change any number you want).
-- [ ] Backup schedule and backup folder.
-- [ ] Should HCWMA ever store file contents for search? Default: no.
-- [ ] Should the owner approve every automatic summary before it is saved? Default: no.
+- [x] Retention periods in section 6: kept as written (2026-11-17).
+- [x] Backup schedule and backup folder: daily + on request, `%LOCALAPPDATA%\HCWMAackups`,
+  newest 7 kept (2026-11-17).
+- [x] Store file contents for search: no (2026-11-17).
+- [x] Approve every automatic summary: no, saved automatically (2026-11-17).

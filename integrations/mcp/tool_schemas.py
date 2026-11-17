@@ -96,6 +96,24 @@ class ToolManifest(BaseModel):
         return self
 
 
+CALLER_KEY = "_caller"
+
+
+class CallerContext(BaseModel):
+    """Who is calling, filled in by the policy layer from trusted state (the agent's card
+    and the owner's own message), never from the model's arguments. Only tools that set
+    `ToolSpec.caller_context` receive it (build step 10: the memory tools)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    agent_id: str
+    task_id: str
+    memory_scopes: tuple[str, ...] = ()
+    # The owner's latest chat message, exactly as typed. "Remember that ..." entries must
+    # be made of these words (memory policy section 4).
+    owner_words: str = ""
+
+
 @dataclass(frozen=True)
 class ToolSpec:
     """A registered tool: manifest + validated I/O models + the handler that does the work."""
@@ -107,6 +125,8 @@ class ToolSpec:
     # Plain-language "what will happen" for the approval prompt, built from the validated
     # arguments by code (never by the model). Must not change anything.
     describe: Callable[[Any], str] | None = None
+    # True: the handler is called as `handler(args, caller)` with a `CallerContext`.
+    caller_context: bool = False
 
     @property
     def name(self) -> str:
