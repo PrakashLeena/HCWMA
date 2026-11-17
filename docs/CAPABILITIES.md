@@ -2,6 +2,51 @@
 
 One section per agent. Updated whenever an agent is added or changed (`add-agent` skill).
 
+## Coding (`coding`) and Debugging (`debugging`) agents — since Step 11
+
+Small Python jobs inside one sandbox folder, `workspace/code/` (inside the HCWMA repository,
+not committed). Paths you give are relative to it. **Be realistic:** a 4-billion-parameter
+model on a CPU is far weaker at coding than Claude. Expect small scripts, simple tests and
+one-line bug fixes; expect it to be slow (minutes) and sometimes wrong.
+
+**Coding can do**
+
+- Write a small Python program or function, with a pytest file, and run it.
+  *"Write a program in wordstats that counts words, with a test, and run it."*
+- Make a small edit to a file in the workspace; explain a piece of code.
+
+**Debugging can do**
+
+- Run the tests (or the program) to reproduce a failure, read the traceback and logs,
+  make the smallest fix with an exact-text patch and run the tests again.
+  *"The tests in shop fail. Find the bug in cart.py and fix it."*
+
+**How it is kept safe**
+
+- Files can be read and written only inside `workspace/code/`. A path that climbs out of it
+  (`..`, absolute paths, symlinks, junctions) is refused. Executable file types (`.exe`,
+  `.bat`, `.ps1` ...) cannot be written. Nothing is ever deleted.
+- Code runs only as `python script.py` or `python -m pytest`, never through a shell, in a
+  fresh process with no API keys or user profile, a time limit (default 30 s), a memory cap
+  and an output cap. Every run is logged in `workspace/code/.hcwma/logs/`.
+- While it runs, a guard blocks writing outside `workspace/code/`, reading your other files,
+  the network, and starting other programs.
+- **Honest limit:** this guard runs inside Python. It stops careless or wrong code, which is
+  what a small model writes, but it is not a container: deliberately hostile code could get
+  round it. The agents never run anything you did not ask for, and only these two agents can.
+- Every tool call is in the audit log. These agents never ask for approval because nothing
+  they can do leaves the coding workspace.
+
+**Cannot do (yet)**
+
+- Work on code outside `workspace/code/` (your own projects elsewhere), install packages,
+  use the internet or git, or run languages other than Python.
+- Run programs that wait for keyboard input.
+- Move finished code out of the workspace: copy it yourself, or ask File & System (it asks
+  you first).
+
+**Each agent reads only its own memory scopes:** Coding sees your profile; Debugging none.
+
 ## Memory Librarian (`memory_librarian`) — since Step 10
 
 Remembers what you ask it to, shows what HCWMA remembers, and forgets on request. Memory

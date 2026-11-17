@@ -85,6 +85,7 @@ python -m agents.router.demo_files   # Step 8 check: missing file found, honest 
 python -m memory show               # what HCWMA remembers (also: export <folder> | backup | backups | restore <file> | forget <id> | cleanup | where)
 python -m agents.router.demo_memory  # Step 10 check: remember, recall after restart, scope refused, backup/restore, forget (needs Ollama; demo memory in workspace/step10_demo/)
 python -m agents.router.demo_approvals  # Step 9 check: restore asks first, deny blocks, Stop halts, unapproved T4 does not run (needs Ollama, ~5 min, uses the real Recycle Bin for one demo file in workspace/)
+python -m agents.router.demo_coding   # Step 11 check: Coding writes a program, Debugging fixes a planted bug, nothing outside workspace/code/ changes (needs Ollama, ~8 min, works in workspace/code/step11_demo_<time>/)
 ```
 
 Keep this section current when commands change.

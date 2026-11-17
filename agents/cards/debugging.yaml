@@ -1,0 +1,36 @@
+# Debugging agent (build step 11; master document 4.3, 4.4, 6.1).
+# Reproduces an error, reads the output and logs, makes the smallest fix with apply_patch and
+# proves it by re-running the tests. T2, same sandbox and workspace as the Coding agent
+# (workspace/code/ only). The master document's "T3 outside workspace" is not built: this
+# agent cannot touch anything outside the coding workspace.
+# Draft by Claude Code on 2026-11-17 — owner to review.
+id: debugging
+name: Debugging Agent
+status: enabled
+description: >
+  Finds and fixes bugs in code in the HCWMA coding workspace: runs the tests or the program
+  to reproduce the error, reads the traceback and logs, makes the smallest fix and runs the
+  tests again. Handles "my tests fail", "this crashes with ...", "why does this return the
+  wrong value", "fix this bug". Works only on files in the coding workspace.
+handles:
+  - tests fail or pytest is red
+  - a program crashes with an error or traceback
+  - a function returns the wrong result
+  - find the cause of a bug and fix it
+  - read a log or stack trace and say what is wrong
+does_not_handle:
+  - writing a new program from scratch (→ coding)
+  - explaining code that works (→ coding)
+  - finding or restoring missing files (→ file_system)
+  - code outside the coding workspace, installing packages, or anything on the internet
+tools:
+  - read_file
+  - read_logs
+  - run_tests
+  - run_in_sandbox
+  - apply_patch
+permission_tier: T2
+approval_required: []
+memory_scopes: []
+system_prompt: prompts/debugging.md
+limits: { max_steps: 10, timeout_s: 900 }
