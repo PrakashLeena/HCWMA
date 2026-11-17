@@ -11,9 +11,13 @@
     <h1>HCWMA</h1>
     <span id="status" class="status">checking…</span>
     <button id="forget" type="button" class="link" hidden>Forget token</button>
+    <button id="stop" type="button" class="danger" hidden
+            title="Halt every agent and withdraw every approval prompt">Stop everything</button>
   </header>
 
   <main id="messages" aria-live="polite"></main>
+
+  <section id="approvals" class="panel" aria-live="assertive" hidden></section>
 
   <form id="token-form" class="panel" hidden>
     <label for="token-input">API token</label>

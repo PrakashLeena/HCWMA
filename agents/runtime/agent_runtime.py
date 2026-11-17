@@ -17,6 +17,9 @@ anything itself (rule 1).
 from __future__ import annotations
 
 import json
+import math
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 from functools import partial
 from typing import Any, Protocol
 
@@ -42,6 +45,7 @@ from security.permissions.permission_manager import AgentGrant
 
 NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION:"
 READ_ONLY_MAX_TIER = PermissionTier.T1
+OWNER_DENIED = "owner_denied"
 
 RUNTIME_RULES = """\
 Rules that always apply:
@@ -66,7 +70,7 @@ class ToolGateway(Protocol):
         tool: str,
         arguments: dict[str, Any],
         *,
-        approved: bool = False,
+        owner_wait: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> ToolResult: ...
 
 
@@ -101,7 +105,7 @@ def _grant_for(card: AgentCard, parent: AgentGrant | None, read_only: bool) -> A
     if parent is not None:
         grant = grant.delegated_from(parent)
     if read_only and grant.max_tier > READ_ONLY_MAX_TIER:
-        grant = AgentGrant(agent_id=grant.agent_id, tools=grant.tools, max_tier=READ_ONLY_MAX_TIER)
+        grant = grant.model_copy(update={"max_tier": READ_ONLY_MAX_TIER})
     return grant
 
 
@@ -190,8 +194,20 @@ class AgentRuntime:
         )
         grant = _grant_for(card, parent_grant, read_only)
         try:
-            with anyio.fail_after(card.limits.timeout_s):
-                envelope.result = await self._run(card, grant, envelope, budget)
+            with anyio.fail_after(card.limits.timeout_s) as scope:
+
+                @contextmanager
+                def owner_wait() -> Iterator[None]:
+                    # Waiting for the owner's answer is not the agent's time: pause the
+                    # agent's clock. The approval prompt has its own timeout.
+                    remaining = scope.deadline - anyio.current_time()
+                    scope.deadline = math.inf
+                    try:
+                        yield
+                    finally:
+                        scope.deadline = anyio.current_time() + remaining
+
+                envelope.result = await self._run(card, grant, envelope, budget, owner_wait)
         except TimeoutError:
             envelope.result = TaskResult(
                 status="failed",
@@ -209,7 +225,12 @@ class AgentRuntime:
         return envelope
 
     async def _run(
-        self, card: AgentCard, grant: AgentGrant, envelope: TaskEnvelope, budget: TaskBudget
+        self,
+        card: AgentCard,
+        grant: AgentGrant,
+        envelope: TaskEnvelope,
+        budget: TaskBudget,
+        owner_wait: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> TaskResult:
         tools = [_tool_schema(t) for t in await self._gateway.list_tools_for(grant)]
         request = f"Task from {envelope.from_agent}: {envelope.goal}"
@@ -254,13 +275,22 @@ class AgentRuntime:
                 # Always through the gateway, even for tools off the allowlist, so the
                 # refusal is checked and audited in one place.
                 outcome = await self._gateway.call_tool(
-                    envelope.task_id, grant, call.name, call.arguments
+                    envelope.task_id, grant, call.name, call.arguments, owner_wait=owner_wait
                 )
                 records.append(
                     ToolCallRecord(tool=call.name, ok=outcome.ok, error_code=outcome.error_code)
                 )
+                if outcome.error_code == "approval_denied":
+                    # The owner said no. End the task here: the model does not get another
+                    # turn in which it could propose the same action again.
+                    return TaskResult(
+                        status="failed",
+                        summary=f"You denied '{call.name}', so nothing was changed.",
+                        tool_calls=records,
+                        stopped_by=OWNER_DENIED,
+                    )
                 if outcome.error_code == "needs_approval":
-                    # The approval prompt and resume arrive in Step 9.
+                    # Nobody approved it (the prompt ran out, or no prompt can be shown).
                     return TaskResult(
                         status="needs_approval",
                         summary=f"'{call.name}' needs your approval: {outcome.error or ''}",

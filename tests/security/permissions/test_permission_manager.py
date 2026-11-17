@@ -60,22 +60,33 @@ def test_quarantined_tool_is_refused(pm: PermissionManager) -> None:
     assert "quarantined" in decision.reason
 
 
-def test_t3_needs_approval_and_passes_once_approved(pm: PermissionManager) -> None:
-    agent = AgentGrant(agent_id="a", tools=frozenset({"w"}), max_tier=PermissionTier.T3)
-    tool = _manifest("w", PermissionTier.T3)
-    blocked = pm.check(agent, tool)
-    assert not blocked.allowed
-    assert blocked.outcome == "needs_approval"
-    assert pm.check(agent, tool, approved=True).allowed
-
-
-def test_t4_is_denied_by_default_even_with_approval(pm: PermissionManager) -> None:
-    agent = AgentGrant(agent_id="a", tools=frozenset({"d"}), max_tier=PermissionTier.T4)
-    tool = _manifest("d", PermissionTier.T4)
-    for approved in (False, True):
-        decision = pm.check(agent, tool, approved=approved)
+def test_t3_and_t4_are_never_allowed_by_the_permission_check_alone(
+    pm: PermissionManager,
+) -> None:
+    """Step 9: the check has no "approved" input. T3/T4 only ever come back needs_approval;
+    the one-time owner approval is obtained and verified by the policy layer."""
+    agent = AgentGrant(agent_id="a", tools=frozenset({"w", "d"}), max_tier=PermissionTier.T4)
+    for name, tier in (("w", PermissionTier.T3), ("d", PermissionTier.T4)):
+        decision = pm.check(agent, _manifest(name, tier))
         assert not decision.allowed
-        assert decision.outcome == "denied"
+        assert decision.outcome == "needs_approval"
+    with pytest.raises(TypeError):
+        pm.check(agent, _manifest("d", PermissionTier.T4), approved=True)  # type: ignore[call-arg]
+
+
+def test_t4_above_the_agents_tier_is_denied_outright(pm: PermissionManager) -> None:
+    agent = AgentGrant(agent_id="a", tools=frozenset({"d"}), max_tier=PermissionTier.T3)
+    assert pm.check(agent, _manifest("d", PermissionTier.T4)).outcome == "denied"
+
+
+def test_card_can_require_approval_for_a_low_tier_tool(pm: PermissionManager) -> None:
+    tool = _manifest("s", PermissionTier.T1)
+    plain = AgentGrant(agent_id="a", tools=frozenset({"s"}), max_tier=PermissionTier.T2)
+    strict = plain.model_copy(update={"approval_required": frozenset({"s"})})
+    assert pm.check(plain, tool).allowed
+    assert pm.check(strict, tool).outcome == "needs_approval"
+    # delegation keeps the stricter of the two
+    assert plain.delegated_from(strict).approval_required == frozenset({"s"})
 
 
 def test_low_tier_tool_marked_approval_required_still_needs_approval(

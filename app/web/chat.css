@@ -121,4 +121,19 @@ button.link {
   text-decoration: underline;
 }
 
+button.danger { background: var(--error); padding: 6px 12px; font-size: 14px; }
+button.quiet { background: none; color: var(--text); border: 1px solid var(--border); }
+
+.approval {
+  border: 2px solid var(--error);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.approval h2 { margin: 0 0 6px; font-size: 16px; }
+.approval .what { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.approval .who { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+.approval .row { justify-content: flex-end; }
+
 [hidden] { display: none !important; }

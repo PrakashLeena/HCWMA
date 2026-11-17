@@ -6,7 +6,9 @@ then applies, in order:
 1. protected paths — always refused, even inside an approved folder;
 2. owner-blocked folders — refused;
 3. `read`: must be inside an approved folder or the HCWMA workspace;
-   `write`: must be inside the workspace (writes elsewhere are T3, approved per action).
+   `write`: must be inside the workspace;
+   `modify`: inside an approved folder or the workspace, for T3/T4 tools only — each such
+   call is approved by the owner before it runs (build step 9).
 
 Relative tool paths are taken relative to the workspace. Comparisons are case-insensitive
 on Windows.
@@ -21,7 +23,10 @@ from typing import Literal
 
 from security.permissions.config import REPO_ROOT, PermissionsConfig, load_permissions_config
 
-Access = Literal["read", "write"]
+# "modify" is for tools that change existing files where the owner keeps them (move,
+# restore, send to the Recycle Bin). Such tools are T3/T4, so each call is approved by the
+# owner first; the path check still keeps them inside approved folders and the workspace.
+Access = Literal["read", "write", "modify"]
 
 
 class PathDenied(PermissionError):
@@ -92,6 +97,9 @@ class PathPolicy:
         if any(_inside(real, b) for b in self.blocked):
             raise PathDenied(f"'{path}' is in a folder blocked by the owner")
         in_workspace = _inside(real, self.workspace)
+        if any(_key(real) == _key(root) for root in (self.workspace, *self.approved)):
+            if access != "read":
+                raise PathDenied(f"'{path}' is an approved folder itself, not a file in it")
         if access == "write":
             if not in_workspace:
                 raise PathDenied(f"'{path}' is outside the HCWMA workspace")

@@ -26,6 +26,11 @@ cases:
   - { message: "What are the biggest files in my documents?", expect: file_system }
   - { message: "Find all the spreadsheets I worked on this week", expect: file_system }
   - { message: "I think I deleted my holiday photos folder by accident, is it still in the bin?", expect: file_system }
+  # step 9: changes to a file (each one stops at the owner's approval prompt)
+  - { message: "Please restore quarterly-notes.txt from the Recycle Bin", expect: file_system }
+  - { message: "Move budget-2026.xlsx into my archive folder", expect: file_system }
+  - { message: "Rename meeting-notes.txt to minutes-november.txt", expect: file_system }
+  - { message: "Delete the file old-draft.txt, I don't need it any more", expect: file_system }
 
   # --- near misses: about files, but not the File & System agent's job ---
   - { message: "Open notes.txt and summarize what it says", expect: documents_study, must_not: file_system }

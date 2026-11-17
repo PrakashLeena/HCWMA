@@ -23,7 +23,9 @@ Fix what you can, then re-run. Never mark a check PASS without actually running 
    browser profiles. Run `git status` and confirm none of those are staged.
 6. **No permanent delete.** Search for `os.remove`, `os.unlink`, `shutil.rmtree`,
    `Path.unlink`, `rmdir`. Allowed only inside tests on temp folders and inside the
-   sandbox cleaner. Tool code uses `send2trash`.
+   sandbox cleaner. Tool code uses `send2trash`. One reviewed exception (owner decision
+   2026-11-17): `record.unlink()` in `integrations/adapters/pc/windows.py` removes the
+   Recycle Bin's own `$I…` bookkeeping record after a successful `restore_file`.
 7. **No direct execution by the model path.** Search for `subprocess`, `os.system`,
    `eval`, `exec`. Each use must sit inside a tool that goes through the policy layer.
 8. **Protected paths enforced.** Every filesystem tool calls the shared path check.

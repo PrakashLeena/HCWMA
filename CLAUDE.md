@@ -74,13 +74,15 @@ ruff check . && ruff format .   # lint + format
 ollama pull qwen3.5:4b          # local model (needs Ollama running on 127.0.0.1:11434)
 python -m model.serving.chat    # chat with the model in the terminal
 python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU)
-python -m backend.api           # start local backend + chat page on http://127.0.0.1:8765/ (chat goes through the Router; also scans and watches the PC file index)
+python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Stop everything, Quit); approval prompts appear in the window
+python -m backend.api           # backend + chat page only, in a browser, on http://127.0.0.1:8765/ (chat goes through the Router; also scans and watches the PC file index)
 python -m backend.auth.token    # print the per-install API token (--rotate for a new one)
 python -m integrations.mcp.smoke  # Step 6 check: MCP discovery, allowed + refused call, audit records
 python -m agents.router.demo       # Step 7 check: Router -> echo -> back, clarifying question, loop stopped (needs Ollama)
 python -m agents.router.eval_routing  # score the Router on tests/agents/routing_cases.yaml (~15 s per case on CPU)
 python -m memory.pc_index           # rebuild the PC file index over approved folders + workspace/ (--watch keeps it fresh; the backend does this itself)
 python -m agents.router.demo_files   # Step 8 check: missing file found, honest not-found, protected file never shown, audit records (needs Ollama)
+python -m agents.router.demo_approvals  # Step 9 check: restore asks first, deny blocks, Stop halts, unapproved T4 does not run (needs Ollama, ~5 min, uses the real Recycle Bin for one demo file in workspace/)
 ```
 
 Keep this section current when commands change.

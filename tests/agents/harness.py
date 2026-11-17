@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import anyio
 from mcp import Client
 from pydantic import BaseModel
 
@@ -19,11 +20,13 @@ from agents.router.router import Router
 from agents.runtime.agent_runtime import AgentRuntime
 from agents.runtime.model_queue import ModelQueue
 from agents.runtime.policy import PolicyLayer
+from agents.runtime.stop import StopControl
 from integrations.mcp.client import McpToolClient
 from integrations.mcp.server import build_server
 from integrations.mcp.tool_schemas import ToolManifest, ToolSpec
 from integrations.registry.capability_catalog import CapabilityCatalog, default_catalog
 from model.serving import GenerateResult, Message, ToolCall
+from security.approvals.approval_service import ApprovalService, PendingApproval
 from security.audit.audit_logger import AuditLogger
 from security.permissions.permission_manager import PermissionManager, load_permissions_config
 
@@ -153,6 +156,9 @@ class Stack:
     audit: AuditLogger
     model: ScriptedModel
     registry: AgentRegistry
+    policy: PolicyLayer
+    approvals: ApprovalService | None
+    stop: StopControl
 
 
 @asynccontextmanager
@@ -162,14 +168,22 @@ async def stack(
     *,
     agents_dir: Path | None = None,
     catalog: CapabilityCatalog | None = None,
+    approval_timeout_s: float | None = None,
 ) -> AsyncIterator[Stack]:
+    """`approval_timeout_s`: add the Step 9 approval service and stop control (None = the
+    stack has no way to show a prompt, so nothing that needs approval can run)."""
     registry = AgentRegistry.from_dir((agents_dir or REPO_AGENTS) / "cards")
     catalog = catalog or default_catalog()
     audit = AuditLogger(tmp_path / "audit.jsonl")
     config = load_permissions_config()
+    approvals = ApprovalService(audit, approval_timeout_s) if approval_timeout_s else None
     async with McpToolClient(Client(build_server(catalog))) as client:
         policy = PolicyLayer(
-            client=client, catalog=catalog, permissions=PermissionManager(config), audit=audit
+            client=client,
+            catalog=catalog,
+            permissions=PermissionManager(config),
+            audit=audit,
+            approvals=approvals,
         )
         runtime = AgentRuntime(
             registry=registry,
@@ -178,4 +192,18 @@ async def stack(
             audit=audit,
             limits=config.limits,
         )
-        yield Stack(Router(runtime), runtime, audit, model, registry)
+        stop = StopControl(audit, approvals)
+        router = Router(runtime, stop=stop, approvals=approvals)
+        yield Stack(router, runtime, audit, model, registry, policy, approvals, stop)
+
+
+async def answer_next_prompt(
+    approvals: ApprovalService, approve: bool, seen: list[PendingApproval] | None = None
+) -> None:
+    """Plays the owner: waits for one approval prompt and answers it."""
+    while not approvals.pending():
+        await anyio.sleep(0.01)
+    prompt = approvals.pending()[0]
+    if seen is not None:
+        seen.append(prompt)
+    assert approvals.decide(prompt.id, approve)
