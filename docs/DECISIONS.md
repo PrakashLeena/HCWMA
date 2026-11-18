@@ -74,3 +74,18 @@ Numbers in `docs/benchmarks.md`.
 
 - Desktop tool manifests (`list_windows`, `read_window_text`, `find_ui_element`, `click_element`, `type_text`, `press_key`) approved by the owner; click/type/key ask the owner every time (T3)
 - Browsers, banking, password managers, terminals, HCWMA's own windows and password fields stay off-limits; Playwright / browser download: not approved
+
+## Reviewed exceptions to "never permanent delete" (architecture rule 9)
+
+1. 2026-11-17: `record.unlink()` in `integrations/adapters/pc/windows.py` removes the Recycle Bin's
+   own `$I...` bookkeeping record after a successful `restore_file`.
+2. 2026-11-18 (Step 13 sandbox): `WindowsSandbox._remove_registry()` in
+   `integrations/adapters/pc/windows_sandbox.py` unlinks the sandbox's own `active.json` (the
+   record of the running VM) in its fixed state folder `workspace/sandbox/runs/`. It asserts the
+   resolved path equals exactly that file (and is not a link) before deleting; any other path is
+   refused (`test_registry_delete_refuses_any_other_path`).
+
+## Step 13 carry-over (owner, 2026-11-18)
+
+- The Tool Builder's sandbox-test tool wrapper must call `PathPolicy` on the tool folder before
+  staging (verify check 8) and write an audit record for every sandbox run (check 10).

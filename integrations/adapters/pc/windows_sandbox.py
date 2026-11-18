@@ -45,6 +45,7 @@ GUEST_PYTHON = r"C:\hcwma\python"
 GUEST_TOOL = r"C:\hcwma\tool"
 GUEST_OUT = r"C:\hcwma\out"
 RUNNER_NAME = "_hcwma_vm_runner.py"
+REGISTRY_NAME = "active.json"
 
 MAX_TOOL_FILES = 500
 MAX_TOOL_BYTES = 5_000_000
@@ -222,13 +223,21 @@ class WindowsSandbox:
     # -- helpers ---------------------------------------------------------------------------
     @property
     def _registry(self) -> Path:
-        return self.runs_dir / "active.json"
+        return self.runs_dir / REGISTRY_NAME
 
     def _register(self, sandbox_id: str | None) -> None:
         if sandbox_id:
             self._registry.write_text(json.dumps({"id": sandbox_id}), encoding="utf-8")
         else:
-            self._registry.unlink(missing_ok=True)
+            self._remove_registry(self._registry)
+
+    def _remove_registry(self, path: Path) -> None:
+        """The only permanent delete in this module (owner exception, docs/DECISIONS.md):
+        the sandbox's own `active.json` in its fixed state folder, nothing else."""
+        expected = (self.runs_dir / REGISTRY_NAME).resolve()
+        if path.name != REGISTRY_NAME or path.resolve() != expected or _is_link(path):
+            raise ValueError("Refusing to delete anything but the sandbox's own active.json.")
+        path.unlink(missing_ok=True)
 
     def cleanup_orphans(self) -> str | None:
         """Stop a VM that an earlier crashed run left behind."""
@@ -238,7 +247,7 @@ class WindowsSandbox:
             return None
         if sid:
             self.wsb.stop(sid)
-        self._registry.unlink(missing_ok=True)
+        self._remove_registry(self._registry)
         return sid
 
     def _destroy(self, sandbox_id: str) -> bool:

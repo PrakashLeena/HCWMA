@@ -191,3 +191,22 @@ def test_model_not_running_is_fine() -> None:
 
     with ws.model_released(Down(), Queue()) as was:
         assert was is False
+
+
+def test_registry_delete_refuses_any_other_path(tmp_path: Path) -> None:
+    sandbox = make(tmp_path, FakeWsb())
+    (tmp_path / "runs").mkdir()
+    other = tmp_path / "runs" / "results.json"
+    elsewhere = tmp_path / "active.json"  # right name, wrong folder
+    sub = tmp_path / "runs" / "sub"
+    sub.mkdir()
+    nested = sub / "active.json"
+    for f in (other, elsewhere, nested):
+        f.write_text("keep")
+        with pytest.raises(ValueError):
+            sandbox._remove_registry(f)
+        assert f.read_text() == "keep"
+    own = tmp_path / "runs" / "active.json"
+    own.write_text("{}")
+    sandbox._remove_registry(own)
+    assert not own.exists()
