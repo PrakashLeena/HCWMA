@@ -1,7 +1,9 @@
 """PC file index: SQLite with full-text search over file names and folders (build step 8).
 
-Holds metadata only — path, name, extension, size, modified time. No file contents are
-stored (owner decision 2026-11-17). The scanner and the watcher write; the file tools read.
+Holds metadata only — path, name, extension, size, modified time, and whether the row is a
+file or a folder (folders are indexed too, so "find the folder amma" works). No file
+contents are stored (owner decision 2026-11-17). The scanner and the watcher write; the file
+tools read.
 
 Every operation opens its own short-lived connection, so the index is safe to use from tool
 worker threads and from two processes at once (the backend writes, the MCP server reads; WAL
@@ -19,6 +21,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 DEFAULT_INDEX_PATH = Path(__file__).resolve().parent / "data" / "index.sqlite"
 
@@ -31,7 +34,8 @@ CREATE TABLE IF NOT EXISTS files (
     ext   TEXT NOT NULL,
     size  INTEGER NOT NULL,
     mtime REAL NOT NULL,
-    root  TEXT NOT NULL COLLATE NOCASE
+    root  TEXT NOT NULL COLLATE NOCASE,
+    kind  TEXT NOT NULL DEFAULT 'file'
 );
 CREATE INDEX IF NOT EXISTS files_mtime ON files (mtime);
 CREATE INDEX IF NOT EXISTS files_root ON files (root);
@@ -40,17 +44,24 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
+_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _MIN_FTS_CHARS = 3  # the trigram tokenizer cannot match shorter terms
+# Rows read from SQLite before ranking. The trigram index finds "amma" inside "Grammarly"
+# as readily as the folder "amma"; `match_score` then puts the better match first.
+_CANDIDATES = 500
+
+Kind = Literal["file", "folder"]
 
 
 @dataclass(frozen=True)
 class FileEntry:
-    """One indexed file. `path` and `root` are real, absolute paths."""
+    """One indexed file or folder. `path` and `root` are real, absolute paths."""
 
     path: str
     size: int
     mtime: float
     root: str
+    kind: Kind = "file"
 
     @property
     def name(self) -> str:
@@ -62,6 +73,8 @@ class FileEntry:
 
     @property
     def ext(self) -> str:
+        if self.kind == "folder":
+            return ""
         return os.path.splitext(self.path)[1].lstrip(".").lower()
 
     @property
@@ -80,6 +93,39 @@ def query_terms(query: str) -> list[str]:
     for word in _WORD.findall(query.lower()):
         seen.setdefault(word)
     return list(seen)
+
+
+def _words(text: str) -> list[str]:
+    """Lower-case words of a name: split on spaces, dots, dashes, underscores and camelCase."""
+    return _WORD.findall(_CAMEL.sub(" ", text).lower())
+
+
+def match_score(entry: FileEntry, terms: Sequence[str]) -> float:
+    """How well a search hit matches; higher is better. Per term:
+
+    4    the whole name (without extension) is the term ("amma" -> folder "amma")
+    3    a whole word of the name ("annek" -> "annek-proposal_v2.docx")
+    2    the name or one of its words starts with the term ("amma" -> "ammaPhotos")
+    1.5  a whole word of a folder above it ("amma" -> "amma/photo.jpg")
+    1    anywhere else in the name ("amma" -> "GrammarlyInstaller.exe")
+    """
+    stem = entry.name if entry.kind == "folder" else os.path.splitext(entry.name)[0]
+    stem_low = stem.lower()
+    words = _words(stem)
+    dir_words = set(_words(entry.search_dir))
+    score = 0.0
+    for term in terms:
+        if stem_low == term:
+            score += 4
+        elif term in words:
+            score += 3
+        elif stem_low.startswith(term) or any(w.startswith(term) for w in words):
+            score += 2
+        elif term in dir_words:
+            score += 1.5
+        elif term in entry.name.lower():
+            score += 1
+    return score
 
 
 def _prefix(folder: str | Path) -> str:
@@ -106,6 +152,11 @@ class FileIndex:
                 with closing(sqlite3.connect(self.db_path, timeout=10)) as conn:
                     conn.execute("PRAGMA journal_mode = WAL")
                     conn.executescript(_SCHEMA)
+                    columns = {r[1] for r in conn.execute("PRAGMA table_info(files)")}
+                    if "kind" not in columns:  # built before folders were indexed
+                        conn.execute(
+                            "ALTER TABLE files ADD COLUMN kind TEXT NOT NULL DEFAULT 'file'"
+                        )
                 self._ready = True
         with closing(sqlite3.connect(self.db_path, timeout=10)) as conn:
             conn.row_factory = sqlite3.Row
@@ -126,8 +177,18 @@ class FileIndex:
         if old is not None:
             FileIndex._delete_ids(conn, [old["id"]])
         cur = conn.execute(
-            "INSERT INTO files (path, dir, name, ext, size, mtime, root) VALUES (?,?,?,?,?,?,?)",
-            (entry.path, entry.dir, entry.name, entry.ext, entry.size, entry.mtime, entry.root),
+            "INSERT INTO files (path, dir, name, ext, size, mtime, root, kind) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (
+                entry.path,
+                entry.dir,
+                entry.name,
+                entry.ext,
+                entry.size,
+                entry.mtime,
+                entry.root,
+                entry.kind,
+            ),
         )
         conn.execute(
             "INSERT INTO files_fts (rowid, name, dir) VALUES (?,?,?)",
@@ -163,16 +224,16 @@ class FileIndex:
         changed = 0
         with self._connect() as conn:
             known = {
-                os.path.normcase(r["path"]): (r["id"], r["size"], r["mtime"])
+                os.path.normcase(r["path"]): (r["id"], r["size"], r["mtime"], r["kind"])
                 for r in conn.execute(
-                    "SELECT id, path, size, mtime FROM files "
+                    "SELECT id, path, size, mtime, kind FROM files "
                     "WHERE substr(path, 1, ?) = ? COLLATE NOCASE",
                     (len(prefix), prefix),
                 )
             }
             for entry in entries:
                 old = known.pop(os.path.normcase(entry.path), None)
-                if old is not None and old[1] == entry.size and old[2] == entry.mtime:
+                if old is not None and old[1:] == (entry.size, entry.mtime, entry.kind):
                     continue
                 self._upsert(conn, entry)
                 changed += 1
@@ -203,14 +264,20 @@ class FileIndex:
             row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
         return None if row is None else row["value"]
 
-    def count(self) -> int:
+    def count(self, kind: Kind = "file") -> int:
         with self._connect() as conn:
-            return int(conn.execute("SELECT count(*) FROM files").fetchone()[0])
+            row = conn.execute("SELECT count(*) FROM files WHERE kind = ?", (kind,)).fetchone()
+            return int(row[0])
 
     @staticmethod
-    def _scope(folders: Sequence[str | Path] | None, ext: str | None) -> tuple[str, list[object]]:
+    def _scope(
+        folders: Sequence[str | Path] | None, ext: str | None, kind: Kind | None = "file"
+    ) -> tuple[str, list[object]]:
         clauses: list[str] = []
         params: list[object] = []
+        if kind is not None:
+            clauses.append("f.kind = ?")
+            params.append(kind)
         if folders is not None:
             parts = []
             for folder in folders:
@@ -226,7 +293,9 @@ class FileIndex:
     @staticmethod
     def _entries(rows: Iterable[sqlite3.Row]) -> list[FileEntry]:
         return [
-            FileEntry(path=r["path"], size=r["size"], mtime=r["mtime"], root=r["root"])
+            FileEntry(
+                path=r["path"], size=r["size"], mtime=r["mtime"], root=r["root"], kind=r["kind"]
+            )
             for r in rows
         ]
 
@@ -238,9 +307,14 @@ class FileIndex:
         ext: str | None = None,
         limit: int = 50,
         any_term: bool = False,
+        kind: Kind | None = None,
     ) -> list[FileEntry]:
-        """Files whose name or folder contains every term (or any term), best match first."""
-        scope, scope_params = self._scope(folders, ext)
+        """Files and folders whose name or folder contains every term (or any term).
+
+        Best match first (`match_score`): a whole-word or name-start match ranks above the
+        same letters inside a longer name. `kind` limits the hits to files or to folders.
+        """
+        scope, scope_params = self._scope(folders, ext, kind)
         long = [t for t in terms if len(t) >= _MIN_FTS_CHARS]
         short = [t for t in terms if len(t) < _MIN_FTS_CHARS]
         if not long and not short and not ext:
@@ -266,7 +340,11 @@ class FileIndex:
                     sql += f" AND ({likes})"
                     params += [_like(t) for t in short]
                 sql += scope + " ORDER BY f.mtime DESC LIMIT ?"
-            return self._entries(conn.execute(sql, [*params, *scope_params, limit]))
+            fetched = self._entries(
+                conn.execute(sql, [*params, *scope_params, max(limit, _CANDIDATES)])
+            )
+        # sorted() is stable: equal scores keep SQLite's order (bm25, then newest first).
+        return sorted(fetched, key=lambda e: -match_score(e, terms))[:limit]
 
     def recent(
         self,
@@ -290,11 +368,12 @@ class FileIndex:
             return self._entries(conn.execute(sql, [*params, limit]))
 
     def sizes(self, folder: str | Path) -> list[tuple[str, int]]:
-        """(path, size) of every indexed file under `folder`."""
+        """(path, size) of every indexed file (not folder) under `folder`."""
         prefix = _prefix(folder)
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT path, size FROM files WHERE substr(path, 1, ?) = ? COLLATE NOCASE",
+                "SELECT path, size FROM files "
+                "WHERE kind = 'file' AND substr(path, 1, ?) = ? COLLATE NOCASE",
                 (len(prefix), prefix),
             ).fetchall()
         return [(r["path"], r["size"]) for r in rows]

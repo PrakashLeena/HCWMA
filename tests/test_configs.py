@@ -25,12 +25,14 @@ def test_permissions_tiers_and_defaults() -> None:
 
 def test_permissions_start_strict() -> None:
     perms = _load("permissions.yaml")
-    # Owner decision 2026-11-18 (was none at Step 2): exactly these four folders.
+    # Owner decisions 2026-11-18 and 2026-11-19 (was none at Step 2): exactly these folders.
     assert perms["approved_folders"] == [
         "~/Documents",
         "~/Desktop",
         "~/Downloads",
         "E:/ML/project",
+        "~/OneDrive/Desktop",
+        "~/OneDrive/Documents",
     ]
     assert perms["workspace"] == "workspace"
     protected = perms["protected_paths"]

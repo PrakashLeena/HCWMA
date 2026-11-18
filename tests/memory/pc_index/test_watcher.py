@@ -74,3 +74,15 @@ def test_refresh_ignores_paths_outside_the_roots(pc: Layout) -> None:
     assert pc.index.count() == 0
     svc.refresh(pc.docs / "projects")
     assert pc.index.count() == 2
+
+
+def test_a_new_folder_is_indexed_as_a_folder(pc: Layout) -> None:
+    svc = IndexService(pc.index, pc.policy)
+    new = pc.docs / "family" / "amma"
+    write(new / "photo.jpg")
+    svc.refresh(pc.docs / "family")
+    assert [e.name for e in pc.index.search(["amma"], kind="folder")] == ["amma"]
+    # "family" itself first; "family/amma" also matches through its parent folder's name
+    assert [e.name for e in pc.index.search(["family"], kind="folder")] == ["family", "amma"]
+    svc.refresh(pc.secrets)  # protected: never indexed, not even its name
+    assert pc.index.search(["secrets"], kind="folder") == []

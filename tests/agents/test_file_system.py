@@ -126,7 +126,7 @@ def test_missing_file_is_found_and_every_tool_call_is_audited(pc: Layout) -> Non
     # the agent was offered exactly its four read-only tools
     offered = {t["function"]["name"] for t in s.model.agent_calls()[0].kwargs["tools"]}
     assert offered == READ_ONLY_TOOLS
-    records = s.audit.read_all()
+    records = [r for r in s.audit.read_all() if r.event != "model_call"]
     assert [(r.event, r.outcome) for r in records] == [
         ("delegation", "delegated"),
         ("tool_call", "ok"),

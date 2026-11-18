@@ -34,7 +34,10 @@ Numbers in `docs/benchmarks.md`.
 ## Access
 
 - Folders HCWMA may index and read: `~/Documents`, `~/Desktop`, `~/Downloads`, `E:/ML/project`
-  (decided 2026-11-18; the list started empty on 2026-11-16)
+  (decided 2026-11-18; the list started empty on 2026-11-16), plus `~/OneDrive/Desktop` and
+  `~/OneDrive/Documents` (decided 2026-11-19: Windows keeps the real Desktop and Documents in
+  OneDrive). Indexing reads names, dates and sizes only and never opens a file, so OneDrive
+  cloud-only files are not downloaded.
 - Folders that are always off-limits (in addition to the protected paths): none extra (2026-11-16)
 - HCWMA workspace folder: `workspace/` in the repo, gitignored (2026-11-16)
 

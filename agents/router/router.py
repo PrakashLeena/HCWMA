@@ -129,7 +129,9 @@ class Router:
             return False
 
     async def _handle(self, task_id: str, conversation: list[Message]) -> RouterReply:
-        decision = await self._classifier.classify(conversation, self._recall(conversation))
+        decision = await self._classifier.classify(
+            conversation, self._recall(conversation), task_id=task_id
+        )
 
         if decision.action == "clarify":
             return RouterReply(

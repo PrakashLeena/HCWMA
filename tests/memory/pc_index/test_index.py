@@ -120,3 +120,72 @@ def test_keep_only_roots_and_meta(tmp_path: Path) -> None:
     index.set_meta("last_scan", "a")
     index.set_meta("last_scan", "b")
     assert index.get_meta("last_scan") == "b"
+
+
+# ---- folders and ranking (real-use bug 2026-11-19: "find folder amma") ----
+
+
+def _folder(root: Path, rel: str, mtime: float = 100.0) -> FileEntry:
+    return FileEntry(path=str(root / rel), size=0, mtime=mtime, root=str(root), kind="folder")
+
+
+def _amma(tmp_path: Path) -> tuple[FileIndex, Path]:
+    root = tmp_path / "home"
+    index = FileIndex(tmp_path / "db" / "index.sqlite")
+    index.upsert(
+        [
+            # newest first in SQLite's own order, so ranking has to do the work
+            _entry(root, "Downloads/GrammarlyInstaller.exe", mtime=900),
+            _entry(root, "Downloads/programma.pdf", mtime=800),
+            _entry(root, "Desktop/ammaPhotos.zip", mtime=300),
+            _entry(root, "Desktop/amma/birthday.jpg", mtime=200),
+            _folder(root, "Desktop/amma", mtime=100),
+        ]
+    )
+    return index, root
+
+
+def test_whole_name_and_word_start_rank_above_substring_matches(tmp_path: Path) -> None:
+    index, _ = _amma(tmp_path)
+    names = _names(index.search(["amma"]))
+    assert names[:3] == [
+        "amma",  # the whole name
+        "ammaPhotos.zip",  # name starts with it
+        "birthday.jpg",  # inside a folder called amma
+    ]
+    # only letters inside a longer word: last, in SQLite's relevance order
+    assert set(names[3:]) == {"GrammarlyInstaller.exe", "programma.pdf"}
+
+
+def test_kind_limits_search_to_folders_or_files(tmp_path: Path) -> None:
+    index, _ = _amma(tmp_path)
+    folders = index.search(["amma"], kind="folder")
+    assert [(e.name, e.kind, e.ext) for e in folders] == [("amma", "folder", "")]
+    assert "amma" not in _names(index.search(["amma"], kind="file"))
+
+
+def test_folders_stay_out_of_recent_largest_and_sizes(tmp_path: Path) -> None:
+    index, root = _amma(tmp_path)
+    assert "amma" not in _names(index.recent(0))
+    assert "amma" not in _names(index.largest(10))
+    assert all(not p.endswith("amma") for p, _ in index.sizes(root))
+    assert (index.count(), index.count("folder")) == (4, 1)
+
+
+def test_match_score_orders_the_kinds_of_match() -> None:
+    from memory.pc_index.index import match_score
+
+    root = Path("C:/r")
+
+    def score(rel: str, *terms: str, kind: str = "file") -> float:
+        e = FileEntry(path=str(root / rel), size=0, mtime=0, root=str(root), kind=kind)  # type: ignore[arg-type]
+        return match_score(e, terms)
+
+    assert score("amma", "amma", kind="folder") == 4
+    assert score("amma.txt", "amma") == 4  # the extension is not part of the name
+    assert score("annek-proposal_v2.docx", "annek") == 3
+    assert score("AmmaPhotos.zip", "photos") == 3  # camelCase splits into words
+    assert score("ammaphotos.zip", "amma") == 2
+    assert score("amma/x.jpg", "amma") == 1.5
+    assert score("GrammarlyInstaller.exe", "amma") == 1
+    assert score("annek-proposal_v2.docx", "annek", "proposal") == 6

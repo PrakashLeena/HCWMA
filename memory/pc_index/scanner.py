@@ -7,7 +7,8 @@ places `PathPolicy.check(path, "read")` allows. Everything else is skipped:
 - symlinks and junctions are not followed, so a link cannot pull an outside folder in;
 - tool caches such as `.git` and `node_modules` are skipped as noise.
 
-Only `os.scandir` metadata is read (name, size, modified time). No file is opened.
+Sub-folders are indexed as entries of their own (kind "folder"), so a folder can be found by
+name. Only `os.scandir` metadata is read (name, size, modified time). No file is opened.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ class ScanReport:
     files: int
     changed: int
     removed: int
+    folders: int = 0
 
 
 def _same(a: str | Path, b: str | Path) -> bool:
@@ -86,6 +88,20 @@ def entry_for(path: Path, root: Path, policy: PathPolicy) -> FileEntry | None:
     return FileEntry(path=str(path), size=stat.st_size, mtime=stat.st_mtime, root=str(root))
 
 
+def folder_entry_for(path: Path, root: Path, policy: PathPolicy) -> FileEntry | None:
+    """The index entry for one folder (not the root itself), or None if it must not be
+    indexed: a tool cache, a protected or blocked folder, a link, or gone."""
+    if _same(path, root) or not allowed_dir(path, policy):
+        return None
+    try:
+        if path.is_symlink() or not path.is_dir():
+            return None
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    return FileEntry(path=str(path), size=0, mtime=mtime, root=str(root), kind="folder")
+
+
 def has_skipped_part(path: Path, root: Path) -> bool:
     try:
         parts = path.relative_to(root).parts
@@ -95,7 +111,7 @@ def has_skipped_part(path: Path, root: Path) -> bool:
 
 
 def iter_files(folder: Path, root: Path, policy: PathPolicy) -> Iterator[FileEntry]:
-    """Every indexable file under `folder` (which belongs to `root`)."""
+    """Every indexable file and sub-folder under `folder` (which belongs to `root`)."""
     stack = [folder]
     while stack:
         current = stack.pop()
@@ -112,7 +128,10 @@ def iter_files(folder: Path, root: Path, policy: PathPolicy) -> Iterator[FileEnt
                 if child.is_symlink():
                     continue
                 if child.is_dir(follow_symlinks=False):
-                    stack.append(child_path)
+                    folder_entry = folder_entry_for(child_path, root, policy)
+                    if folder_entry is not None:
+                        stack.append(child_path)
+                        yield folder_entry
                     continue
             except OSError:
                 continue
@@ -138,20 +157,24 @@ def scan_tree(index: FileIndex, policy: PathPolicy, folder: Path, root: Path) ->
 def scan(index: FileIndex, policy: PathPolicy) -> ScanReport:
     """Full scan of every indexed root; also drops roots that are no longer approved."""
     roots = [r for r in index_roots(policy) if allowed_dir(r, policy)]
-    files = changed = 0
+    seen = {"file": 0, "folder": 0}
+    changed = 0
     removed = index.keep_only_roots(roots)
     for root in roots:
-        seen = 0
 
         def counted(root: Path = root) -> Iterator[FileEntry]:
-            nonlocal seen
             for entry in iter_files(root, root, policy):
-                seen += 1
+                seen[entry.kind] += 1
                 yield entry
 
         c, r = index.sync_tree(root, counted())
-        files += seen
         changed += c
         removed += r
     index.set_meta(META_LAST_SCAN, datetime.now(timezone.utc).isoformat(timespec="seconds"))
-    return ScanReport(roots=[str(r) for r in roots], files=files, changed=changed, removed=removed)
+    return ScanReport(
+        roots=[str(r) for r in roots],
+        files=seen["file"],
+        changed=changed,
+        removed=removed,
+        folders=seen["folder"],
+    )

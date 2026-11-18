@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from functools import partial
@@ -142,12 +143,48 @@ class AgentRuntime:
         return TaskBudget(self._limits)
 
     async def generate(
-        self, messages: list[Message], tools: list[dict[str, Any]] | None = None, **kwargs: Any
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]] | None = None,
+        *,
+        audit_as: tuple[str, str] | None = None,
+        **kwargs: Any,
     ) -> GenerateResult:
-        """All inference goes through the shared queue (rule 3), off the event loop."""
+        """All inference goes through the shared queue (rule 3), off the event loop.
+
+        `audit_as` = (agent id, task id): write a `model_call` audit record with the wall time
+        (queue wait included) and the model's own timings, so a slow request can be split
+        into Router, agent model calls and tool time afterwards.
+        """
         kwargs.setdefault("max_tokens", self._max_tokens)
         call = partial(self._queue.generate, messages, tools=tools, **kwargs)
-        return await anyio.to_thread.run_sync(call, abandon_on_cancel=True)
+        start = time.perf_counter()
+        try:
+            result = await anyio.to_thread.run_sync(call, abandon_on_cancel=True)
+        except BaseException:
+            if audit_as is not None:
+                self._audit.model_call(
+                    agent=audit_as[0],
+                    task_id=audit_as[1],
+                    duration_ms=(time.perf_counter() - start) * 1000,
+                    timings={},
+                    outcome="failed",
+                )
+            raise
+        if audit_as is not None:
+            self._audit.model_call(
+                agent=audit_as[0],
+                task_id=audit_as[1],
+                duration_ms=(time.perf_counter() - start) * 1000,
+                timings={
+                    "prompt_len": result.prompt_tokens,
+                    "output_len": result.completion_tokens,
+                    "load_s": round(result.load_s, 2),
+                    "prefill_s": round(result.prompt_eval_s, 2),
+                    "gen_s": round(result.eval_s, 2),
+                },
+            )
+        return result
 
     async def delegate(
         self,
@@ -274,7 +311,9 @@ class AgentRuntime:
             )
 
         for _ in range(envelope.constraints.max_steps):
-            result = await self.generate(messages, tools or None)
+            result = await self.generate(
+                messages, tools or None, audit_as=(card.id, envelope.task_id)
+            )
             if not result.tool_calls:
                 text = result.text.strip()
                 if text.startswith(NEEDS_CLARIFICATION):

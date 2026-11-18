@@ -130,7 +130,7 @@ def test_restoring_a_file_asks_the_owner_first(pc: WritePc) -> None:
         ("restore_file", "used"),
     ]
     assert _events(s, "tool_call") == [("check_recycle_bin", "ok"), ("restore_file", "ok")]
-    assert "owner approved" in s.audit.read_all()[-2].reason
+    assert "owner approved" in [r for r in s.audit.read_all() if r.event != "model_call"][-2].reason
     # the read-only lookup needed no prompt
     assert len(seen) == 1
 

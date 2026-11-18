@@ -75,7 +75,7 @@ class Classifier:
         return prompt
 
     async def classify(
-        self, conversation: list[Message], memory_block: str = ""
+        self, conversation: list[Message], memory_block: str = "", task_id: str | None = None
     ) -> RoutingDecision:
         turns = [m for m in conversation if m.role in ("user", "assistant")][-MAX_HISTORY_TURNS:]
         messages = [Message(role="system", content=self.system_prompt(memory_block))]
@@ -87,6 +87,7 @@ class Classifier:
             response_format=RoutingDecision.model_json_schema(),
             temperature=0,
             seed=0,  # fixed seed: the same request always routes the same way
+            audit_as=None if task_id is None else ("router", task_id),
         )
         return self.check(result.text)
 

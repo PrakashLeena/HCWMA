@@ -116,7 +116,9 @@ def test_search_falls_back_to_some_words_and_says_so(pc: Layout) -> None:
 def test_search_reports_not_found_honestly(pc: Layout) -> None:
     out = _call(pc, "search_files", query="quarterly-forecast")
     assert out.results == [] and out.count == 0 and out.match == "none"
-    assert "No indexed file matches" in out.note
+    assert "Nothing in the index matches" in out.note
+    # It names every searched folder, so the owner can tell what was never looked at.
+    assert str(pc.docs) in out.note and str(pc.workspace) in out.note
 
 
 def test_search_never_returns_protected_or_unapproved_files(pc: Layout) -> None:
@@ -420,3 +422,81 @@ def test_a_slow_tool_times_out(pc: Layout, monkeypatch: pytest.MonkeyPatch) -> N
     catalog.register(slow_spec)
     result = anyio.run(execute, catalog, "search_files", {"query": "annek"})
     assert not result.ok and result.error_code == "timeout"
+
+
+# ---- folders, ranking, not-found folders (real-use bug 2026-11-19: "find folder amma") ----
+
+
+def _amma(pc: Layout) -> None:
+    write(pc.docs / "Downloads" / "GrammarlyInstaller.exe")
+    write(pc.docs / "Desktop" / "amma" / "birthday.jpg")
+    scan(pc.index, pc.policy)
+
+
+def test_search_finds_a_folder_and_says_it_is_one(pc: Layout) -> None:
+    _amma(pc)
+    out = _call(pc, "search_files", query="amma")
+    first = out.results[0]
+    assert (Path(first.path).name, first.type, first.size_bytes) == ("amma", "folder", 0)
+    assert out.results[-1].type == "file" and _names(out)[-1] == "GrammarlyInstaller.exe"
+
+
+def test_type_folder_returns_only_folders(pc: Layout) -> None:
+    _amma(pc)
+    out = _call(pc, "search_files", query="amma", type="folder")
+    assert [(Path(h.path).name, h.type) for h in out.results] == [("amma", "folder")]
+
+
+@pytest.mark.parametrize("query", ["folder amma", "amma folder", "the folder called amma"])
+def test_the_word_folder_in_a_query_means_look_for_folders(pc: Layout, query: str) -> None:
+    _amma(pc)
+    out = _call(pc, "search_files", query=query)
+    assert _names(out)[0] == "amma" and out.results[0].type == "folder"
+
+
+def test_an_extension_never_returns_folders(pc: Layout) -> None:
+    write(pc.docs / "reports.docx" / "inner.txt")  # a folder that looks like a file name
+    scan(pc.index, pc.policy)
+    out = _call(pc, "search_files", query="reports", extension="docx")
+    assert out.results == []
+
+
+def test_a_folder_gone_since_the_scan_is_not_returned(pc: Layout) -> None:
+    _amma(pc)
+    for child in (pc.docs / "Desktop" / "amma").iterdir():
+        child.unlink()
+    (pc.docs / "Desktop" / "amma").rmdir()
+    out = _call(pc, "search_files", query="amma", type="folder")
+    assert out.results == [] and out.match == "none"
+
+
+def test_not_found_names_the_searched_folders_when_a_folder_is_outside(pc: Layout) -> None:
+    write(pc.outside / "amma" / "x.txt")  # exists on the PC, but not in an approved folder
+    scan(pc.index, pc.policy)
+    out = _call(pc, "search_files", query="amma", type="folder")
+    assert out.match == "none"
+    assert f"Searched folders (and everything inside them): {pc.docs}; {pc.workspace}." in (
+        out.note or ""
+    )
+    assert str(pc.outside) not in (out.note or "")
+
+
+def test_recent_files_and_disk_usage_list_files_not_folders(pc: Layout) -> None:
+    _amma(pc)
+    recent = _call(pc, "list_recent_files", days=1, limit=50)
+    assert all(hit.type == "file" for hit in recent.results)
+    assert "amma" not in _names(recent)
+
+
+def test_only_letters_inside_longer_words_is_flagged_as_weak(pc: Layout) -> None:
+    write(pc.docs / "Downloads" / "GrammarlyInstaller.exe")
+    scan(pc.index, pc.policy)
+    out = _call(pc, "search_files", query="amma")
+    assert _names(out) == ["GrammarlyInstaller.exe"]
+    assert out.note == file_tools.WEAK_MATCH_NOTE
+
+
+def test_a_real_match_is_not_flagged_as_weak(pc: Layout) -> None:
+    _amma(pc)
+    assert _call(pc, "search_files", query="amma").note is None
+    assert _call(pc, "search_files", query="annek").note is None
