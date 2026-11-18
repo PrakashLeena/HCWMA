@@ -158,14 +158,12 @@ class SearchFilesInput(BaseModel):
     query: str = Field(
         min_length=1,
         max_length=200,
-        description="Words from the file or folder name, e.g. 'annek proposal'. Not a sentence.",
+        description="Name words only, e.g. 'annek proposal'.",
     )
     type: Literal["any", "file", "folder"] = Field(
-        default="any", description="'folder' when the user asks for a folder, else leave out."
+        default="any", description="'folder' to find only folders."
     )
-    roots: list[str] | None = Field(
-        default=None, max_length=10, description="Only look inside these folders (optional)."
-    )
+    roots: list[str] | None = Field(default=None, max_length=10, description="Only these folders.")
     extension: str | None = Field(
         default=None, max_length=15, pattern=r"^\.?[A-Za-z0-9]+$", description="e.g. 'docx'"
     )
@@ -270,7 +268,7 @@ class CheckRecycleBinInput(BaseModel):
     query: str = Field(
         default="",
         max_length=200,
-        description="Words from the deleted file's name. Empty lists the newest deletions.",
+        description="Name words. Empty: newest deletions.",
     )
     limit: int = Field(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT)
 
@@ -335,10 +333,8 @@ def _check_recycle_bin(deps: FileToolDeps, args: CheckRecycleBinInput) -> CheckR
 class GetDiskUsageInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    folder: str | None = Field(
-        default=None, max_length=500, description="Report on this folder (optional)."
-    )
-    largest: int = Field(default=5, ge=0, le=20, description="How many largest files to list.")
+    folder: str | None = Field(default=None, max_length=500, description="Only this folder.")
+    largest: int = Field(default=5, ge=0, le=20, description="Largest files to list.")
 
 
 class DriveUsage(BaseModel):
@@ -421,6 +417,101 @@ def _get_disk_usage(deps: FileToolDeps, args: GetDiskUsageInput) -> GetDiskUsage
     )
 
 
+# ---------- answers built by code (no second model call) ----------
+#
+# Each returns the owner-facing answer for a result that needs no next step, or None when
+# the agent's model should decide what comes next (nothing found, weak matches only, no
+# folder indexed). Paths and dates are copied from the tool result, never invented.
+
+MAX_LISTED = 5
+
+
+def _human_size(n: int) -> str:
+    size = float(n)
+    for unit in ("bytes", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "bytes" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{n} bytes"
+
+
+def _hit_line(i: int, hit: FileHit) -> str:
+    if hit.type == "folder":
+        return f"{i}. Folder: {hit.path} (modified {hit.modified})"
+    return f"{i}. File: {hit.path} (modified {hit.modified}, {_human_size(hit.size_bytes)})"
+
+
+def _more(shown: int, total: int, more_available: bool) -> str:
+    if total > shown:
+        return f"\n…and {total - shown} more."
+    if more_available:
+        return "\n…and more."
+    return ""
+
+
+def answer_search_files(out: SearchFilesOutput) -> str | None:
+    # Not found, only some of the words, or only weak matches: the thing asked for may not be
+    # here, so the model takes the next step (Recycle Bin, honest "not found").
+    if out.match != "all_words" or not out.results or out.note == WEAK_MATCH_NOTE:
+        return None
+    if out.note in (NO_FOLDERS_NOTE, NEVER_SCANNED_NOTE):
+        return None
+    shown = out.results[:MAX_LISTED]
+    head = (
+        "Found in the approved folders, best match first:"
+        if len(shown) > 1
+        else "Found in the approved folders:"
+    )
+    lines = [head, *(_hit_line(i, h) for i, h in enumerate(shown, 1))]
+    return "\n".join(lines) + _more(len(shown), out.count, out.more_available)
+
+
+def answer_list_recent_files(out: ListRecentFilesOutput) -> str | None:
+    if not out.results:
+        return None
+    shown = out.results[:MAX_LISTED]
+    lines = [
+        f"Changed in the last {out.days} day(s), newest first:",
+        *(_hit_line(i, h) for i, h in enumerate(shown, 1)),
+    ]
+    return "\n".join(lines) + _more(len(shown), out.count, out.more_available)
+
+
+def answer_check_recycle_bin(out: CheckRecycleBinOutput) -> str | None:
+    if not out.supported or not out.results:
+        return None
+    shown = out.results[:MAX_LISTED]
+    lines = ["In the Recycle Bin, newest deletion first:"]
+    lines += [
+        f"{i}. {h.original_path} (deleted {h.deleted}, {_human_size(h.size_bytes)})"
+        for i, h in enumerate(shown, 1)
+    ]
+    lines.append("I can restore one of these if you ask.")
+    return "\n".join(lines) + _more(len(shown), out.count, False)
+
+
+def answer_get_disk_usage(out: GetDiskUsageOutput) -> str | None:
+    if not out.drives and not out.folders:
+        return None
+    lines = ["Drives:"]
+    lines += [
+        f"- {d.drive} {d.free_gb:.1f} GB free of {d.total_gb:.1f} GB ({d.used_percent:.0f}% used)"
+        for d in out.drives
+    ]
+    if out.folders:
+        lines.append("Approved folders:")
+        lines += [f"- {f.path}: {f.files} files, {f.size_mb:.1f} MB" for f in out.folders]
+    if out.largest_subfolders:
+        lines.append("Largest sub-folders:")
+        lines += [f"- {f.path}: {f.size_mb:.1f} MB" for f in out.largest_subfolders]
+    if out.largest_files:
+        lines.append("Largest files:")
+        lines += [f"- {h.path}: {_human_size(h.size_bytes)}" for h in out.largest_files]
+    if out.note:
+        lines.append(out.note)
+    return "\n".join(lines)
+
+
 # ---------- registration ----------
 
 
@@ -428,7 +519,7 @@ def file_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined") -> l
     def manifest(
         name: str, description: str, tier: PermissionTier, **extra: object
     ) -> ToolManifest:
-        extra.setdefault("version", "0.1.0")
+        extra.setdefault("version", "0.1.1")  # 0.1.1: shorter descriptions, code answers
         return ToolManifest(
             name=name,
             created_by="developer",
@@ -445,24 +536,21 @@ def file_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined") -> l
         ToolSpec(
             manifest=manifest(
                 "search_files",
-                "Find files and folders by words in their name or folder, in the folders the "
-                "owner approved. Returns path, type (file or folder), modified time and size, "
-                "best match first; when nothing is found the note names the searched "
-                "folders. Does not read file contents.",
+                "Find files and folders by name in the approved folders, best match first.",
                 PermissionTier.T0,
-                version="0.2.0",
+                version="0.2.1",
                 permissions=_READ_SCOPE,
                 timeout_s=10,
             ),
             input_model=SearchFilesInput,
             output_model=SearchFilesOutput,
             handler=lambda args: _search_files(deps, args),
+            answer=answer_search_files,
         ),
         ToolSpec(
             manifest=manifest(
                 "list_recent_files",
-                "List the files changed in the last N days in the approved folders, newest "
-                "first. Returns path, modified time and size.",
+                "Files changed in the last N days in the approved folders, newest first.",
                 PermissionTier.T0,
                 permissions=_READ_SCOPE,
                 timeout_s=10,
@@ -470,12 +558,12 @@ def file_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined") -> l
             input_model=ListRecentFilesInput,
             output_model=ListRecentFilesOutput,
             handler=lambda args: _list_recent_files(deps, args),
+            answer=answer_list_recent_files,
         ),
         ToolSpec(
             manifest=manifest(
                 "check_recycle_bin",
-                "Look in the Recycle Bin for deleted files by name. Only shows files that "
-                "were deleted from approved folders. Read-only: it cannot restore anything.",
+                "Find deleted files in the Recycle Bin by name. Read-only.",
                 PermissionTier.T1,
                 permissions=ToolPermissions(
                     filesystem=["recycle_bin (records of files deleted from approved folders)"]
@@ -485,12 +573,12 @@ def file_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined") -> l
             input_model=CheckRecycleBinInput,
             output_model=CheckRecycleBinOutput,
             handler=lambda args: _check_recycle_bin(deps, args),
+            answer=answer_check_recycle_bin,
         ),
         ToolSpec(
             manifest=manifest(
                 "get_disk_usage",
-                "Report free and used space per drive, the size of the approved folders, "
-                "their largest sub-folders and their largest files.",
+                "Free space per drive; largest folders and files in the approved folders.",
                 PermissionTier.T1,
                 permissions=_READ_SCOPE,
                 timeout_s=15,
@@ -498,6 +586,7 @@ def file_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined") -> l
             input_model=GetDiskUsageInput,
             output_model=GetDiskUsageOutput,
             handler=lambda args: _get_disk_usage(deps, args),
+            answer=answer_get_disk_usage,
         ),
     ]
 

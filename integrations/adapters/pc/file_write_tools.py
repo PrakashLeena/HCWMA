@@ -91,7 +91,7 @@ class MoveFileInput(BaseModel):
     destination: str = Field(
         min_length=1,
         max_length=500,
-        description="Full new path including the file name, or an existing folder.",
+        description="New full path, or an existing folder.",
     )
 
 
@@ -171,7 +171,7 @@ class RestoreFileInput(BaseModel):
     item_id: str = Field(
         min_length=4,
         max_length=300,
-        description="The item_id of one result from check_recycle_bin, copied exactly.",
+        description="item_id from check_recycle_bin, copied exactly.",
     )
 
 
@@ -215,7 +215,7 @@ def file_write_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined"
     def manifest(name: str, description: str, tier: PermissionTier) -> ToolManifest:
         return ToolManifest(
             name=name,
-            version="0.1.0",
+            version="0.1.1",  # 0.1.1: shorter descriptions (2026-11-19)
             created_by="developer",
             status=status,
             route="pc",
@@ -231,9 +231,8 @@ def file_write_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined"
         ToolSpec(
             manifest=manifest(
                 "restore_file",
-                "Restore one deleted file from the Recycle Bin to where it was deleted from. "
-                "Needs the item_id from check_recycle_bin. The owner is asked first. Never "
-                "overwrites an existing file.",
+                "Restore one file from the Recycle Bin. Needs item_id from check_recycle_bin. "
+                "Owner approves first. Never overwrites.",
                 PermissionTier.T3,
             ),
             input_model=RestoreFileInput,
@@ -244,8 +243,7 @@ def file_write_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined"
         ToolSpec(
             manifest=manifest(
                 "move_file",
-                "Move or rename one file inside the approved folders. The owner is asked "
-                "first. Never overwrites an existing file. Files only, not folders.",
+                "Move or rename one file (not a folder). Owner approves first. Never overwrites.",
                 PermissionTier.T3,
             ),
             input_model=MoveFileInput,
@@ -256,8 +254,7 @@ def file_write_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined"
         ToolSpec(
             manifest=manifest(
                 "delete_file",
-                "Delete one file by moving it to the Recycle Bin (it can be restored). The "
-                "owner is asked first, every time. Files only, not folders.",
+                "Move one file (not a folder) to the Recycle Bin. Owner approves first.",
                 PermissionTier.T4,
             ),
             input_model=DeleteFileInput,

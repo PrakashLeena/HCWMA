@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
@@ -77,6 +78,8 @@ class ToolGateway(Protocol):
         context: CallerContext | None = None,
     ) -> ToolResult: ...
 
+    def direct_answer(self, tool: str, result: ToolResult) -> str | None: ...
+
 
 def wrap_tool_output(tool: str, result: ToolResult) -> str:
     body = result.to_text().replace("</tool_output", "<\\/tool_output")
@@ -86,15 +89,69 @@ def wrap_tool_output(tool: str, result: ToolResult) -> str:
     )
 
 
+# JSON-schema keys the model does not need: limits and patterns are enforced by the tool
+# server's own validation (Pydantic) on every call, titles repeat the property names.
+_SCHEMA_NOISE = frozenset(
+    {
+        "title",
+        "additionalProperties",
+        "maxLength",
+        "minLength",
+        "maximum",
+        "minimum",
+        "maxItems",
+        "minItems",
+        "pattern",
+    }
+)
+
+
+def compact_schema(schema: Any) -> Any:
+    """The input schema as the model sees it: same fields, types, enums, defaults and
+    descriptions, minus validation detail, and `X | None` shown as plain `X`. Every prompt
+    token costs reading time on a CPU; validation is unchanged (the server checks the
+    full schema)."""
+    if isinstance(schema, list):
+        return [compact_schema(s) for s in schema]
+    if not isinstance(schema, dict):
+        return schema
+    options = schema.get("anyOf")
+    if isinstance(options, list):
+        real = [o for o in options if o != {"type": "null"}]
+        if len(real) == 1 and len(real) < len(options):
+            merged = {**{k: v for k, v in schema.items() if k != "anyOf"}, **real[0]}
+            if merged.get("default", ...) is None:
+                merged.pop("default")
+            return compact_schema(merged)
+    out: dict[str, Any] = {}
+    for key, value in schema.items():
+        if key in ("properties", "$defs") and isinstance(value, dict):
+            # keys here are field names, not schema keywords: keep every one
+            out[key] = {name: compact_schema(sub) for name, sub in value.items()}
+        elif key not in _SCHEMA_NOISE:
+            out[key] = compact_schema(value)
+    return out
+
+
 def _tool_schema(tool: types.Tool) -> dict[str, Any]:
     return {
         "type": "function",
         "function": {
             "name": tool.name,
             "description": tool.description or "",
-            "parameters": tool.input_schema,
+            "parameters": compact_schema(tool.input_schema),
         },
     }
+
+
+def _asks_for_change(card: AgentCard, envelope: TaskEnvelope) -> bool:
+    """True if the goal or the owner's words contain one of the card's change words."""
+    words = card.change_words
+    if not words:
+        return False
+    text = f"{envelope.goal} {envelope.context.user_message}"
+    pattern = r"\b(?:" + "|".join(re.escape(w) for w in words) + r")\b"
+    return re.search(pattern, text, re.IGNORECASE) is not None
 
 
 def _grant_for(card: AgentCard, parent: AgentGrant | None, read_only: bool) -> AgentGrant:
@@ -280,16 +337,25 @@ class AgentRuntime:
         budget: TaskBudget,
         owner_wait: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> TaskResult:
-        tools = [_tool_schema(t) for t in await self._gateway.list_tools_for(grant)]
+        asks_for_change = _asks_for_change(card, envelope)
+        offered = await self._gateway.list_tools_for(grant)
+        if card.change_words and not asks_for_change:
+            # A lookup request: leave out the approval-gated tools (restore, move, delete…).
+            # Fewer schemas, shorter prompt. The allowlist and approval checks are unchanged.
+            offered = [t for t in offered if t.name not in card.approval_required]
+        tools = [_tool_schema(t) for t in offered]
         request = f"Task from {envelope.from_agent}: {envelope.goal}"
         if envelope.context.user_message:
             request += f"\n\nThe user's own words: {envelope.context.user_message}"
-        if self.memory is not None:
+        prompt_scopes = (
+            card.memory_scopes if card.prompt_memory_scopes is None else card.prompt_memory_scopes
+        )
+        if self.memory is not None and prompt_scopes:
             # Only the scopes on this agent's card; quoted and labelled as data (rule 13).
             block = self.memory.recall_block(
                 f"{envelope.goal} {envelope.context.user_message}",
                 agent_id=card.id,
-                allowed_scopes=card.memory_scopes,
+                allowed_scopes=prompt_scopes,
             )
             if block:
                 request += f"\n\n{block}"
@@ -304,6 +370,8 @@ class AgentRuntime:
             Message(role="user", content=request),
         ]
         records: list[ToolCallRecord] = []
+        direct_tools = set(card.direct_answer_tools)
+        may_answer_directly = bool(direct_tools) and not asks_for_change
 
         def stop(limit: str, summary: str) -> TaskResult:
             return TaskResult(
@@ -373,6 +441,13 @@ class AgentRuntime:
                         content=wrap_tool_output(call.name, outcome),
                     )
                 )
+            # The turn's last call was a successful read-only lookup the card lets code
+            # answer: format it without another model call (a CPU turn of ~1 minute).
+            last = result.tool_calls[-1]
+            if may_answer_directly and last.name in direct_tools and outcome.ok:
+                answer = self._gateway.direct_answer(last.name, outcome)
+                if answer:
+                    return TaskResult(status="done", summary=answer, tool_calls=records)
 
         return stop(
             "max_steps",

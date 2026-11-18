@@ -208,8 +208,10 @@ def test_each_agent_gets_only_its_cards_memory(tmp_path: Path) -> None:
         ask(tmp_path / target, model, memory, "annek sister birthday", agents_dir=agents)
 
     file_prompt = prompts["# File & System Agent"]
-    assert "find the annek proposal" in file_prompt  # episodic: on the card
-    assert FACT in file_prompt  # profile: on the card
+    # episodic is on the card (memory tools) but not in prompt_memory_scopes: past task
+    # summaries stay out of the prompt; the owner's own facts go in
+    assert "find the annek proposal" not in file_prompt
+    assert FACT in file_prompt  # profile: on the card and in the prompt
     assert "asked about the annek proposal" not in file_prompt  # summaries: not on the card
     echo_prompt = next(v for k, v in prompts.items() if "File" not in k)
     assert "<memory>" not in echo_prompt  # echo's card has no stored scopes

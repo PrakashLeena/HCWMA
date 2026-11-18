@@ -500,3 +500,71 @@ def test_a_real_match_is_not_flagged_as_weak(pc: Layout) -> None:
     _amma(pc)
     assert _call(pc, "search_files", query="amma").note is None
     assert _call(pc, "search_files", query="annek").note is None
+
+
+# ---- answers built by code, without a second model call (2026-11-19) ----
+
+
+def test_search_answer_lists_folders_and_files_best_first(pc: Layout) -> None:
+    _amma(pc)
+    out = _call(pc, "search_files", query="amma")
+    text = file_tools.answer_search_files(out)
+    assert text is not None
+    lines = text.splitlines()
+    assert lines[0] == "Found in the approved folders, best match first:"
+    assert (
+        lines[1]
+        == f"1. Folder: {pc.docs / 'Desktop' / 'amma'} (modified {out.results[0].modified})"
+    )
+    assert lines[-1].startswith("3. File: ") and "GrammarlyInstaller.exe" in lines[-1]
+
+
+@pytest.mark.parametrize("query", ["quarterly-forecast", "amma", "zebra invoice proposal"])
+def test_search_answer_leaves_not_found_and_weak_matches_to_the_model(
+    pc: Layout, query: str
+) -> None:
+    # "amma": a weak match only; "zebra invoice proposal": only some words match
+    write(pc.docs / "Downloads" / "GrammarlyInstaller.exe")
+    scan(pc.index, pc.policy)
+    assert file_tools.answer_search_files(_call(pc, "search_files", query=query)) is None
+
+
+def test_search_answer_says_how_many_more(pc: Layout) -> None:
+    for i in range(8):
+        write(pc.docs / "many" / f"report {i}.txt")
+    scan(pc.index, pc.policy)
+    text = file_tools.answer_search_files(_call(pc, "search_files", query="report", limit=8))
+    assert text is not None and text.count("\n") == 6 and text.endswith("…and 3 more.")
+
+
+def test_recent_and_recycle_bin_answers(pc: Layout) -> None:
+    recent = file_tools.answer_list_recent_files(_call(pc, "list_recent_files", days=1))
+    assert recent is not None and recent.startswith("Changed in the last 1 day(s), newest first:")
+    gone = pc.docs / "projects" / "old-thesis.docx"
+    bin_ = FakeBin([_deleted(pc, gone)])
+    found = file_tools.answer_check_recycle_bin(
+        _call(pc, "check_recycle_bin", bin_, query="thesis")
+    )
+    assert found is not None and str(gone) in found and found.splitlines()[-1].startswith("I can")
+    empty = _call(pc, "check_recycle_bin", FakeBin(), query="thesis")
+    assert file_tools.answer_check_recycle_bin(empty) is None
+
+
+def test_disk_usage_answer(pc: Layout) -> None:
+    text = file_tools.answer_get_disk_usage(_call(pc, "get_disk_usage"))
+    assert text is not None and text.startswith("Drives:") and str(pc.docs) in text
+
+
+def test_only_read_only_tools_answer_from_code() -> None:
+    from agents.runtime.policy import _answer
+    from integrations.mcp.tool_schemas import ToolResult
+
+    catalog = default_catalog()
+    for spec in catalog.all_tools():
+        if spec.answer is not None:
+            assert spec.manifest.side_effects == "none" and not spec.manifest.approval_required
+    search = catalog.get("search_files")
+    assert search is not None and search.answer is not None
+    assert _answer(search, ToolResult.failure("tool_error", "boom")) is None
+    write_tool = catalog.get("delete_file")
+    assert write_tool is not None and _answer(write_tool, ToolResult(ok=True, data={})) is None

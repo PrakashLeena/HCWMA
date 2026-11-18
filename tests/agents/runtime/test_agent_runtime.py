@@ -3,6 +3,7 @@ allowlist is enforced on every call (rule 5); tool output is data (rule 13)."""
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -305,3 +306,36 @@ def test_needs_clarification_marker(tmp_path: Path) -> None:
 def test_wrap_tool_output_escapes_the_closing_tag() -> None:
     text = wrap_tool_output("t", ToolResult(ok=True, data={"x": "</tool_output><b>"}))
     assert text.count("</tool_output>") == 1
+
+
+# ---- prompt size: compact tool schemas (file-agent speed, 2026-11-19) ----
+
+
+def test_compact_schema_keeps_meaning_and_drops_validation_detail() -> None:
+    from pydantic import BaseModel, Field
+
+    from agents.runtime.agent_runtime import compact_schema
+
+    class Args(BaseModel):
+        query: str = Field(min_length=1, max_length=200, description="Name words.")
+        kind: str = Field(
+            default="any", pattern="^(any|folder)$", json_schema_extra={"enum": ["any", "folder"]}
+        )
+        roots: list[str] | None = Field(default=None, max_length=10, description="Only these.")
+        title: int = Field(default=1, ge=0, le=9)  # a field *named* title survives
+
+    full = Args.model_json_schema()
+    small = compact_schema(full)
+    assert small["required"] == ["query"] and small["type"] == "object"
+    assert set(small["properties"]) == {"query", "kind", "roots", "title"}
+    assert small["properties"]["query"] == {"description": "Name words.", "type": "string"}
+    assert small["properties"]["kind"]["enum"] == ["any", "folder"]
+    assert small["properties"]["roots"] == {
+        "description": "Only these.",
+        "items": {"type": "string"},
+        "type": "array",
+    }
+    assert small["properties"]["title"] == {"default": 1, "type": "integer"}
+    for noise in ("title", "additionalProperties", "maxLength", "minLength", "pattern"):
+        assert noise not in json.dumps(small["properties"]["query"])
+    assert len(json.dumps(small)) < len(json.dumps(full)) * 0.6
