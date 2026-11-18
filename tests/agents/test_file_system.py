@@ -97,7 +97,7 @@ def test_card_matches_the_catalogue_and_every_write_tool_needs_approval() -> Non
     prompt = registry.prompt_for(card)
     for must_say in ("only", "data", "Never invent", "NEEDS_CLARIFICATION", "not found"):
         assert must_say in prompt
-    assert "id: file_system" in render_catalogue(registry.workers())
+    assert "- file_system:" in render_catalogue(registry.workers())
 
 
 def test_routing_cases_cover_this_agent() -> None:

@@ -52,15 +52,7 @@ class RoutingDecision(BaseModel):
 def render_catalogue(workers: list[AgentCard]) -> str:
     if not workers:
         return "(no agents are enabled yet)"
-    blocks = []
-    for card in workers:
-        lines = [f"- id: {card.id}", f"  name: {card.name}", f"  does: {card.description.strip()}"]
-        if card.handles:
-            lines.append("  handles: " + "; ".join(card.handles))
-        if card.does_not_handle:
-            lines.append("  does not handle: " + "; ".join(card.does_not_handle))
-        blocks.append("\n".join(lines))
-    return "\n".join(blocks)
+    return "\n".join(f"- {card.id}: {card.routing_line()}" for card in workers)
 
 
 class Classifier:

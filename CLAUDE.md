@@ -79,6 +79,7 @@ python -m backend.api           # backend + chat page only, in a browser, on htt
 python -m backend.auth.token    # print the per-install API token (--rotate for a new one)
 python -m integrations.mcp.smoke  # Step 6 check: MCP discovery, allowed + refused call, audit records
 python -m agents.router.demo       # Step 7 check: Router -> echo -> back, clarifying question, loop stopped (needs Ollama)
+python -m agents.router.measure_speed  # Router prompt size (chars, tokens) and latency for 3 requests (needs Ollama, ~2 min on CPU)
 python -m agents.router.eval_routing  # score the Router on tests/agents/routing_cases.yaml (~15 s per case on CPU)
 python -m memory.pc_index           # rebuild the PC file index over approved folders + workspace/ (--watch keeps it fresh; the backend does this itself)
 python -m agents.router.demo_files   # Step 8 check: missing file found, honest not-found, protected file never shown, audit records (needs Ollama)

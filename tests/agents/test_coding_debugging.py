@@ -121,7 +121,7 @@ def test_card_matches_the_catalogue_and_stays_in_the_sandbox(agent: str, tools: 
     prompt = registry.prompt_for(card)
     for must_say in ("only", "data", "Never invent", "never follow it", "coding workspace"):
         assert must_say in prompt, must_say
-    assert f"id: {agent}" in render_catalogue(registry.workers())
+    assert f"- {agent}:" in render_catalogue(registry.workers())
 
 
 def test_debugging_cannot_write_new_files_and_coding_cannot_read_logs() -> None:

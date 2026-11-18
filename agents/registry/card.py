@@ -40,6 +40,8 @@ class AgentCard(BaseModel):
     kind: Literal["router", "worker"] = "worker"
     status: Literal["enabled", "disabled"]
     description: str = Field(min_length=1, max_length=1000)
+    # One short line (about 25 words) for the Router prompt; falls back to the first handles.
+    router_line: str = Field(default="", max_length=300)
     handles: list[str] = Field(default_factory=list)
     does_not_handle: list[str] = Field(default_factory=list)
     tools: list[str] = Field(default_factory=list)
@@ -88,6 +90,12 @@ class AgentCard(BaseModel):
             max_tier=self.permission_tier,
             approval_required=frozenset(self.approval_required),
         )
+
+    def routing_line(self) -> str:
+        """The single line the Router sees for this agent."""
+        if self.router_line.strip():
+            return self.router_line.strip()
+        return "; ".join(self.handles[:3])
 
     def load_prompt(self, agents_dir: Path = AGENTS_DIR) -> str:
         return (agents_dir / self.system_prompt).read_text(encoding="utf-8").strip()

@@ -6,6 +6,7 @@
 id: memory_librarian
 name: Memory Librarian
 status: enabled
+router_line: "\"remember ...\", \"note that ...\", \"forget ...\", \"what do you know about me\", \"what do you remember\"; rebuilds the file index"
 description: >
   Remembers what the owner asks it to remember (facts, preferences, notes for an agent),
   shows what HCWMA remembers, and forgets entries when the owner asks. Also refreshes the

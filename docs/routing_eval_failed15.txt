@@ -1,0 +1,17 @@
+PASS  31.5s  expect=echo            got=echo      conf=0.95  'What time is it right now?'
+PASS  31.5s  expect=echo            got=echo      conf=0.90  "what's today's date on this PC?"
+FAIL  33.0s  expect=file_system     got=answer    conf=0.95  'How much free space is left on my C drive?'
+FAIL  31.4s  expect=not file_system got=file_system conf=0.90  'Open notes.txt and summarize what it says'
+FAIL  29.8s  expect=not file_system got=file_system conf=0.90  'Download the latest Python installer from python.org'
+PASS  31.6s  expect=coding          got=coding    conf=0.90  'Explain what this function does: def f(x): return x and x[0]'
+PASS  32.7s  expect=coding          got=coding    conf=0.90  'What does this code do: [x * 2 for x in range(5) if x % 2]'
+PASS  32.8s  expect=debugging       got=debugging conf=0.90  'My script crashes with IndexError: list index out of range, please fix it'
+PASS  32.3s  expect=debugging       got=debugging conf=0.90  'My script prints the wrong average, what is wrong with it?'
+PASS  31.7s  expect=debugging       got=debugging conf=0.90  'I get ZeroDivisionError when the list is empty, can you fix it?'
+PASS  30.5s  expect=debugging       got=debugging conf=0.90  'My program crashes with a traceback, make it work again'
+PASS  30.2s  expect=coding          got=coding    conf=0.95  'Explain how a for loop works in Python'
+FAIL  29.7s  expect=image_editing   got=file_system conf=0.90  'How big is logo.png in pixels?'
+PASS  33.8s  expect=answer          got=answer    conf=0.90  'Draw me a picture of a cat wearing a hat'
+PASS  32.0s  expect=memory_librarian got=memory_librarian conf=0.90  'Note that my project files usually live in Documents/projects'
+
+scored 11/15; skipped 0 (agent not built yet: )
