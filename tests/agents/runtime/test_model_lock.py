@@ -104,6 +104,9 @@ def test_a_second_process_holding_the_lock_blocks_this_one(tmp_path: Path) -> No
     finally:
         child.kill()
         child.wait()
+    deadline = time.monotonic() + 10  # the OS may take a moment to finish removing the process
+    while model_lock.is_busy() and time.monotonic() < deadline:
+        time.sleep(0.1)
     assert not model_lock.is_busy()  # the holder died: lock no longer counts
 
 
