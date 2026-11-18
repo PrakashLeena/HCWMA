@@ -16,3 +16,4 @@ Send2Trash==2.2.0  # step 9: delete_file moves files to the Recycle Bin, never e
 PySide6_Essentials==6.12.0
 PySide6_Addons==6.12.0
 PySide6_WebEngine==6.12.0.140
+pillow==12.3.0     # step 12: image tools (resize, crop, convert, filters); small, no system software

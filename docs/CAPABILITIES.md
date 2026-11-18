@@ -2,6 +2,46 @@
 
 One section per agent. Updated whenever an agent is added or changed (`add-agent` skill).
 
+## Image Editing (`image_editing`) — since Step 12
+
+Resizes, crops, converts and filters pictures. It changes the file, not the meaning: it cannot
+see what is in a picture, and it cannot draw, generate or retouch (owner decision: no
+generative editing for now).
+
+**Can do**
+
+- Resize to a width and/or height, keeping proportions. *"Resize all photos in my holiday
+  folder to 1080 pixels wide."*
+- Crop to a centred square, a ratio such as 16:9, or an exact pixel box.
+- Convert between jpg, png, webp, bmp, gif and tiff.
+- Filters: black and white, sepia, invert, blur, sharpen, auto-contrast, brightness, contrast.
+- Tell you the size, format and file size of a picture, or list the pictures in a folder.
+- Work on up to 10 files per step; a bad file is reported and the rest carry on.
+
+**How it is kept safe**
+
+- **Originals are never changed.** Every edit saves a new copy in `workspace/images/`
+  (`beach_resized.jpg`). If that name exists, a number is added (`beach_resized_2.jpg`);
+  nothing is ever overwritten. It cannot choose another output folder.
+- It reads pictures only from the folders you approved and from `workspace/`, never from
+  protected paths. It needs no approval prompt, because it cannot change or delete an
+  existing file.
+- The file type is checked from the file's bytes, not its name. Very large pictures
+  (over 50 million pixels) and results over 8000 pixels per side are refused.
+- Copies carry no hidden data (camera, GPS position); the camera's rotation is applied first.
+- Text found inside a picture is never passed to the agent as an instruction.
+
+**Cannot do (yet)**
+
+- Look at the picture (describe it, read text in it, find faces), remove objects or
+  backgrounds, draw or generate images. These need a separate image model (Step 19).
+- Edit videos, PDFs or documents; download pictures from the internet.
+- Edit a picture in place or choose where the copy goes: copy it from `workspace/images/`
+  yourself, or ask File & System to move it (it asks you first).
+- No folder is approved yet, so today it only sees pictures in `workspace/`.
+
+**Memory:** it reads none.
+
 ## Coding (`coding`) and Debugging (`debugging`) agents — since Step 11
 
 Small Python jobs inside one sandbox folder, `workspace/code/` (inside the HCWMA repository,
