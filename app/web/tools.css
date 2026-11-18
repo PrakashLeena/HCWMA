@@ -1,0 +1,16 @@
+.tools { display: flex; flex-direction: column; gap: 8px; }
+.tool-row { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--panel); cursor: pointer; }
+.tool-row .name { font-weight: 600; }
+.badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+.badge.approved { color: #067647; border-color: #067647; }
+.badge.quarantined { color: #b54708; border-color: #b54708; }
+.badge.disabled { color: var(--muted); }
+.tools-detail { max-width: 980px; margin: 0 auto 24px; width: 100%; }
+.tools-detail h2 { margin: 12px 0 4px; font-size: 15px; }
+.tools-detail pre { max-height: 360px; overflow: auto; padding: 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg); font-size: 13px; white-space: pre; }
+.tools-detail .summary { white-space: pre-wrap; }
+.tools-detail .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.tools-detail label { display: inline-flex; gap: 4px; align-items: center; margin-right: 10px; }
+.tools-detail .warn { color: var(--error); }

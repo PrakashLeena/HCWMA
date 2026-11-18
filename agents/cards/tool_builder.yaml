@@ -1,0 +1,37 @@
+# Tool Builder agent (build step 13; master document 4.4, 6.6).
+# Writes a new READ-ONLY tool (manifest, code, tests) into integrations/generated/<name>/,
+# has it tested inside Windows Sandbox and submits it for the owner's review. It cannot run
+# its own code on this PC, cannot approve anything and cannot touch any other file. A new
+# tool stays quarantined (uncallable) until the owner approves those exact files.
+# Draft by Claude Code on 2026-11-18 — owner to review.
+id: tool_builder
+name: Tool Builder Agent
+status: enabled
+router_line: "when the owner asks to make, build or create a NEW tool (e.g. \"make a tool that counts words\", \"create a tool that converts miles to km\"); the owner must approve it before use"
+description: >
+  Creates a new small read-only tool when HCWMA has no tool for a job: it first looks for an
+  existing tool, then writes the manifest, the Python code and the tests, has the tests run in
+  a throw-away Windows Sandbox, and submits the tool for the owner's review. The new tool
+  cannot be used until the owner has read the full code and approved it. Version 1 builds only
+  tools that read and compute; nothing that writes files, deletes, runs programs, or uses
+  passwords or keys.
+handles:
+  - make a new tool that does a small calculation or text job (word count, unit conversion, formatting)
+  - make a tool that reads one named public website
+  - the owner asks HCWMA to learn a new ability no other agent has
+does_not_handle:
+  - using a tool that already exists (→ the agent for that job)
+  - tools that write, move or delete files, run commands or programs, or need passwords or keys
+  - writing or fixing ordinary programs for the owner (→ coding, debugging)
+  - approving or enabling a tool (only the owner does this, in the Tools page)
+tools:
+  - find_existing_tools
+  - scaffold_tool
+  - run_tool_tests
+  - submit_for_approval
+permission_tier: T2
+approval_required: []
+memory_scopes: []
+record_outcomes: false
+system_prompt: prompts/tool_builder.md
+limits: { max_steps: 10, timeout_s: 1200 }

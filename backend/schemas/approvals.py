@@ -25,3 +25,18 @@ class ApprovalDecision(BaseModel):
 class DecisionResponse(BaseModel):
     id: str
     decision: Literal["approve", "deny"]
+
+
+class ToolApproveRequest(BaseModel):
+    """The owner approves the exact files they were shown (`hash`) for these agents."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hash: str
+    agents: list[str]
+
+
+class ToolRollbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hash: str

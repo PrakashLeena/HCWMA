@@ -161,6 +161,8 @@ cases:
 
   # --- tool_builder ---
   - { message: "Build a new tool that can read my smart thermostat's local API", expect: tool_builder }
+  - { message: "Make me a new tool that counts the words in any text I give it", expect: tool_builder }
+  - { message: "Create a tool that converts miles to kilometres", expect: tool_builder }
 
   # --- communication ---
   - { message: "Draft a reply to the last email from my landlord", expect: communication }

@@ -54,7 +54,7 @@ class AuditRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ts: str = Field(default_factory=_now)
-    event: Literal["tool_call", "delegation", "approval", "stop", "memory"]
+    event: Literal["tool_call", "delegation", "approval", "stop", "memory", "generated_tool"]
     task_id: str
     parent_task_id: str | None = None
     agent: str
@@ -177,6 +177,32 @@ class AuditLogger:
             agent=agent,
             tool=action,
             args=summarize_args(details or {}),
+            outcome=outcome,
+            reason=reason[:300],
+        )
+        self.write(record)
+        return record
+
+    def generated_tool(
+        self,
+        *,
+        action: str,
+        tool: str,
+        outcome: str,
+        agent: str = "system",
+        task_id: str | None = None,
+        reason: str = "",
+        details: dict[str, Any] | None = None,
+    ) -> AuditRecord:
+        """A step in the life of a Tool Builder tool: scaffold, sandbox test, submit, owner
+        approve / disable / rollback (build step 13). `details` holds names, hashes and counts,
+        never code."""
+        record = AuditRecord(
+            event="generated_tool",
+            task_id=task_id or "-",
+            agent=agent,
+            tool=tool,
+            args=summarize_args({"action": action, **(details or {})}),
             outcome=outcome,
             reason=reason[:300],
         )

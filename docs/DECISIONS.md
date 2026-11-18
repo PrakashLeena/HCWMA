@@ -89,3 +89,23 @@ Numbers in `docs/benchmarks.md`.
 
 - The Tool Builder's sandbox-test tool wrapper must call `PathPolicy` on the tool folder before
   staging (verify check 8) and write an audit record for every sandbox run (check 10).
+
+## Tool Builder (Step 13)
+
+Owner rules (2026-11-18, from the Step 13 request): v1 generated tools are read-only
+(`side_effects: none`; no files, secrets, shell, subprocess or ctypes); network only to hosts in
+the manifest through the shared web fetch; tests only in Windows Sandbox; any changed byte sends
+a tool back to quarantine; the owner sees the summary, the permissions and the full code.
+
+Design choices made by Claude Code, **owner to confirm or change**:
+
+- Approval state is kept in `%LOCALAPPDATA%\HCWMA\generated_tools\state.json` (outside the
+  repository, next to memory; `HCWMA_DATA_DIR` overrides it), per exact content hash.
+- The owner picks which agents may use an approved tool when approving it (agent cards are
+  not edited); the tool is always T1.
+- The four Tool Builder tool manifests (`find_existing_tools`, `scaffold_tool`, `run_tool_tests`,
+  `submit_for_approval`) ship `quarantined` until the owner approves them
+  (`TOOL_BUILDER_TOOLS_STATUS` in `integrations/adapters/local_data/tool_builder_tools.py`).
+- `integrations/generated_tools/runner.py` calls `exec` on an APPROVED tool's code, in a separate
+  child process (guard hook, restricted builtins, time and memory limit, scrubbed environment).
+  This is outside the verify skill's "no exec" rule as written; it needs the owner's review.

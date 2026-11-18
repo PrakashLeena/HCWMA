@@ -32,8 +32,11 @@ from backend.schemas.approvals import (
     DecisionResponse,
     PendingApprovals,
     StopReport,
+    ToolApproveRequest,
+    ToolRollbackRequest,
 )
 from backend.schemas.chat import ChatRequest, ChatResponse, HealthResponse
+from integrations.generated_tools.review import ReviewRefused, ReviewService
 from model.serving import Message
 
 logger = logging.getLogger("hcwma.backend")
@@ -59,7 +62,12 @@ _SECURITY_HEADERS = {
 }
 
 
-def create_app(handler_factory: HandlerFactory, token: str, config: BackendConfig) -> FastAPI:
+def create_app(
+    handler_factory: HandlerFactory,
+    token: str,
+    config: BackendConfig,
+    review: ReviewService | None = None,
+) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
 
@@ -155,6 +163,62 @@ def create_app(handler_factory: HandlerFactory, token: str, config: BackendConfi
         if control is None:
             return StopReport(stopped_tasks=0, cancelled_approvals=0)
         return control.stop_all()
+
+    # --- build step 13: the owner's review of tools written by the Tool Builder -----------------
+    # Token-protected like /approvals. Only these routes can approve, disable or roll back a
+    # generated tool; no agent tool can reach them.
+
+    def reviewer() -> ReviewService:
+        if getattr(app.state, "review", None) is None:
+            app.state.review = review or ReviewService.default()
+        service: ReviewService = app.state.review
+        return service
+
+    def refuse(exc: ReviewRefused) -> HTTPException:
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+    @app.get("/generated-tools", dependencies=[Depends(require_token)])
+    def generated_tools() -> dict[str, list[dict[str, object]]]:
+        return {"tools": reviewer().list_tools()}
+
+    @app.get("/generated-tools/{name}", dependencies=[Depends(require_token)])
+    def generated_tool(name: str) -> dict[str, object]:
+        try:
+            return reviewer().review(name)
+        except ReviewRefused as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from None
+
+    @app.post("/generated-tools/{name}/approve", dependencies=[Depends(require_token)])
+    def approve_generated_tool(name: str, body: ToolApproveRequest) -> dict[str, object]:
+        try:
+            return reviewer().approve(name, body.hash, body.agents)
+        except ReviewRefused as exc:
+            raise refuse(exc) from None
+
+    @app.post("/generated-tools/{name}/disable", dependencies=[Depends(require_token)])
+    def disable_generated_tool(name: str) -> dict[str, object]:
+        try:
+            return reviewer().disable(name)
+        except ReviewRefused as exc:
+            raise refuse(exc) from None
+
+    @app.post("/generated-tools/{name}/enable", dependencies=[Depends(require_token)])
+    def enable_generated_tool(name: str) -> dict[str, object]:
+        try:
+            return reviewer().enable(name)
+        except ReviewRefused as exc:
+            raise refuse(exc) from None
+
+    @app.post("/generated-tools/{name}/rollback", dependencies=[Depends(require_token)])
+    def rollback_generated_tool(name: str, body: ToolRollbackRequest) -> dict[str, object]:
+        try:
+            return reviewer().rollback(name, body.hash)
+        except ReviewRefused as exc:
+            raise refuse(exc) from None
+
+    @app.get("/tools", include_in_schema=False)
+    def tools_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "tools.html", media_type="text/html")
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:

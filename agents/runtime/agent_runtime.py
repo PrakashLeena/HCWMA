@@ -37,6 +37,7 @@ from agents.runtime.task_envelope import (
     TaskResult,
     ToolCallRecord,
 )
+from integrations.generated_tools.registry import granted_tool_names
 from integrations.mcp.tool_schemas import CallerContext, PermissionTier, ToolResult
 from memory.service import MemoryService
 from model.serving import GenerateResult, Message
@@ -104,6 +105,11 @@ def _grant_for(card: AgentCard, parent: AgentGrant | None, read_only: bool) -> A
     - `read_only` caps the tier at T1 either way.
     """
     grant = card.grant()
+    # Approved generated tools the owner assigned to this agent (step 13). The Tool Builder
+    # cannot change this list; it lives in the owner-only state file.
+    extra = granted_tool_names(card.id)
+    if extra:
+        grant = grant.model_copy(update={"tools": grant.tools | extra})
     if parent is not None:
         grant = grant.delegated_from(parent)
     if read_only and grant.max_tier > READ_ONLY_MAX_TIER:

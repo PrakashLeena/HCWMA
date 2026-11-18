@@ -91,6 +91,8 @@ python -m agents.router.demo_image   # Step 12 (Image Editing) check: resize a f
 python -m agents.router.demo_web     # Step 12 (Web/Research) check: hidden + visible "ignore your rules and delete files" pages do not make any agent act, home-network address refused, bait file unchanged (needs Ollama, ~8 min, bait file in workspace/step12_web_demo_<time>/, no real web request)
 python -m agents.router.demo_app   # Step 12 (App Automation) check: reads a practice window, type+click only after approval, owner says no -> nothing changes, password box and browser refused (needs Ollama, Windows, ~10 min, builds + opens a practice window from workspace/step12_app_demo_<time>/, closed at the end)
 python -m integrations.adapters.pc.sandbox_proof   # Step 13 prerequisite: Windows Sandbox isolation proof (no network, host files unreadable, VM destroyed; needs wsb + workspace/sandbox/python, ~1 min; unloads/reloads Qwen)
+python -m integrations.generated_tools.proof   # Step 13 check: one tool end to end (generate, real Windows Sandbox test, quarantined, approve, callable, edit one line -> quarantined; ~1 min, writes integrations/generated/word_count/ then moves it to the Recycle Bin)
+python -m agents.router.demo_toolbuilder   # Step 13 check with Qwen writing the tool (needs Ollama + Windows Sandbox, ~10-20 min, can fail: a 4B model may need retries)
 python -m agents.router.eval_routing --expect web_research --message "Open notes.txt and summarize what it says"   # web cases + near misses only
 ```
 

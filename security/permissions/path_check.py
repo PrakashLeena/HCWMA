@@ -85,6 +85,21 @@ class PathPolicy:
         real = Path(path).resolve()
         return any(_inside(real, p) for p in self.protected)
 
+    def check_under(self, path: str | Path, root: str | Path) -> Path:
+        """For the Tool Builder (build step 13): `path` must be a folder or file strictly
+        inside `root` (the generated-tools folder). Protected paths and owner-blocked
+        folders are refused first, exactly as in `check`; links are resolved before the
+        comparison. `root` itself is refused (a tool lives in its own sub-folder)."""
+        real = Path(path).resolve()
+        top = Path(root).resolve()
+        if self.is_protected(real):
+            raise PathDenied(f"'{path}' is under a protected path")
+        if any(_inside(real, b) for b in self.blocked):
+            raise PathDenied(f"'{path}' is in a folder blocked by the owner")
+        if _key(real) == _key(top) or not _inside(real, top):
+            raise PathDenied(f"'{path}' is not inside the generated-tools folder")
+        return real
+
     def check(self, path: str | Path, access: Access) -> Path:
         """Return the resolved path if allowed, else raise `PathDenied`."""
         raw = Path(path)

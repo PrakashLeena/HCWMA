@@ -37,6 +37,7 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "delete_file": {"path": "a.txt"},
     "get_disk_usage": {},
     "get_system_time": {},
+    "find_existing_tools": {"query": "word count"},
     "extract_page_information": {"url": "https://example.com/", "query": "price"},
     "image_info": {"path": "a.jpg"},
     "list_recent_files": {},
@@ -53,7 +54,15 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "restore_file": {"item_id": "X:|$R1"},
     "run_in_sandbox": {"command": "python a.py"},
     "run_tests": {},
+    "run_tool_tests": {"name": "word_count"},
+    "scaffold_tool": {
+        "name": "word_count",
+        "manifest_yaml": "name: word_count\n",
+        "adapter_code": "def run(args, ctx):\n    return {}\n",
+        "test_code": "import unittest\n",
+    },
     "search_files": {"query": "report"},
+    "submit_for_approval": {"name": "word_count"},
     "write_file": {"path": "a.py", "content": "x"},
 }
 
