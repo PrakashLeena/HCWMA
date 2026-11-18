@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.router.router import RouterReply
+from agents.runtime.model_lock import BUSY_MESSAGE, ModelBusy, check_free
 from backend.auth.token import token_matches
 from backend.config import BackendConfig
 from backend.schemas.approvals import (
@@ -114,7 +115,12 @@ def create_app(
         conversation = [Message(role=t.role, content=t.content) for t in request.messages]
         start = time.perf_counter()
         try:
+            check_free()  # a sandbox tool test holds the model (build step 13)
             reply = await http.app.state.handler.handle(conversation)
+        except ModelBusy:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=BUSY_MESSAGE
+            ) from None
         except Exception as exc:
             # Log the error type only: no message content and no runtime internals.
             logger.error("chat request failed: %s", type(exc).__name__)

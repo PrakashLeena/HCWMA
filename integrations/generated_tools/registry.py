@@ -16,7 +16,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from integrations.generated_tools.executor import HostFetcher, _host_fetch, run_generated
-from integrations.generated_tools.manifest import ADAPTER_FILE, generated_root
+from integrations.generated_tools.manifest import generated_root
 from integrations.generated_tools.store import GeneratedStore, ToolFiles, list_tool_names, read_tool
 from integrations.mcp.tool_schemas import ToolSpec
 
@@ -60,17 +60,36 @@ class GeneratedToolSource:
         if manifest is None:  # unusable: shown to the owner by the review screen, not the catalogue
             return None
         status, _reason = self.store.status_of(tool)
-        source = tool.text(ADAPTER_FILE)
         hosts = frozenset(manifest.permissions.network)
         timeout = manifest.timeout_s
         fetch = self._fetch
+        root, store = self.root, self.store
+        name = manifest.name
         out_model = manifest.output_model()
 
         def handler(args: BaseModel) -> BaseModel:
             if status != "approved":  # defence in depth: the gateway and server check already
                 raise PermissionError(f"tool '{manifest.name}' is {status}")
+            # Read everything again NOW and compare with what the owner approved: a file that
+            # changed after the lookup is refused here, and the child checks the hash once more.
+            fresh = read_tool(name, root)
+            state = store.state(name)
+            approved = state.approved.get("hash") if state.approved else None
+            if (
+                state.disabled
+                or fresh is None
+                or not fresh.ok
+                or not approved
+                or fresh.digest != approved
+            ):
+                raise PermissionError(f"tool '{name}' changed since the owner approved it")
             result = run_generated(
-                source, args.model_dump(), hosts=hosts, timeout_s=timeout, fetch=fetch
+                fresh.files,
+                approved,
+                args.model_dump(),
+                hosts=hosts,
+                timeout_s=timeout,
+                fetch=fetch,
             )
             return out_model.model_validate(result)
 

@@ -52,6 +52,9 @@ protected_paths:
   # HCWMA policy, audit and secrets
   - security/
   - configs/permissions.yaml
+  # approval state, saved versions and run folder of Tool Builder tools (build step 13):
+  # only the owner's review service changes these, never an agent tool
+  - ~/AppData/Local/HCWMA/generated_tools
 
 # Extra off-limits folders chosen by the owner. Owner decision 2026-11-16: none.
 blocked_folders: []

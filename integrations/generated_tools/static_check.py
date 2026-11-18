@@ -20,6 +20,7 @@ guard, restricted builtins and a time limit, and a changed byte sends it back to
 from __future__ import annotations
 
 import ast
+import hashlib
 from dataclasses import dataclass
 
 ALLOWED_IMPORTS = frozenset(
@@ -151,3 +152,16 @@ def check_tool(adapter: str, tests: str) -> list[str]:
     found = [f"adapter.py {p}" for p in check_source(adapter)]
     found += [f"test_adapter.py {p}" for p in check_source(tests, is_test=True)]
     return found[:12]
+
+
+def content_hash(files: dict[str, bytes]) -> str:
+    """One hash over the names and bytes of every tool file (manifest, code, tests).
+
+    Defined here, in a file with no HCWMA imports, so the child process that runs an approved
+    tool can recompute it itself right before it executes anything."""
+    digest = hashlib.sha256()
+    for name in sorted(files):
+        data = files[name]
+        digest.update(f"{name}\0{len(data)}\0".encode())
+        digest.update(data)
+    return digest.hexdigest()

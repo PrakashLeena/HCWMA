@@ -5,9 +5,13 @@ Not imported by HCWMA. `executor.py` starts it as
 installed: no files outside its folder, no network, no new processes). Standard library only.
 
 Protocol, one JSON object per line:
-  in : {"source": "<adapter.py>", "args": {...}}                      (first line)
+  in : {"files": {name: base64}, "approved_hash": "<sha256>", "args": {...}}   (first line)
   out: {"fetch": "<url>"}   -> in: {"ok": true, "status": 200, ...} or {"ok": false, "error": ".."}
   out: {"result": {...}}    or    {"error": "<short message>"}
+
+Before it executes anything the runner re-checks, itself: (1) the SHA-256 of the files it was
+sent equals the hash the owner approved, and (2) the static check passes again on that exact
+code. Either one failing means nothing runs.
 
 The adapter source runs with a small allow-list of builtins and an `__import__` that only
 admits the allowed modules. Whatever the tool prints is thrown away so it cannot disturb the
@@ -16,9 +20,12 @@ protocol. The host treats the reply as untrusted data and validates it again.
 
 from __future__ import annotations
 
+import base64
 import builtins
 import json
 import sys
+
+import static_check  # copied next to this file by executor.py; stdlib only
 
 ALLOWED = frozenset(
     {
@@ -87,7 +94,14 @@ def main() -> int:
 
     try:
         request = receive()
-        source, args = request["source"], request["args"]
+        files = {n: base64.b64decode(v) for n, v in request["files"].items()}
+        if static_check.content_hash(files) != request["approved_hash"]:
+            raise PermissionError("the tool's files do not match the version the owner approved")
+        source = files["adapter.py"].decode("utf-8")
+        problems = static_check.check_tool(source, files["test_adapter.py"].decode("utf-8"))
+        if problems:
+            raise PermissionError("the static check failed again: " + "; ".join(problems[:2]))
+        args = request["args"]
         # Everything the tool prints is dropped; the protocol owns the real stdout.
         sys.stdout = sys.stderr = _Sink()
         namespace: dict = {"__name__": "adapter"}

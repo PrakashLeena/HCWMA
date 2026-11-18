@@ -106,6 +106,23 @@ Design choices made by Claude Code, **owner to confirm or change**:
 - The four Tool Builder tool manifests (`find_existing_tools`, `scaffold_tool`, `run_tool_tests`,
   `submit_for_approval`) ship `quarantined` until the owner approves them
   (`TOOL_BUILDER_TOOLS_STATUS` in `integrations/adapters/local_data/tool_builder_tools.py`).
-- `integrations/generated_tools/runner.py` calls `exec` on an APPROVED tool's code, in a separate
-  child process (guard hook, restricted builtins, time and memory limit, scrubbed environment).
-  This is outside the verify skill's "no exec" rule as written; it needs the owner's review.
+
+Owner decisions on the review (2026-11-18), all three implemented:
+
+1. **Model-queue race.** While a sandbox run is active the backend must not reload Qwen. The run
+   takes a lock file `model_busy.json` in `%LOCALAPPDATA%\HCWMA` (`agents/runtime/model_lock.py`;
+   never deleted, released by writing `active: false`; it also stops counting after its time limit
+   or when its owner process is gone). `ModelQueue.generate` and `/chat` refuse while it is held:
+   "busy: testing a tool, try again shortly". Released only after Qwen is reloaded.
+2. **`exec` exception, approved on one condition.** `integrations/generated_tools/runner.py` calls
+   `exec` on an APPROVED tool's code, in a separate child process (guard hook, restricted
+   builtins, time and memory limit, scrubbed environment). The condition: immediately before
+   `exec` the runner itself recomputes the SHA-256 of the files it was sent and compares it with
+   the approved hash, and re-runs the static check on that exact code; either failing means
+   nothing runs. The gateway side also re-reads the files and the approval right before starting
+   the child. Tests: a file changed after approval is refused. This is the only place that execs
+   model-written code; the verify skill's "no exec" rule is unchanged (this is a reviewed exception).
+3. **Protected path.** `~/AppData/Local/HCWMA/generated_tools` is in `protected_paths`
+   (`configs/permissions.yaml`, a stricter change). An approved tool is callable only if BOTH the
+   owner assigned the agent at approval AND the policy layer allows it (allowlist, approved
+   status, tier); tests cover each half failing alone.

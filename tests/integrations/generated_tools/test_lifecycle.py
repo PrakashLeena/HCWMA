@@ -29,7 +29,7 @@ from integrations.generated_tools.executor import GeneratedToolError, run_genera
 from integrations.generated_tools.manifest import generated_root
 from integrations.generated_tools.registry import GeneratedToolSource, granted_tool_names
 from integrations.generated_tools.review import ReviewRefused, ReviewService
-from integrations.generated_tools.store import GeneratedStore, read_tool
+from integrations.generated_tools.store import GeneratedStore, content_hash, read_tool
 from integrations.mcp.client import McpToolClient, local_server_params
 from integrations.mcp.tool_schemas import PermissionTier
 from integrations.registry.capability_catalog import default_catalog
@@ -400,21 +400,72 @@ def test_the_tool_cannot_approve_itself_through_its_manifest(deps: ToolBuilderDe
 # ---- running an approved tool ----
 
 
-def test_runtime_blocks_what_the_static_check_would_have_caught() -> None:
-    # Even if code got past the static check, the child process refuses it.
-    for body, text in [
-        ("import os\n    return {}", "import of 'os' is not allowed"),
-        ("return {'x': open('a.txt').read()}", "NameError"),
-    ]:
-        with pytest.raises(GeneratedToolError, match=text):
-            run_generated(f"def run(args, ctx):\n    {body}\n", {}, timeout_s=10)
+def _files(adapter: str, tests: str = samples.TESTS) -> tuple[dict[str, bytes], str]:
+    """The three files as bytes and their hash, as the owner would have approved them."""
+    files = {
+        "manifest.yaml": samples.MANIFEST.encode(),
+        "adapter.py": adapter.encode(),
+        "test_adapter.py": tests.encode(),
+    }
+    return files, content_hash(files)
+
+
+def _run(adapter: str, args: dict[str, Any] | None = None, **kw: Any) -> dict[str, Any]:
+    files, digest = _files(adapter)
+    return run_generated(files, digest, args or {}, **kw)
+
+
+def test_runner_rechecks_the_approved_hash_before_exec() -> None:
+    files, digest = _files(samples.ADAPTER)
+    assert run_generated(files, digest, {"text": "a b"})["words"] == 2
+    # one byte differs from what was approved: nothing is executed
+    changed = {**files, "adapter.py": files["adapter.py"] + b"\n# x\n"}
+    with pytest.raises(GeneratedToolError, match="do not match the version the owner approved"):
+        run_generated(changed, digest, {"text": "a b"})
+    for name in files:  # any one of the three files counts
+        other = {**files, name: files[name] + b" "}
+        with pytest.raises(GeneratedToolError, match="do not match"):
+            run_generated(other, digest, {"text": "a"})
+
+
+def test_runner_reruns_the_static_check_before_exec() -> None:
+    # Even with a matching hash (as if it had been approved), forbidden code does not run.
+    bad = "import os\n\ndef run(args, ctx):\n    return {}\n"
+    with pytest.raises(GeneratedToolError, match="static check failed again"):
+        _run(bad)
+
+
+def test_file_changed_after_approval_is_refused_at_call_time(
+    deps: ToolBuilderDeps, audit: AuditLogger
+) -> None:
+    _approved_tool(deps, audit)
+    spec = default_catalog().get("word_count")  # looked up while still approved
+    assert spec is not None and spec.manifest.status == "approved"
+    assert spec.handler(spec.input_model(text="a b c")).words == 3
+    adapter = generated_root() / "word_count" / "adapter.py"
+    adapter.write_text(adapter.read_text() + "\n# changed after approval\n", encoding="utf-8")
+    with pytest.raises(PermissionError, match="changed since the owner approved"):
+        spec.handler(spec.input_model(text="a b c"))  # same stale spec: still refused
+
+
+def test_restricted_builtins_and_imports_in_the_child(monkeypatch: pytest.MonkeyPatch) -> None:
+    # the runner imports `static_check` as a sibling file, as it does in the child process
+    monkeypatch.syspath_prepend(str(Path(run_generated.__code__.co_filename).parent))
+    import importlib
+
+    runner = importlib.import_module("integrations.generated_tools.runner")
+    for name in ("os", "subprocess", "sys", "urllib.request", "importlib"):
+        with pytest.raises(ImportError):
+            runner._guarded_import(name)
+    assert runner._guarded_import("re").__name__ == "re"
+    assert "open" not in runner.SAFE_NAMES and "eval" not in runner.SAFE_NAMES
 
 
 def test_runtime_has_a_time_limit_and_returns_only_a_dict() -> None:
     with pytest.raises(GeneratedToolError, match="did not finish"):
-        run_generated("def run(args, ctx):\n    while True:\n        pass\n", {}, timeout_s=1.5)
+        _run("def run(args, ctx):\n    while True:\n        pass\n", timeout_s=1.5)
     with pytest.raises(GeneratedToolError, match="must return a dict"):
-        run_generated("def run(args, ctx):\n    return 5\n", {}, timeout_s=10)
+        _run("def run(args, ctx):\n    return 5\n", timeout_s=10)
 
 
 def test_network_goes_only_through_declared_hosts() -> None:
@@ -427,11 +478,12 @@ def test_network_goes_only_through_declared_hosts() -> None:
         return FetchedPage(url, url, 200, "text/html", "<h1>Hi</h1>")
 
     hosts = frozenset({"example.org"})
-    out = run_generated(samples.NETWORK_ADAPTER, {"path": "x"}, hosts=hosts, fetch=fake)
+    files, digest = _files(samples.NETWORK_ADAPTER)
+    out = run_generated(files, digest, {"path": "x"}, hosts=hosts, fetch=fake)
     assert out == {"title": "Hi"} and calls == [("https://example.org/x", hosts)]
     # a tool with no declared hosts cannot fetch at all
     with pytest.raises(GeneratedToolError, match="declared no network hosts"):
-        run_generated(samples.NETWORK_ADAPTER, {"path": "x"}, hosts=frozenset(), fetch=fake)
+        run_generated(files, digest, {"path": "x"}, hosts=frozenset(), fetch=fake)
     # the real fetch refuses any other host before touching the network
     with pytest.raises(ToolRefused, match="not a host this tool declared"):
         fetch_public("https://evil.example.net/", allowed_hosts=hosts)
@@ -452,3 +504,58 @@ def test_output_must_match_the_declared_outputs(deps: ToolBuilderDeps, audit: Au
     assert spec is not None
     with pytest.raises(ValueError):
         spec.handler(spec.input_model(text="a"))
+
+
+# ---- who may call an approved tool: assigned at approval AND allowed by the policy layer ----
+
+
+def test_protected_path_covers_the_generated_tools_state_folder() -> None:
+    policy = PathPolicy.from_config()
+    state = Path.home() / "AppData" / "Local" / "HCWMA" / "generated_tools"
+    for target in (state, state / "state.json", state / "snapshots" / "x" / "adapter.py"):
+        for access in ("read", "write", "modify"):
+            with pytest.raises(PermissionError, match="protected"):
+                policy.check(target, access)  # type: ignore[arg-type]
+
+
+def test_callable_only_if_assigned_at_approval_and_allowed_by_policy(
+    deps: ToolBuilderDeps, audit: AuditLogger
+) -> None:
+    from agents.registry.agent_registry import AgentRegistry
+    from agents.runtime.agent_runtime import _grant_for
+
+    _approved_tool(deps, audit)  # approved for "echo" only
+    registry = AgentRegistry.from_dir()
+    manager = PermissionManager(load_permissions_config())
+    spec = default_catalog().get("word_count")
+    assert spec is not None and spec.manifest.status == "approved"
+
+    # 1. assigned (echo) but the card's tier is too low: the policy layer refuses
+    echo = registry.get("echo")
+    assert echo is not None and echo.permission_tier == PermissionTier.T0
+    granted = _grant_for(echo, None, read_only=False)
+    assert "word_count" in granted.tools  # the assignment is there ...
+    decision = manager.check(granted, spec.manifest)
+    assert (
+        decision.outcome == "denied" and "above agent max tier" in decision.reason
+    )  # ... not enough
+
+    # 2. allowed by policy (tier ok) but NOT assigned: refused on the allowlist
+    other = registry.get("web_research")
+    assert other is not None and other.permission_tier >= PermissionTier.T1
+    not_assigned = _grant_for(other, None, read_only=False)
+    assert "word_count" not in not_assigned.tools
+    decision = manager.check(not_assigned, spec.manifest)
+    assert decision.outcome == "denied" and "allowlist" in decision.reason
+
+    # 3. both: assign the tool to an agent whose tier allows T1 -> allowed
+    tool = read_tool("word_count")
+    assert tool is not None
+    ReviewService(GeneratedStore(), audit, ["echo", "web_research"]).approve(
+        "word_count", tool.digest, ["web_research"]
+    )
+    both = _grant_for(other, None, read_only=False)
+    assert "word_count" in both.tools
+    assert manager.check(both, spec.manifest).outcome == "allowed"
+    # and a read-only delegation never raises privilege (still T1 here)
+    assert manager.check(_grant_for(other, None, read_only=True), spec.manifest).allowed

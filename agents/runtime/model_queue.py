@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any
 
+from agents.runtime.model_lock import check_free
 from model.serving import GenerateResult, Message, get_backend, load_model_config
 
 GenerateFn = Callable[..., GenerateResult]
@@ -33,9 +34,11 @@ class ModelQueue:
         max_tokens: int = 512,
         **kwargs: Any,
     ) -> GenerateResult:
+        check_free()  # a sandbox test is running: do not start (or reload) the model
         with self._fifo:
             self._slots.acquire()
         try:
+            check_free()  # it may have started while this request waited its turn
             return self._generate(messages, tools=tools, max_tokens=max_tokens, **kwargs)
         finally:
             self._slots.release()

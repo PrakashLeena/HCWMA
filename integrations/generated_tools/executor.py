@@ -12,6 +12,7 @@ Nothing here deletes anything: the child's folder is one fixed empty folder that
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import queue
@@ -32,6 +33,7 @@ from integrations.generated_tools.store import STATE_DIR
 from memory.config import resolve_data_dir
 
 RUNNER_SOURCE = Path(__file__).resolve().with_name("runner.py")
+CHECK_SOURCE = Path(__file__).resolve().with_name("static_check.py")  # the runner imports it
 MAX_MEMORY_BYTES = 512 * 1024 * 1024
 MAX_LINE_BYTES = 2_000_000
 MAX_FETCH_TEXT = 100_000
@@ -96,19 +98,25 @@ def _host_fetch(url: str, hosts: frozenset[str]) -> FetchedPage:
 
 
 def run_generated(
-    source: str,
+    files: dict[str, bytes],
+    approved_hash: str,
     args: dict[str, Any],
     *,
     hosts: frozenset[str] = frozenset(),
     timeout_s: float = 10.0,
     fetch: HostFetcher = _host_fetch,
 ) -> dict[str, Any]:
-    """Run `source`'s `run(args, ctx)` and return its dict. Raises `GeneratedToolError`."""
+    """Run the tool's `run(args, ctx)` and return its dict. Raises `GeneratedToolError`.
+
+    `files` are the tool's exact bytes and `approved_hash` the hash the owner approved. The
+    child recomputes the hash and re-runs the static check immediately before `exec`."""
     root = _run_root()
-    runner = root / "runner.py"
-    text = RUNNER_SOURCE.read_text(encoding="utf-8")
-    if not runner.is_file() or runner.read_text(encoding="utf-8") != text:
-        runner.write_text(text, encoding="utf-8")
+    for source_file in (RUNNER_SOURCE, CHECK_SOURCE):
+        target = root / source_file.name
+        text = source_file.read_text(encoding="utf-8")
+        if not target.is_file() or target.read_text(encoding="utf-8") != text:
+            target.write_text(text, encoding="utf-8")
+    runner = root / RUNNER_SOURCE.name
     flags = 0
     if sys.platform == "win32":
         flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -142,7 +150,13 @@ def run_generated(
 
     started = time.monotonic()
     try:
-        send({"source": source, "args": args})
+        send(
+            {
+                "files": {n: base64.b64encode(d).decode("ascii") for n, d in files.items()},
+                "approved_hash": approved_hash,
+                "args": args,
+            }
+        )
         while True:
             if time.monotonic() - started > timeout_s:
                 raise GeneratedToolError(f"the tool did not finish within {timeout_s:g} s")

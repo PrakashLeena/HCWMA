@@ -19,7 +19,6 @@ Only the owner's review service (`review.py`, reached by the token-protected bac
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import stat
@@ -42,6 +41,7 @@ from integrations.generated_tools.manifest import (
     generated_root,
     parse_manifest,
 )
+from integrations.generated_tools.static_check import content_hash
 from integrations.mcp.tool_schemas import ToolStatus
 from memory.config import resolve_data_dir
 
@@ -65,16 +65,6 @@ def _is_link(path: Path) -> bool:
     return path.is_symlink() or bool(
         getattr(st, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
     )
-
-
-def content_hash(files: dict[str, bytes]) -> str:
-    """One hash over the names and bytes of every file (manifest, code, tests)."""
-    digest = hashlib.sha256()
-    for name in sorted(files):
-        data = files[name]
-        digest.update(f"{name}\0{len(data)}\0".encode())
-        digest.update(data)
-    return digest.hexdigest()
 
 
 @dataclass(frozen=True)
