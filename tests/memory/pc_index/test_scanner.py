@@ -159,3 +159,32 @@ def test_index_from_before_folders_gains_the_kind_column(tmp_path: Path) -> None
     conn.close()
     index = FileIndex(db)
     assert index.count() == 1 and index.count("folder") == 0
+
+
+def test_scan_reads_metadata_only_and_never_opens_a_file(
+    pc: Layout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Names, dates and sizes come from the directory listing and stat. No file is opened
+    for reading, so a OneDrive cloud-only file is never downloaded (hydrated)."""
+    import builtins
+    import io
+
+    opened: list[str] = []
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        opened.append(str(args[0]) if args else "?")
+        raise AssertionError(f"scan opened {args[0] if args else '?'}")
+
+    for target, name in [
+        (builtins, "open"),
+        (io, "open"),
+        (os, "open"),
+        (Path, "open"),
+        (Path, "read_bytes"),
+        (Path, "read_text"),
+    ]:
+        monkeypatch.setattr(target, name, refuse)
+    report = scan(pc.index, pc.policy)
+    monkeypatch.undo()
+    assert opened == []
+    assert report.files == 4 and report.folders == 2

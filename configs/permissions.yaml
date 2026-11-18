@@ -19,12 +19,16 @@ tiers:
     scope: Delete; install software; system settings; elevation; anything touching credentials
     default: deny
 
-# Folders HCWMA may index and read. Owner decision 2026-11-18: these four.
+# Folders HCWMA may index and read. Owner decisions 2026-11-18 (first four) and
+# 2026-11-19 (OneDrive Desktop and Documents: Windows keeps the real Desktop and Documents
+# there). Indexing reads names, dates and sizes only, so cloud-only files stay in the cloud.
 approved_folders:
   - ~/Documents
   - ~/Desktop
   - ~/Downloads
   - E:/ML/project
+  - ~/OneDrive/Desktop
+  - ~/OneDrive/Documents
 
 # Sandbox for agent-written code and files (gitignored).
 workspace: workspace
