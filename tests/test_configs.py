@@ -25,8 +25,13 @@ def test_permissions_tiers_and_defaults() -> None:
 
 def test_permissions_start_strict() -> None:
     perms = _load("permissions.yaml")
-    # Owner decision (Step 2): no folders approved yet.
-    assert perms["approved_folders"] == []
+    # Owner decision 2026-11-18 (was none at Step 2): exactly these four folders.
+    assert perms["approved_folders"] == [
+        "~/Documents",
+        "~/Desktop",
+        "~/Downloads",
+        "E:/ML/project",
+    ]
     assert perms["workspace"] == "workspace"
     protected = perms["protected_paths"]
     for required in ["~/.ssh", "security/"]:

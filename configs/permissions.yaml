@@ -19,8 +19,12 @@ tiers:
     scope: Delete; install software; system settings; elevation; anything touching credentials
     default: deny
 
-# Folders HCWMA may index and read. Owner decision 2026-11-16: none yet.
-approved_folders: []
+# Folders HCWMA may index and read. Owner decision 2026-11-18: these four.
+approved_folders:
+  - ~/Documents
+  - ~/Desktop
+  - ~/Downloads
+  - E:/ML/project
 
 # Sandbox for agent-written code and files (gitignored).
 workspace: workspace
