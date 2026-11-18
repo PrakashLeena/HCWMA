@@ -31,6 +31,7 @@ class CapabilityCatalog:
 def default_catalog() -> CapabilityCatalog:
     """The hand-written tools shipped with HCWMA. Later steps add theirs here."""
     from integrations.adapters.browser.web_tools import default_web_tool_specs
+    from integrations.adapters.desktop.ui_tools import default_ui_tool_specs
     from integrations.adapters.local_data.memory_tools import default_memory_tool_specs
     from integrations.adapters.pc.code_tools import default_code_tool_specs
     from integrations.adapters.pc.file_tools import default_file_tool_specs
@@ -51,5 +52,7 @@ def default_catalog() -> CapabilityCatalog:
     for spec in default_image_tool_specs():  # step 12: image editing (copies only)
         catalog.register(spec)
     for spec in default_web_tool_specs():  # step 12: read-only web pages (quarantined)
+        catalog.register(spec)
+    for spec in default_ui_tool_specs():  # step 12: desktop apps, T3 actions (quarantined)
         catalog.register(spec)
     return catalog

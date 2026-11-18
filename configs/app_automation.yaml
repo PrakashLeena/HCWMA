@@ -1,0 +1,5 @@
+# App Automation (build step 12). The owner can ADD to the off-limits lists here.
+# The built-in lists (HCWMA's own windows, browsers, password managers, banking/payment
+# windows, terminals and code editors, system security and settings) cannot be shortened.
+extra_blocked_apps: []          # executable names, e.g. ["accounting_app"]
+extra_blocked_title_words: []   # words in a window title, e.g. ["payroll"]

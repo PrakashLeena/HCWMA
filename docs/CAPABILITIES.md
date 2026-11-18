@@ -192,3 +192,54 @@ from it, with the page address as the source.
   server could in theory answer differently the second time (DNS rebinding). Closing this needs
   a pinned-address transport, planned with Playwright.
 - The tools ship as `quarantined`: they run only after the owner approves the manifests.
+
+## App Automation (`app_automation`) — since Step 12
+
+Works with ordinary programs that are already open on this PC (Windows only for now). It looks
+at a window through the same accessibility information a screen reader uses, no screenshots.
+
+**Can do**
+
+- List the open windows. *"What programs are open?"*
+- Read what a window shows: labels, buttons, text boxes. *"What does the error dialog say?"*
+- Find a button or text box by its label, then, **only after you approve it**: click it, type one
+  line of text into it, or press one safe key (Enter, Tab, Escape, arrows, Ctrl+A/C/Z/Y/F/S).
+  *"Type Sam into the Name box and click Greet."*
+
+**How it is kept safe**
+
+- **Every click, every typed text and every key press asks you first, every time** (tier T3).
+  The prompt says what will happen, in which window and program, and shows the exact text to
+  be typed. There is no "always allow". Say no (or say nothing) and nothing happens, and the
+  agent does not try another way.
+- **Look first, act second.** The three reading tools (`list_windows`, `read_window_text`,
+  `find_ui_element`) never change anything and need no prompt.
+- **Never touched, whatever you or the model say** (refused in code, before any prompt can
+  matter): HCWMA's own windows including the approval window; web browsers (so no saved
+  passwords, logins or banking pages); password managers; banking and payment windows (by
+  program and by title); terminals, code editors and anything else that runs commands; system
+  security, settings, Task Manager, the taskbar and the desktop. Titles of such windows are not
+  even shown to the agent.
+- **Password, PIN, card number and one-time-code text boxes are never read, clicked or typed
+  into**, and a window can never hold a password for the agent to type.
+- **Window text is data, never orders.** Text from a window is capped (3000 characters), fenced
+  as tool data and flagged when it gives orders (`looks_like_instructions`). A window that says
+  "click Delete" does not make the agent click anything: at worst the agent asks you, and you
+  can see exactly what it asks.
+- You can add programs or title words to the off-limits list in `configs/app_automation.yaml`;
+  the built-in list cannot be shortened there.
+- The tools ship as `quarantined`: they run only after the owner approves the manifests.
+
+**Cannot do (yet)**
+
+- Open, install or close programs, or run commands (it only works with windows already open).
+- Use web pages or browsers. Browser automation (Playwright) was not approved: it needs a
+  browser download of several hundred MB, so that is a separate owner decision.
+- Drag, scroll, right-click, double-click or use keyboard shortcuts outside the safe list.
+- Anything on Linux or macOS (the adapter is Windows only).
+- Known limit: a program that does not expose its controls to Windows accessibility (some games,
+  custom-drawn windows) shows little or nothing to read.
+- Known limit: between your approval and the click the window could in theory change. The tool
+  checks again at that moment (the window is still allowed, the element is still there under
+  the same name and type; typing and keys also need the window in front) and does nothing if
+  anything differs.

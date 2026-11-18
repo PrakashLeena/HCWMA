@@ -35,6 +35,7 @@ def test_shipped_cards_load() -> None:
     assert registry.router.id == "router"
     assert registry.router.tools == []
     assert [c.id for c in registry.workers()] == [
+        "app_automation",
         "coding",
         "debugging",
         "echo",
