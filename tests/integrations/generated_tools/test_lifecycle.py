@@ -559,3 +559,175 @@ def test_callable_only_if_assigned_at_approval_and_allowed_by_policy(
     assert manager.check(both, spec.manifest).outcome == "allowed"
     # and a read-only delegation never raises privilege (still T1 here)
     assert manager.check(_grant_for(other, None, read_only=True), spec.manifest).allowed
+
+
+# ---- what the Tool Builder's tools can and cannot do to the state file ----
+
+STATE_ONLY_BY_THE_OWNER = {"approve", "revoke", "set_disabled", "restore_files", "_update"}
+
+
+def test_no_agent_tool_code_can_reach_an_owner_only_function() -> None:
+    """Static: the Tool Builder's tool module never names an owner-only store function, never
+    imports the review service, and writes the state file only through record_test and
+    record_submitted."""
+    import ast
+
+    import integrations.adapters.local_data.tool_builder_tools as module
+
+    tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+    attrs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+    names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    assert not attrs & STATE_ONLY_BY_THE_OWNER
+    assert not names & STATE_ONLY_BY_THE_OWNER
+    imported = {
+        a.name for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names
+    } | {n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+    assert not any("review" in i.lower() or "ReviewService" in i for i in imported)
+    assert {"record_test", "record_submitted"} <= attrs
+
+
+def test_running_the_four_tools_only_ever_writes_tested_and_submitted(
+    deps: ToolBuilderDeps, audit: AuditLogger
+) -> None:
+    import json
+
+    from integrations.generated_tools.store import GeneratedStore
+
+    _find(deps, FindInput(query="time"))
+    _scaffold_sample(deps)
+    _run_tool_tests(deps, NameInput(name="word_count"))
+    _submit(deps, NameInput(name="word_count"))
+    state_file = GeneratedStore().base / "state.json"
+    entry = json.loads(state_file.read_text(encoding="utf-8"))["word_count"]
+    assert set(entry) == {"tested", "submitted"}  # no "approved", no "disabled", no history
+    assert GeneratedStore().state("word_count").approved is None
+    assert _status() == "quarantined"
+    # a forged "approved" in a manifest or a failing submit changes nothing either
+    _scaffold_sample(deps, manifest_yaml=samples.MANIFEST.replace("quarantined", "approved"))
+    assert "approved" not in json.loads(state_file.read_text(encoding="utf-8"))["word_count"]
+
+
+def test_only_the_review_routes_can_approve() -> None:
+    from backend.api.app import create_app
+    from backend.config import BackendConfig
+
+    app = create_app(lambda: None, "t", BackendConfig())  # type: ignore[arg-type]
+    approving = {
+        r.path for r in app.routes if getattr(r, "path", "").endswith(("/approve", "/rollback"))
+    }
+    assert approving == {
+        "/generated-tools/{name}/approve",
+        "/generated-tools/{name}/rollback",
+    }  # token-protected owner routes (checked in test_generated_tools_api)
+    assert not {
+        s.name
+        for s in default_catalog().all_tools()
+        if "approve" in s.name and s.name != "submit_for_approval"
+    }
+
+
+# ---- scaffold_tool: names, approved tools, sizes ----
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "..", "../x", "a/b", "a" + chr(92) + "b", "c:evil", "C:" + chr(92) + "x", "x.y", "Ab",
+        "a b", "ab", "1abc", "_abc", "a" * 60, "abc-def", "abc\x00", "é" * 4, "",
+    ],
+)  # fmt: skip
+def test_scaffold_rejects_bad_names(bad: str) -> None:
+    with pytest.raises(ValueError):
+        ScaffoldInput(
+            name=bad,
+            manifest_yaml=samples.MANIFEST,
+            adapter_code=samples.ADAPTER,
+            test_code=samples.TESTS,
+        )
+
+
+def test_scaffold_rejects_reserved_windows_names(deps: ToolBuilderDeps) -> None:
+    for reserved in ("con", "nul", "aux", "prn"):
+        with pytest.raises(ToolRefused, match="reserved Windows name"):
+            _scaffold_sample(deps, name=reserved)
+    assert not generated_root().exists() or not any(generated_root().iterdir())
+
+
+def test_scaffold_never_overwrites_an_approved_tool(
+    deps: ToolBuilderDeps, audit: AuditLogger
+) -> None:
+    first = _approved_tool(deps, audit)
+    folder = generated_root() / "word_count"
+    before = {p.name: p.read_bytes() for p in folder.iterdir()}
+    new_adapter = samples.ADAPTER.replace('"lines": lines', '"lines": lines + 0')
+    with pytest.raises(ToolRefused, match="approved and in use.*word_count_v2"):
+        _scaffold_sample(deps, adapter_code=new_adapter)
+    # the approved tool is untouched and still working
+    assert {p.name: p.read_bytes() for p in folder.iterdir()} == before
+    assert _status() == "approved"
+    spec = default_catalog().get("word_count")
+    assert spec is not None and spec.handler(spec.input_model(text="a b")).words == 2
+    # the new version goes through quarantine under its own name, beside the approved one
+    v2 = _scaffold_sample(
+        deps,
+        name="word_count_v2",
+        manifest_yaml=samples.MANIFEST.replace("name: word_count", "name: word_count_v2"),
+        adapter_code=new_adapter,
+    )
+    assert v2.written and v2.status == "quarantined"
+    assert _status("word_count_v2") == "quarantined"
+    assert _status() == "approved"
+    assert _owner(audit).review("word_count")["hash"] == first
+
+
+def test_scaffold_may_still_rewrite_a_tool_that_is_not_approved(deps: ToolBuilderDeps) -> None:
+    _scaffold_sample(deps)
+    again = _scaffold_sample(deps, adapter_code=samples.ADAPTER + "\n# v2\n")
+    assert again.written and again.status == "quarantined"  # quarantined / failed tests: fix freely
+
+
+def test_scaffold_refuses_files_over_the_size_limit(deps: ToolBuilderDeps) -> None:
+    from integrations.generated_tools.manifest import MAX_FILE_BYTES
+
+    big = "x = 1\n" * 10_000  # 60 KB: over every limit (and over 50 KB)
+    assert max(MAX_FILE_BYTES.values()) <= 50_000
+    for field in ("adapter_code", "test_code", "manifest_yaml"):
+        with pytest.raises(ValueError):  # argument limit (characters)
+            _scaffold_sample(deps, **{field: big})
+    # many-byte characters: under the character limit, over the byte limit
+    wide = "# " + "é" * 12_000 + "\n" + samples.ADAPTER  # ~24 KB of bytes, ~12 K characters
+    with pytest.raises(ToolRefused, match=r"adapter\.py is \d+ bytes; the limit is 20000"):
+        _scaffold_sample(deps, adapter_code=wide)
+    assert not (generated_root() / "word_count").exists()  # nothing was written
+
+
+def test_only_the_owner_side_calls_the_approval_functions() -> None:
+    """Repo-wide: the functions that set `approved` are called only by the review service,
+    the token-protected backend route, and the proof/demo scripts that play the owner."""
+    import re
+
+    repo = Path(__file__).resolve().parents[3]
+    pattern = re.compile(r"\.(approve|revoke|set_disabled|restore_files)\(|store\._update\(")
+    allowed = {
+        "integrations/generated_tools/review.py",
+        "integrations/generated_tools/store.py",
+        "backend/api/app.py",
+        "integrations/generated_tools/proof.py",
+        "agents/router/demo_toolbuilder.py",
+    }
+    skip = {".venv", "tests", "Qwen3.5-4B-Base", "workspace", ".git", "__pycache__"}
+    offenders = []
+    for path in repo.rglob("*.py"):
+        rel = path.relative_to(repo)
+        if skip & set(rel.parts):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        # approvals of the T3/T4 approval service are a different thing (`approvals.decide`)
+        hits = [
+            m
+            for m in pattern.finditer(text)
+            if "approvals." not in text[m.start() - 12 : m.start()]
+        ]
+        if hits and rel.as_posix() not in allowed:
+            offenders.append(rel.as_posix())
+    assert offenders == []

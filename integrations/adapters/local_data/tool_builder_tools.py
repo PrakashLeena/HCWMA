@@ -52,13 +52,14 @@ from integrations.mcp.tool_schemas import (
 from security.audit.audit_logger import AuditLogger, get_audit_logger
 from security.permissions.path_check import PathDenied, PathPolicy
 
-# Owner approves the manifests (add-tool skill, section 4). Starts quarantined until then.
-TOOL_BUILDER_TOOLS_STATUS: ToolStatus = "quarantined"
+# Approved by the owner on 2026-11-18 (docs/DECISIONS.md), after the Step 13 review tests.
+TOOL_BUILDER_TOOLS_STATUS: ToolStatus = "approved"
 MAX_GENERATED_TOOLS = 25
 TEST_OUTPUT_CHARS = 1500
 SANDBOX_TIMEOUT_S = 280  # boot (90) + tests (120) + model reload
 
 _NAME = r"^[a-z][a-z0-9_]{2,40}$"
+WINDOWS_DEVICE_NAMES = frozenset({"con", "prn", "aux", "nul", "com1", "com2", "lpt1", "lpt2"})
 
 
 class ToolRefused(RuntimeError):
@@ -165,6 +166,28 @@ def _scaffold(deps: ToolBuilderDeps, args: ScaffoldInput) -> ScaffoldOutput:
     root = deps.root()
     if args.name in deps.reserved():
         raise ToolRefused(f"'{args.name}' is the name of a built-in tool; choose another name")
+    if args.name in WINDOWS_DEVICE_NAMES:
+        raise ToolRefused(f"'{args.name}' is a reserved Windows name; choose another name")
+    # Sizes in BYTES (the argument limits count characters, and one character can be 4 bytes).
+    for filename, text in (
+        (MANIFEST_FILE, args.manifest_yaml),
+        (ADAPTER_FILE, args.adapter_code),
+        (TEST_FILE, args.test_code),
+    ):
+        size = len(text.encode("utf-8"))
+        if size > MAX_FILE_BYTES[filename]:
+            raise ToolRefused(
+                f"{filename} is {size} bytes; the limit is {MAX_FILE_BYTES[filename]}. "
+                "Nothing was written."
+            )
+    current = read_tool(args.name, root)
+    if current is not None and deps.store().status_of(current)[0] == "approved":
+        # The approved version stays exactly as it is (it may be in use). A new version is a
+        # new tool that goes through quarantine, test and review on its own.
+        raise ToolRefused(
+            f"'{args.name}' is approved and in use, so it is not overwritten. Build the new "
+            f"version under a new name (for example '{args.name}_v2'); it starts quarantined."
+        )
     try:
         manifest = parse_manifest(args.manifest_yaml)
     except ManifestError as exc:

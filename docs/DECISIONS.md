@@ -126,3 +126,22 @@ Owner decisions on the review (2026-11-18), all three implemented:
    (`configs/permissions.yaml`, a stricter change). An approved tool is callable only if BOTH the
    owner assigned the agent at approval AND the policy layer allows it (allowlist, approved
    status, tier); tests cover each half failing alone.
+
+### Tool Builder tool manifests approved (owner, 2026-11-18)
+
+The owner approved the four manifests (`find_existing_tools` T0, `scaffold_tool` T2,
+`run_tool_tests` T2, `submit_for_approval` T2) after these tests passed
+(`tests/integrations/generated_tools/test_lifecycle.py`):
+
+1. The four tools can only record "tested" / "submitted" in the state file; no code in the
+   Tool Builder's tool module can reach `approve`, `revoke`, `set_disabled`, `restore_files` or
+   the review service, and a repo-wide test lists the only files that call them (the review
+   service, the token-protected backend routes, and the proof/demo scripts that play the owner).
+2. `scaffold_tool` accepts only names matching `^[a-z][a-z0-9_]{2,40}$` (no "..", slashes,
+   drive letters or dots) and refuses Windows device names. It refuses to overwrite a tool that
+   is currently approved: the approved files stay untouched and in use, and a new version must be
+   built under a new name (e.g. `word_count_v2`), which starts quarantined.
+3. `scaffold_tool` refuses files over the fixed limits, counted in bytes: manifest 8 KB, adapter
+   20 KB, tests 20 KB (stricter than the 50 KB suggested); nothing is written when refused.
+
+`TOOL_BUILDER_TOOLS_STATUS` is now `"approved"`.
