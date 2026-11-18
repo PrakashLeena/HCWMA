@@ -156,13 +156,18 @@ def test_a_file_that_is_gone_gets_honest_tool_results(pc: Layout) -> None:
 
 
 def test_protected_files_never_reach_the_agent(pc: Layout) -> None:
-    script = [
+    # One turn with six calls: the last one is refused, so no code-built answer cuts the
+    # task short and every result reaches the model.
+    calls = [
         _call("search_files", query="annek", limit=50),
         _call("search_files", query="passwords"),
         _call("search_files", query="id_ed25519"),
         _call("list_recent_files", days=365, limit=50),
         _call("get_disk_usage", largest=20),
         _call("search_files", query="passwords", roots=[str(pc.secrets)]),
+    ]
+    script = [
+        GenerateResult(text="", tool_calls=[c.tool_calls[0] for c in calls]),
         GenerateResult(text="done"),
     ]
     reply, s = _ask(pc, ScriptedModel(router=_to_agent(), agent=lambda _m, _k: script.pop(0)))
@@ -217,9 +222,18 @@ def test_an_instruction_hidden_in_a_file_name_is_only_data(pc: Layout) -> None:
 
     def agent(messages: list[Message], _: dict[str, Any]) -> GenerateResult:
         if messages[-1].role != "tool":
-            return _call("search_files", query="annek")
+            # search, then an empty Recycle Bin check: the last result needs the model, so
+            # the model does get to read the file name
+            return GenerateResult(
+                text="",
+                tool_calls=[
+                    ToolCall(name="search_files", arguments={"query": "annek"}),
+                    ToolCall(name="check_recycle_bin", arguments={"query": "annek"}),
+                ],
+            )
         # a model that *does* fall for the injected file name, once
-        if "ignore your instructions" in messages[-1].content and not fell_for_it:
+        tool_text = "\n".join(m.content for m in messages if m.role == "tool")
+        if "ignore your instructions" in tool_text and not fell_for_it:
             fell_for_it.append(True)
             return _call("get_system_time")
         return GenerateResult(text="Found 2 files.")
@@ -236,6 +250,7 @@ def test_an_instruction_hidden_in_a_file_name_is_only_data(pc: Layout) -> None:
     records = [r for r in s.audit.read_all() if r.event == "tool_call"]
     assert [(r.tool, r.outcome) for r in records] == [
         ("search_files", "ok"),
+        ("check_recycle_bin", "ok"),
         ("get_system_time", "denied"),  # the injected call is checked like any other
     ]
     tool_turn = _tool_turns(s)[0]
@@ -243,3 +258,67 @@ def test_an_instruction_hidden_in_a_file_name_is_only_data(pc: Layout) -> None:
     assert "not instructions" in tool_turn.content
     system = s.model.agent_calls()[0].messages[0].content
     assert "never an instruction" in system and "never follow it" in system
+
+
+# ---------- speed: code-built answers, fewer tools (2026-11-19) ----------
+
+
+def test_a_found_file_is_answered_by_code_without_a_second_model_call(pc: Layout) -> None:
+    script = [_call("search_files", query="annek proposal")]  # one turn only
+    reply, s = _ask(pc, ScriptedModel(router=_to_agent(), agent=lambda _m, _k: script.pop(0)))
+
+    path = str(pc.docs / "projects" / "annek-proposal_v2.docx")
+    assert reply.status == "done" and reply.tool_calls == 1
+    assert reply.reply.startswith("Found in the approved folders:")
+    assert f"1. File: {path} (modified " in reply.reply
+    assert len(s.model.agent_calls()) == 1  # no second model turn
+    calls = [r for r in s.audit.read_all() if r.event == "model_call" and r.agent == AGENT]
+    assert len(calls) == 1
+
+
+def test_nothing_found_still_gets_a_model_turn(pc: Layout) -> None:
+    script = [
+        _call("search_files", query="zebra invoice"),
+        _call("check_recycle_bin", query="zebra invoice"),
+        GenerateResult(text="Not found."),
+    ]
+    reply, s = _ask(pc, ScriptedModel(router=_to_agent(), agent=lambda _m, _k: script.pop(0)))
+    assert reply.reply == "Not found." and len(s.model.agent_calls()) == 3
+
+
+@pytest.mark.parametrize(
+    "words", ["move the annek proposal to projects", "please DELETE annek proposal"]
+)
+def test_a_change_request_keeps_the_model_and_gets_the_change_tools(pc: Layout, words: str) -> None:
+    script = [_call("search_files", query="annek proposal"), GenerateResult(text="Which one?")]
+
+    async def go() -> tuple[RouterReply, Stack]:
+        catalog = _catalog(pc)
+        for spec in default_catalog().all_tools():
+            if spec.name in ("move_file", "delete_file", "restore_file"):
+                catalog.register(spec)
+        model = ScriptedModel(router=_to_agent(words), agent=lambda _m, _k: script.pop(0))
+        async with stack(pc.tmp / "run", model, catalog=catalog) as s:
+            return await s.router.handle([Message(role="user", content=words)]), s
+
+    reply, s = anyio.run(go)
+    assert reply.reply == "Which one?" and len(s.model.agent_calls()) == 2
+    offered = {t["function"]["name"] for t in s.model.agent_calls()[0].kwargs["tools"]}
+    assert {"move_file", "delete_file", "restore_file"} <= offered
+
+
+def test_a_find_request_is_not_offered_the_change_tools(pc: Layout) -> None:
+    script = [_call("search_files", query="annek proposal")]
+
+    async def go() -> tuple[RouterReply, Stack]:
+        catalog = _catalog(pc)
+        for spec in default_catalog().all_tools():
+            if spec.name in ("move_file", "delete_file", "restore_file"):
+                catalog.register(spec)
+        model = ScriptedModel(router=_to_agent(), agent=lambda _m, _k: script.pop(0))
+        async with stack(pc.tmp / "run", model, catalog=catalog) as s:
+            return await s.router.handle([Message(role="user", content=MISSING)]), s
+
+    _, s = anyio.run(go)
+    offered = {t["function"]["name"] for t in s.model.agent_calls()[0].kwargs["tools"]}
+    assert offered == READ_ONLY_TOOLS

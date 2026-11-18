@@ -41,5 +41,15 @@ approval_required: [restore_file, move_file, delete_file]
 # Step 10: past task outcomes and the owner's stated facts ("my projects live in ..."),
 # master document 4.6 step 2.
 memory_scopes: [pc_index, profile, episodic, task]
+# Only the owner's own facts ("my projects live in ...", master document 4.6 step 2) go into
+# the prompt; past task summaries do not help find a file and cost CPU reading time.
+prompt_memory_scopes: [profile, pc_index]
+# A successful lookup with results is answered by code, without a second model call. Not when
+# nothing was found (the model checks the Recycle Bin / says what to try) or when the owner
+# asks for a change (the model must propose restore/move/delete, which the owner approves).
+direct_answer_tools: [search_files, list_recent_files, check_recycle_bin, get_disk_usage]
+# restore_file, move_file and delete_file are offered only when the request uses one of these
+# words; a plain "find" request gets the four read-only tools (a shorter prompt).
+change_words: [restore, recover, undelete, "put back", "bring back", move, rename, delete, remove, trash, erase, "get rid of"]
 system_prompt: prompts/file_system.md
 limits: { max_steps: 6, timeout_s: 420 }

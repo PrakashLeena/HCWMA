@@ -75,6 +75,19 @@ def test_router_card_can_never_hold_tools() -> None:
         ({"permission_tier": "T9"}, "permission_tier"),
         ({"surprise": 1}, "surprise"),
         ({"limits": {"max_steps": 500}}, "max_steps"),
+        (
+            {"memory_scopes": ["profile"], "prompt_memory_scopes": ["episodic"]},
+            "prompt_memory_scopes",
+        ),
+        ({"direct_answer_tools": ["search_files"]}, "direct_answer_tools not on the card"),
+        (
+            {
+                "tools": ["delete_file"],
+                "approval_required": ["delete_file"],
+                "direct_answer_tools": ["delete_file"],
+            },
+            "must not need approval",
+        ),
     ],
 )
 def test_bad_cards_are_rejected(change: dict[str, Any], message: str) -> None:

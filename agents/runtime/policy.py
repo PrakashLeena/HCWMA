@@ -156,6 +156,24 @@ class PolicyLayer:
         result = await self._client.call_tool(tool, sent, timeout_s=spec.manifest.timeout_s + 5)
         return finish(result, reason=reason if result.ok else "")
 
+    def direct_answer(self, tool: str, result: ToolResult) -> str | None:
+        """The code-built answer for a successful read-only lookup, or None (see
+        `ToolSpec.answer` and `AgentCard.direct_answer`)."""
+        return _answer(self._catalog.get(tool), result)
+
+
+def _answer(spec: ToolSpec | None, result: ToolResult) -> str | None:
+    if spec is None or spec.answer is None or not result.ok or result.data is None:
+        return None
+    if spec.manifest.side_effects != "none" or spec.manifest.approval_required:
+        return None  # only read-only lookups answer from code
+    try:
+        text = spec.answer(spec.output_model.model_validate(result.data))
+    except Exception:  # noqa: BLE001 - fall back to the model, never fail the task
+        log.warning("answer() failed for tool %s", spec.name)
+        return None
+    return text.strip() if text and text.strip() else None
+
 
 def _describe(spec: ToolSpec, args: Any) -> str:
     """What the owner is told will happen. Falls back to the tool's own description."""

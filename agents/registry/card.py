@@ -49,6 +49,19 @@ class AgentCard(BaseModel):
     approval_required: list[str] = Field(default_factory=list)
     # Memory the agent may read (master document 8; memory policy section 5).
     memory_scopes: list[str] = Field(default_factory=list)
+    # Scopes recalled into the agent's first prompt. None: all `memory_scopes`. [] : no
+    # memory block (memory tools, if any, still use `memory_scopes`). Fewer scopes, shorter
+    # prompt: on a CPU every prompt token costs reading time.
+    prompt_memory_scopes: list[str] | None = None
+    # Read-only tools whose successful result is the answer, formatted by code
+    # (`ToolSpec.answer`), without another model turn. Skipped when the tool says the result
+    # needs a next step (nothing found) or when the owner's words ask for a change.
+    direct_answer_tools: list[str] = Field(default_factory=list)
+    # Words (whole words, any case) that mean the owner asks for a change. If set: the
+    # `approval_required` tools are offered to the model only when the goal or the owner's
+    # words contain one, and direct answers are skipped when they do. Empty: always offer
+    # every tool on the card.
+    change_words: list[str] = Field(default_factory=list)
     # Write a short episodic note when this agent finishes a task (memory policy 4).
     # Off for agents whose goals must not be repeated into memory (the Librarian: a
     # "forget X" goal would otherwise store X again).
@@ -70,6 +83,16 @@ class AgentCard(BaseModel):
         unknown = set(self.memory_scopes) - KNOWN_SCOPES
         if unknown:
             raise ValueError(f"unknown memory scopes: {sorted(unknown)}")
+        if self.prompt_memory_scopes is not None:
+            wider = set(self.prompt_memory_scopes) - set(self.memory_scopes)
+            if wider:
+                raise ValueError(f"prompt_memory_scopes not in memory_scopes: {sorted(wider)}")
+        off_card = set(self.direct_answer_tools) - set(self.tools)
+        if off_card:
+            raise ValueError(f"direct_answer_tools not on the card: {sorted(off_card)}")
+        gated = set(self.direct_answer_tools) & set(self.approval_required)
+        if gated:
+            raise ValueError(f"direct_answer_tools must not need approval: {sorted(gated)}")
         extra = set(self.approval_required) - set(self.tools)
         if extra:
             raise ValueError(f"approval_required names tools not on the card: {sorted(extra)}")

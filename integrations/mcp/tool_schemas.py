@@ -127,6 +127,10 @@ class ToolSpec:
     describe: Callable[[Any], str] | None = None
     # True: the handler is called as `handler(args, caller)` with a `CallerContext`.
     caller_context: bool = False
+    # Read-only tools only: the owner-facing answer for a successful result, built by code
+    # from the validated output, or None when the agent's model should decide what comes
+    # next (nothing found, needs a follow-up). Used when the agent's card allows it.
+    answer: Callable[[Any], str | None] | None = None
 
     @property
     def name(self) -> str:

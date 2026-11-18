@@ -56,6 +56,9 @@ class _NoGateway:
     async def call_tool(self, *args: object, **kwargs: object) -> object:
         raise RuntimeError("routing eval never calls tools")
 
+    def direct_answer(self, *args: object) -> None:
+        return None
+
 
 async def run(expect: set[str] | None = None, match: list[str] | None = None) -> int:
     registry = AgentRegistry.from_dir()
