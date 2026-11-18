@@ -184,10 +184,10 @@ def test_catalogue_comes_from_cards_with_no_router_code_change(tmp_path: Path) -
     reply, _ = _ask(tmp_path, model, "weather?", agents_dir=agents)
 
     prompt = model.calls[0].messages[0].content
-    assert "id: weather" in prompt and "weather forecast" in prompt
-    assert "id: echo" in prompt
+    assert "- weather:" in prompt and "weather forecast" in prompt
+    assert "- echo:" in prompt
     assert "sleepy" not in prompt  # disabled agents are not offered
-    assert "id: router" not in prompt
+    assert "- router:" not in prompt
     assert (reply.agents, reply.reply) == (["weather"], "Sunny.")
 
 

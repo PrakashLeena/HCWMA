@@ -7,6 +7,7 @@
 id: debugging
 name: Debugging Agent
 status: enabled
+router_line: "bugs in the owner's code, even with no file named: error, traceback, TypeError, ZeroDivisionError, IndexError, tests fail, wrong output, \"make it work again\""
 description: >
   Finds and fixes bugs in code in the HCWMA coding workspace: runs the tests or the program
   to reproduce the error, reads the traceback and logs, makes the smallest fix and runs the

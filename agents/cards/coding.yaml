@@ -8,6 +8,7 @@
 id: coding
 name: Coding Agent
 status: enabled
+router_line: "writes new code, explains code or a programming concept; \"write a script\", \"explain this function\", \"what does this code do\", \"how does a for loop work\""
 description: >
   Writes small Python programs and scripts in a sandbox workspace, runs them and their tests,
   explains code, and makes small edits to code in that workspace. Handles "write a script

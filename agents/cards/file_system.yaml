@@ -6,6 +6,7 @@
 id: file_system
 name: File & System Agent
 status: enabled
+router_line: "find or lost files, recent changes, Recycle Bin restore, move/delete, disk or free space; not file contents, not downloads"
 description: >
   Finds files on this PC, reports on disk space, and can restore a file from the Recycle
   Bin, move or rename a file, or delete a file (to the Recycle Bin). Handles "I lost a

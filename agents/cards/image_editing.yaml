@@ -8,6 +8,7 @@
 id: image_editing
 name: Image Editing Agent
 status: enabled
+router_line: "resize, crop, convert, filter (black and white, blur) image files, one or a folder; image size in pixels; no drawing or describing"
 description: >
   Resizes, crops, converts and applies simple filters to image files (jpg, png, webp, gif,
   bmp, tiff), one or a batch of up to 10. Always saves a new copy in the workspace images

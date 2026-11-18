@@ -113,7 +113,7 @@ def test_card_matches_the_catalogue_and_never_asks_for_approval() -> None:
         "NEEDS_CLARIFICATION",
     ):
         assert must_say in prompt, must_say
-    assert f"id: {AGENT}" in render_catalogue(registry.workers())
+    assert f"- {AGENT}:" in render_catalogue(registry.workers())
 
 
 def test_routing_cases_cover_this_agent() -> None:
