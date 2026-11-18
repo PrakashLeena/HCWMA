@@ -23,11 +23,15 @@ from security.permissions.permission_manager import (
 # Minimal arguments that pass each tool's input model. A new tool must be added here, so a
 # new tool can never skip this test.
 VALID_ARGS: dict[str, dict[str, Any]] = {
+    "apply_filter": {"paths": ["a.jpg"], "filter": "grayscale"},
     "apply_patch": {"path": "a.py", "edits": [{"old": "a", "new": "b"}]},
     "check_recycle_bin": {"query": "report"},
+    "convert_format": {"paths": ["a.jpg"], "format": "png"},
+    "crop_image": {"paths": ["a.jpg"]},
     "delete_file": {"path": "a.txt"},
     "get_disk_usage": {},
     "get_system_time": {},
+    "image_info": {"path": "a.jpg"},
     "list_recent_files": {},
     "memory_delete": {"ids": ["0123456789ab"]},
     "memory_forget_all": {},
@@ -37,6 +41,7 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "read_file": {"path": "a.py"},
     "read_logs": {},
     "reindex_folder": {},
+    "resize_image": {"paths": ["a.jpg"], "width": 10},
     "restore_file": {"item_id": "X:|$R1"},
     "run_in_sandbox": {"command": "python a.py"},
     "run_tests": {},

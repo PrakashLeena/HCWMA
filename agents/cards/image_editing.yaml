@@ -1,0 +1,39 @@
+# Image Editing agent (build step 12; master document 4.3, 4.4, 6.5, 9.4).
+# Deterministic edits with Pillow: resize, crop, convert, simple filters. Reads images from
+# the approved folders and the workspace, writes COPIES into workspace/images/ and never
+# changes an original. T2, so it never asks the owner: nothing it can do changes or removes
+# an existing file. No generative editing (owner decision default: no; expansion item) and
+# it does not look at what is in the picture.
+# Draft by Claude Code on 2026-11-18 — owner to review.
+id: image_editing
+name: Image Editing Agent
+status: enabled
+description: >
+  Resizes, crops, converts and applies simple filters to image files (jpg, png, webp, gif,
+  bmp, tiff), one or a batch of up to 10. Always saves a new copy in the workspace images
+  folder and never changes the original. Handles "resize these photos to 1080 pixels wide",
+  "crop to a square", "convert to jpg", "make it black and white". Cannot see what is in a
+  picture and cannot draw, retouch faces or remove objects.
+handles:
+  - resize or scale photos or images to a width, height or size
+  - crop an image to a square, a ratio or a box
+  - convert images between png, jpg, webp, bmp, gif, tiff
+  - black and white, sepia, blur, sharpen, brightness, contrast
+  - batch edit all the photos in a folder
+does_not_handle:
+  - finding a lost image file or moving or deleting images (→ file_system)
+  - describing what is in a picture, reading text in a screenshot, or removing objects
+  - drawing, generating or AI-editing images
+  - videos, PDFs or documents
+  - downloading images from the internet
+tools:
+  - image_info
+  - resize_image
+  - crop_image
+  - convert_format
+  - apply_filter
+permission_tier: T2
+approval_required: []
+memory_scopes: []
+system_prompt: prompts/image_editing.md
+limits: { max_steps: 6, timeout_s: 420 }

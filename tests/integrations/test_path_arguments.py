@@ -16,6 +16,7 @@ from integrations.adapters.local_data.memory_tools import MemoryToolDeps, memory
 from integrations.adapters.pc.code_tools import CodeToolDeps, code_tool_specs
 from integrations.adapters.pc.file_tools import FileToolDeps, file_tool_specs
 from integrations.adapters.pc.file_write_tools import file_write_tool_specs
+from integrations.adapters.pc.image_tools import ImageToolDeps, image_tool_specs
 from integrations.adapters.pc.recycle_bin import RecycledItem
 from integrations.adapters.pc.system_time import get_system_time_spec
 from integrations.mcp.server import execute
@@ -29,14 +30,19 @@ PATH_FIELD = re.compile(r"path|folder|dir|cwd|root|source|destination")
 # (tool, field) pairs expected to take a path. A new path-taking tool must be added here
 # and to `_args` below.
 EXPECTED = {
+    ("apply_filter", "paths"),
     ("apply_patch", "path"),
+    ("convert_format", "paths"),
+    ("crop_image", "paths"),
     ("delete_file", "path"),
     ("get_disk_usage", "folder"),
+    ("image_info", "path"),
     ("move_file", "destination"),
     ("move_file", "source"),
     ("read_file", "path"),
     ("read_logs", "path"),
     ("reindex_folder", "folder"),
+    ("resize_image", "paths"),
     ("run_in_sandbox", "cwd"),
     ("run_tests", "path"),
     ("search_files", "roots"),
@@ -62,6 +68,7 @@ def _catalog(pc: Layout) -> CapabilityCatalog:
         *file_tool_specs(deps, status="approved"),
         *file_write_tool_specs(deps, status="approved"),
         *code_tool_specs(CodeToolDeps(pc.policy), status="approved"),
+        *image_tool_specs(ImageToolDeps(pc.policy), status="approved"),
         *memory_tool_specs(mem, status="approved"),
     ):
         catalog.register(spec)
@@ -80,19 +87,24 @@ def _path_fields(catalog: CapabilityCatalog) -> set[tuple[str, str]]:
 def _args(pc: Layout, tool: str, field: str, bad: str) -> dict[str, Any]:
     ok_file = str(pc.docs / "notes" / "meeting notes.txt")
     base: dict[str, Any] = {
+        "apply_filter": {"paths": [ok_file], "filter": "grayscale"},
         "apply_patch": {"path": ok_file, "edits": [{"old": "a", "new": "b"}]},
+        "convert_format": {"paths": [ok_file], "format": "png"},
+        "crop_image": {"paths": [ok_file]},
         "delete_file": {"path": ok_file},
         "get_disk_usage": {},
+        "image_info": {"path": ok_file},
         "move_file": {"source": ok_file, "destination": str(pc.docs / "notes" / "moved.txt")},
         "read_file": {"path": ok_file},
         "read_logs": {},
         "reindex_folder": {},
+        "resize_image": {"paths": [ok_file], "width": 10},
         "run_in_sandbox": {"command": "python a.py"},
         "run_tests": {},
         "search_files": {"query": "report"},
         "write_file": {"path": "a.py", "content": "x"},
     }[tool]
-    base[field] = [bad] if field == "roots" else bad
+    base[field] = [bad] if field in ("roots", "paths") else bad
     if tool == "reindex_folder":
         base[CALLER_KEY] = CallerContext(agent_id="a", task_id="t").model_dump(mode="json")
     return base

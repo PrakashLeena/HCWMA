@@ -63,3 +63,9 @@ Numbers in `docs/benchmarks.md`.
 
 - Coding tool manifests (`read_file`, `write_file`, `apply_patch`, `run_in_sandbox`, `run_tests`,
   `read_logs`) approved by the owner; they work only inside `workspace/code/`
+
+## Image tools (Step 12, decided 2026-11-18)
+
+- Image tool manifests (`image_info`, `resize_image`, `crop_image`, `convert_format`,
+  `apply_filter`) approved by the owner; they write copies to `workspace/images/` only
+- Generative image editing: no (default; expansion item)

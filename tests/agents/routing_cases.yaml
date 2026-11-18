@@ -83,6 +83,23 @@ cases:
   # --- image_editing ---
   - { message: "Resize all photos in my holiday folder to 1080 pixels wide", expect: image_editing }
   - { message: "Convert this PNG to JPG and crop it to a square", expect: image_editing }
+  # step 12
+  - { message: "Make photo.jpg black and white", expect: image_editing }
+  - { message: "Shrink these screenshots so they are under 800 pixels wide", expect: image_editing }
+  - { message: "Turn all the PNG files in my pictures folder into WebP", expect: image_editing }
+  - { message: "Crop vacation.jpg to 16:9", expect: image_editing }
+  - { message: "Blur the background image a little and save a copy", expect: image_editing }
+  - { message: "Make my profile picture brighter and sharper", expect: image_editing }
+  - { message: "Apply a sepia filter to the three photos from the wedding", expect: image_editing }
+  - { message: "How big is logo.png in pixels?", expect: image_editing }
+  - { message: "Resize banner.png to 1200 by 300 pixels", expect: image_editing }
+  # near misses: about pictures, but not the Image Editing agent
+  - { message: "Where did I save the photo from last Friday's party?", expect: file_system, must_not: image_editing }
+  - { message: "Delete the old screenshots from my desktop", expect: file_system, must_not: image_editing }
+  - { message: "Write a Python script that resizes every image in a folder", expect: coding, must_not: image_editing }
+  - { message: "Search the web for free stock photos of mountains", expect: web_research, must_not: image_editing }
+  - { message: "Draw me a picture of a cat wearing a hat", expect: answer, must_not: image_editing }
+  - { message: "My image resizing script crashes with a ValueError, fix it", expect: debugging, must_not: image_editing }
 
   # --- web_research ---
   - { message: "Search the web for reviews of the Framework 13 laptop", expect: web_research }

@@ -39,6 +39,7 @@ def test_shipped_cards_load() -> None:
         "debugging",
         "echo",
         "file_system",
+        "image_editing",
         "memory_librarian",
     ]
     assert registry.prompt_for(registry.router).startswith("# HCWMA Router")
