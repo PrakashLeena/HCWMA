@@ -7,7 +7,8 @@ Every inference call in HCWMA goes through `ModelQueue.generate`. Requests beyon
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any
 
@@ -21,6 +22,7 @@ class ModelQueue:
         if max_parallel < 1:
             raise ValueError("max_parallel must be >= 1")
         self._generate = generate_fn
+        self._max_parallel = max_parallel
         self._slots = threading.Semaphore(max_parallel)
         self._fifo = threading.Lock()  # keeps waiting callers in arrival order
 
@@ -37,6 +39,18 @@ class ModelQueue:
             return self._generate(messages, tools=tools, max_tokens=max_tokens, **kwargs)
         finally:
             self._slots.release()
+
+    @contextmanager
+    def exclusive(self) -> Iterator[None]:
+        """Hold every slot: no inference runs (or starts) until the block ends."""
+        with self._fifo:
+            for _ in range(self._max_parallel):
+                self._slots.acquire()
+            try:
+                yield
+            finally:
+                for _ in range(self._max_parallel):
+                    self._slots.release()
 
 
 @lru_cache(maxsize=1)
