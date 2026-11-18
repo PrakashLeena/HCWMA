@@ -26,6 +26,12 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "apply_filter": {"paths": ["a.jpg"], "filter": "grayscale"},
     "apply_patch": {"path": "a.py", "edits": [{"old": "a", "new": "b"}]},
     "check_recycle_bin": {"query": "report"},
+    "click_element": {"element_id": "1~Button~Save~0"},
+    "find_ui_element": {"window_id": "1", "name_contains": "Save"},
+    "list_windows": {},
+    "press_key": {"window_id": "1", "key": "enter"},
+    "read_window_text": {"window_id": "1"},
+    "type_text": {"element_id": "1~Edit~Box~0", "text": "hi"},
     "convert_format": {"paths": ["a.jpg"], "format": "png"},
     "crop_image": {"paths": ["a.jpg"]},
     "delete_file": {"path": "a.txt"},
@@ -104,9 +110,16 @@ def test_one_audit_record_per_call_for_every_tool(tmp_path: Path, variant: str) 
         assert record.outcome == ("ok" if result.ok else (result.error_code or "error"))
     if variant == "valid_args":
         # T3/T4 tools stop at the approval gate (no approval service here) but are still audited.
-        tiers = {s.name: s.manifest.permission_tier for s in default_catalog().all_tools()}
+        # A quarantined tool (the desktop tools, until the owner approves them) is denied first.
+        tools_ = default_catalog().all_tools()
         gated = {r.tool for r in records if r.outcome == "needs_approval"}
-        assert gated == {n for n, t in tiers.items() if t >= PermissionTier.T3}
+        assert gated == {
+            s.name
+            for s in tools_
+            if s.manifest.permission_tier >= PermissionTier.T3 and s.manifest.status == "approved"
+        }
+        denied = {r.tool for r in records if r.outcome == "denied"}
+        assert {s.name for s in tools_ if s.manifest.status == "quarantined"} <= denied
 
 
 def test_unknown_tool_and_refused_call_are_audited(tmp_path: Path) -> None:

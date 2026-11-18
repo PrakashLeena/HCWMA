@@ -122,6 +122,22 @@ cases:
   # --- app_automation ---
   - { message: "Open my browser and fill in the contact form on my website", expect: app_automation }
   - { message: "Click the export button in the accounting app", expect: app_automation }
+  # step 12 (the agent refuses browsers, banking and password fields in code)
+  - { message: "Which programs and windows are open on my PC right now?", expect: app_automation }
+  - { message: "Read what the error dialog on my screen says", expect: app_automation }
+  - { message: "Click the Save button in my Notepad window", expect: app_automation }
+  - { message: "Type 'meeting at 3pm' into the open Notepad window", expect: app_automation }
+  - { message: "Press Enter in the Calculator window", expect: app_automation }
+  - { message: "Fill in the name box in the invoice program that is open", expect: app_automation }
+  - { message: "What does the open Calculator window show?", expect: app_automation }
+  - { message: "Click OK in the dialog that just popped up", expect: app_automation }
+  - { message: "Press Tab and then Enter in the settings form of my accounting app", expect: app_automation }
+  # near misses: sound like clicking or typing, but are another agent's job
+  - { message: "Write a Python script that clicks a button on my screen every minute", expect: coding, must_not: app_automation }
+  - { message: "My button click handler throws a NullPointerException, fix it", expect: debugging, must_not: app_automation }
+  - { message: "Find the notes file I typed into yesterday", expect: file_system, must_not: app_automation }
+  - { message: "Resize my screenshot of the dialog to 800 pixels wide", expect: image_editing, must_not: app_automation }
+  - { message: "Remember that I like my programs in dark mode", expect: memory_librarian, must_not: app_automation }
 
   # --- memory_librarian ---
   - { message: "Remember that my sister's birthday is on 12 March", expect: memory_librarian }

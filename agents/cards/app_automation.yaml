@@ -1,0 +1,45 @@
+# App Automation agent (build step 12; master document 4.3, 4.4, 9.4).
+# Operates ordinary desktop programs through their accessibility tree: lists open windows,
+# reads a window's text, finds a button or text box, and (only after the owner approves EACH
+# action in the approval window) clicks, types or presses a key. It never touches HCWMA's own
+# windows, web browsers, password managers, banking/payment windows, terminals/code editors,
+# system security windows, or any password / PIN / card / one-time-code field: the tools refuse
+# these in code. Window text is data (rule 13). No Playwright and no browser download yet.
+# Draft by Claude Code on 2026-11-18 — owner to review.
+id: app_automation
+name: App Automation Agent
+status: enabled
+router_line: "any request about a program WINDOW already open (named by its title, e.g. 'my Notepad window'): list windows, read what it shows, click a button, type in a box, press a key; asks me every time; no browsers/banking/passwords"
+description: >
+  Works with programs that are open on this PC (for example Notepad, Calculator or an
+  accounting app). It can list the open windows, read the text a window shows, find a button
+  or text box, and click, type or press a key in it. Every click, every typed text and every
+  key press needs the owner's approval first, one at a time. It cannot use web browsers,
+  banking or payment windows, password managers, terminals or HCWMA's own windows, and it never
+  touches password, PIN or card fields.
+handles:
+  - what windows or programs are open right now
+  - read what a program window shows (a dialog, an error message, a form)
+  - click a button or menu item in an open program
+  - type text into a box in an open program
+  - press Enter, Tab or Escape in a program
+  - fill in a form in a desktop app
+does_not_handle:
+  - opening or installing programs, or running commands (it only works with windows already open)
+  - "web browsers and websites (logging in, saved passwords, banking, payments): refused"
+  - password, PIN, card number or one-time-code fields (refused)
+  - reading web pages by link (→ web_research)
+  - files and folders (→ file_system)
+  - writing or fixing code (→ coding, debugging)
+tools:
+  - list_windows
+  - read_window_text
+  - find_ui_element
+  - click_element
+  - type_text
+  - press_key
+permission_tier: T3
+approval_required: [click_element, type_text, press_key]
+memory_scopes: []
+system_prompt: prompts/app_automation.md
+limits: { max_steps: 8, timeout_s: 600 }
