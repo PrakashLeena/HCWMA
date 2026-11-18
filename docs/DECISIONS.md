@@ -33,7 +33,8 @@ in ~2.5 s, tool-call / JSON validity 9/9, ~3.5 GB RAM loaded (~4.8 GB peak). Low
 Numbers in `docs/benchmarks.md`.
 ## Access
 
-- Folders HCWMA may index and read: none yet (approved list starts empty; decided 2026-11-16)
+- Folders HCWMA may index and read: `~/Documents`, `~/Desktop`, `~/Downloads`, `E:/ML/project`
+  (decided 2026-11-18; the list started empty on 2026-11-16)
 - Folders that are always off-limits (in addition to the protected paths): none extra (2026-11-16)
 - HCWMA workspace folder: `workspace/` in the repo, gitignored (2026-11-16)
 

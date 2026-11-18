@@ -60,6 +60,15 @@ def test_protected_and_unapproved_files_never_reach_the_index(pc: Layout) -> Non
     assert pc.index.sizes(pc.secrets) == []
 
 
+@pytest.mark.parametrize("folder", [".venv", ".git", "node_modules", "__pycache__"])
+def test_tool_cache_folders_are_never_indexed(pc: Layout, folder: str) -> None:
+    write(pc.docs / "project" / folder / "deep" / "cached-file.bin")
+    write(pc.docs / "project" / "main.py")
+    scan(pc.index, pc.policy)
+    names = _indexed(pc)
+    assert "main.py" in names and "cached-file.bin" not in names
+
+
 def test_protected_folder_is_skipped_even_when_its_parent_is_approved(pc: Layout) -> None:
     write(pc.home / "todo.txt")
     scan(pc.index, _policy(pc, approved_folders=[str(pc.home)], protected_paths=["~/.ssh"]))
