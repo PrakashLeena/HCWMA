@@ -69,3 +69,8 @@ Numbers in `docs/benchmarks.md`.
 - Image tool manifests (`image_info`, `resize_image`, `crop_image`, `convert_format`,
   `apply_filter`) approved by the owner; they write copies to `workspace/images/` only
 - Generative image editing: no (default; expansion item)
+
+## App Automation tools (Step 12, decided 2026-11-18)
+
+- Desktop tool manifests (`list_windows`, `read_window_text`, `find_ui_element`, `click_element`, `type_text`, `press_key`) approved by the owner; click/type/key ask the owner every time (T3)
+- Browsers, banking, password managers, terminals, HCWMA's own windows and password fields stay off-limits; Playwright / browser download: not approved

@@ -34,8 +34,8 @@ from integrations.mcp.tool_schemas import (
     ToolStatus,
 )
 
-# Manifests start quarantined until the owner has seen them (rule 12).
-UI_TOOLS_STATUS: ToolStatus = "quarantined"
+# Owner approved all six manifests on 2026-11-18. A new or changed tool starts quarantined again.
+UI_TOOLS_STATUS: ToolStatus = "approved"
 TEXT_LIMIT = 3000
 
 

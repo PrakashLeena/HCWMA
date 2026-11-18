@@ -160,10 +160,12 @@ def test_card_asks_for_every_action_and_matches_the_catalogue() -> None:
     assert f"- {AGENT}:" in render_catalogue(registry.workers())
 
 
-def test_new_desktop_tools_start_quarantined() -> None:
+def test_desktop_tools_are_approved_and_the_actions_still_ask() -> None:
     for name in READ_TOOLS | ACT_TOOLS:
         spec = default_catalog().get(name)
-        assert spec is not None and spec.manifest.status == "quarantined"
+        assert spec is not None and spec.manifest.status == "approved"
+    for name in ACT_TOOLS:
+        assert default_catalog().get(name).manifest.approval_required  # type: ignore[union-attr]
 
 
 def test_routing_cases_cover_this_agent() -> None:

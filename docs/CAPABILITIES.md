@@ -228,7 +228,7 @@ at a window through the same accessibility information a screen reader uses, no 
   can see exactly what it asks.
 - You can add programs or title words to the off-limits list in `configs/app_automation.yaml`;
   the built-in list cannot be shortened there.
-- The tools ship as `quarantined`: they run only after the owner approves the manifests.
+- The tools were approved by the owner on 2026-11-18; the three action tools still ask every time.
 
 **Cannot do (yet)**
 
