@@ -38,7 +38,7 @@ from integrations.mcp.tool_schemas import (
     ToolSpec,
     ToolStatus,
 )
-from memory.pc_index.index import FileEntry, FileIndex, query_terms
+from memory.pc_index.index import FileEntry, FileIndex, match_score, query_terms
 from memory.pc_index.scanner import META_LAST_SCAN, index_roots
 from security.permissions.path_check import PathDenied, PathPolicy
 
@@ -50,10 +50,36 @@ NO_FOLDERS_NOTE = (
 )
 NEVER_SCANNED_NOTE = "The file index has not been built yet, so nothing can be found in it."
 NOT_FOUND_NOTE = (
-    "No indexed file matches these words. This result is final: searching again with the "
-    "same words or with an extension added will not find it. The file may be deleted, "
-    "renamed or outside the indexed folders."
+    "Nothing in the index matches these words. This result is final: searching again with "
+    "the same words or with an extension added will not find it. It may be deleted, "
+    "renamed or outside the searched folders."
 )
+
+
+_FOLDER_WORDS = frozenset({"folder", "folders", "directory", "dir"})
+
+
+WEAK_MATCH_NOTE = (
+    "Weak matches only: these names contain the words only as letters inside longer words "
+    "(like 'amma' inside 'Grammarly'). The thing asked for is probably not in the searched "
+    "folders; say so, and list the searched folders."
+)
+
+
+def _only_weak(found: Sequence[FileEntry], hits: Sequence[FileHit], terms: list[str]) -> bool:
+    """True if no hit matches any term as a whole word, a name start or a folder name."""
+    shown = {h.path for h in hits}
+    # match_score gives 1 per term for a letters-inside-a-word match, 1.5 or more otherwise
+    return all(match_score(e, terms) <= len(terms) for e in found if e.path in shown)
+
+
+def not_found_note(folders: Sequence[Path]) -> str:
+    """The not-found note, naming every searched folder so the owner can tell whether the
+    thing they want lives somewhere HCWMA was never allowed to look."""
+    searched = "; ".join(str(f) for f in folders) or "none"
+    return f"{NOT_FOUND_NOTE} Searched folders (and everything inside them): {searched}."
+
+
 # Owner approved all four manifests on 2026-11-17 (add-tool skill, section 4). A new or
 # changed file tool starts as "quarantined" again until the owner has seen it.
 FILE_TOOLS_STATUS: ToolStatus = "approved"
@@ -73,7 +99,8 @@ class FileToolDeps:
 class FileHit(BaseModel):
     path: str
     modified: str  # local time, "YYYY-MM-DD HH:MM"
-    size_bytes: int
+    size_bytes: int  # 0 for a folder
+    type: Literal["file", "folder"] = "file"
 
 
 def _stamp(ts: float) -> str:
@@ -99,9 +126,16 @@ def _visible(deps: FileToolDeps, entries: Sequence[FileEntry], limit: int) -> li
             real = deps.policy.check(entry.path, "read")
         except (PathDenied, OSError):
             continue
-        if not real.is_file():
+        if not (real.is_dir() if entry.kind == "folder" else real.is_file()):
             continue
-        hits.append(FileHit(path=entry.path, modified=_stamp(entry.mtime), size_bytes=entry.size))
+        hits.append(
+            FileHit(
+                path=entry.path,
+                modified=_stamp(entry.mtime),
+                size_bytes=entry.size,
+                type=entry.kind,
+            )
+        )
         if len(hits) == limit:
             break
     return hits
@@ -124,7 +158,10 @@ class SearchFilesInput(BaseModel):
     query: str = Field(
         min_length=1,
         max_length=200,
-        description="Words from the file name, e.g. 'annek proposal'. Not a full sentence.",
+        description="Words from the file or folder name, e.g. 'annek proposal'. Not a sentence.",
+    )
+    type: Literal["any", "file", "folder"] = Field(
+        default="any", description="'folder' when the user asks for a folder, else leave out."
     )
     roots: list[str] | None = Field(
         default=None, max_length=10, description="Only look inside these folders (optional)."
@@ -154,17 +191,28 @@ def _search_files(deps: FileToolDeps, args: SearchFilesInput) -> SearchFilesOutp
 
     fetch = args.limit * 3 + 1
     match: Literal["all_words", "some_words", "none"] = "all_words"
-    found = deps.index.search(terms, folders=folders, ext=ext, limit=fetch)
+    kind: Literal["file", "folder"] | None = None if args.type == "any" else args.type
+    # "find folder amma": the word "folder" says what to look for, it is not part of a name.
+    name_terms = [t for t in terms if t not in _FOLDER_WORDS]
+    if kind is None and name_terms and len(name_terms) < len(terms):
+        kind, terms = "folder", name_terms
+    if ext:
+        kind = "file"  # folders have no extension
+    found = deps.index.search(terms, folders=folders, ext=ext, limit=fetch, kind=kind)
     if not found and len(terms) > 1:
-        found = deps.index.search(terms, folders=folders, ext=ext, limit=fetch, any_term=True)
+        found = deps.index.search(
+            terms, folders=folders, ext=ext, limit=fetch, any_term=True, kind=kind
+        )
         match = "some_words"
     hits = _visible(deps, found, args.limit)
     note = _index_note(deps)
     if not hits:
         match = "none"
-        note = note or NOT_FOUND_NOTE
+        note = note or not_found_note(folders)
     elif match == "some_words":
-        note = "No file matches every word; these match at least one."
+        note = "Nothing matches every word; these match at least one."
+    elif terms and _only_weak(found, hits, terms):
+        note = WEAK_MATCH_NOTE
     return SearchFilesOutput(
         results=hits,
         count=len(hits),
@@ -380,9 +428,9 @@ def file_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined") -> l
     def manifest(
         name: str, description: str, tier: PermissionTier, **extra: object
     ) -> ToolManifest:
+        extra.setdefault("version", "0.1.0")
         return ToolManifest(
             name=name,
-            version="0.1.0",
             created_by="developer",
             status=status,
             route="pc",
@@ -397,9 +445,12 @@ def file_tool_specs(deps: FileToolDeps, status: ToolStatus = "quarantined") -> l
         ToolSpec(
             manifest=manifest(
                 "search_files",
-                "Find files by words in their name or folder, in the folders the owner "
-                "approved. Returns path, modified time and size. Does not read file contents.",
+                "Find files and folders by words in their name or folder, in the folders the "
+                "owner approved. Returns path, type (file or folder), modified time and size, "
+                "best match first; when nothing is found the note names the searched "
+                "folders. Does not read file contents.",
                 PermissionTier.T0,
+                version="0.2.0",
                 permissions=_READ_SCOPE,
                 timeout_s=10,
             ),

@@ -18,6 +18,7 @@ from memory.pc_index.index import FileIndex
 from memory.pc_index.scanner import (
     ScanReport,
     entry_for,
+    folder_entry_for,
     has_skipped_part,
     index_roots,
     root_of,
@@ -82,6 +83,9 @@ class IndexService:
             if root is None or has_skipped_part(path, root):
                 return
             if path.is_dir():
+                folder = folder_entry_for(path, root, self.policy)
+                if folder is not None:
+                    self.index.upsert([folder])
                 scan_tree(self.index, self.policy, path, root)
                 return
             entry = entry_for(path, root, self.policy)

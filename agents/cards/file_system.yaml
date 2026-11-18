@@ -8,7 +8,7 @@ name: File & System Agent
 status: enabled
 router_line: "find or lost files, recent changes, Recycle Bin restore, move/delete, disk or free space; not file contents, not downloads"
 description: >
-  Finds files on this PC, reports on disk space, and can restore a file from the Recycle
+  Finds files and folders on this PC, reports on disk space, and can restore a file from the Recycle
   Bin, move or rename a file, or delete a file (to the Recycle Bin). Handles "I lost a
   file", "where is X", "what did I change recently", "is it in the Recycle Bin", "restore
   it", "move this file", "delete this file", "what is using my disk". Changes are made only
@@ -16,6 +16,7 @@ description: >
 handles:
   - missing or lost file
   - find a file by name, type or date
+  - find a folder by name
   - files changed or created recently
   - check whether a deleted file is in the Recycle Bin
   - restore a deleted file from the Recycle Bin
@@ -24,7 +25,7 @@ handles:
   - disk usage, free space, largest files and folders
 does_not_handle:
   - reading, summarizing or editing what is inside a file (→ coding / documents)
-  - folders, many files at once, or emptying the Recycle Bin
+  - moving, deleting or restoring whole folders or many files at once, or emptying the Recycle Bin
   - the current time or date (→ echo)
   - anything on the internet
 tools:

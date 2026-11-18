@@ -56,7 +56,7 @@ def test_request_goes_router_to_echo_and_back(tmp_path: Path) -> None:
     assert "Echo Test Agent" in agent_call.messages[0].content  # echo's own prompt
     assert "Echo 'hello HCWMA'" in agent_call.messages[1].content
     # delegation written to the audit log: start and outcome
-    records = s.audit.read_all()
+    records = [r for r in s.audit.read_all() if r.event != "model_call"]
     assert [(r.event, r.agent, r.target_agent, r.outcome) for r in records] == [
         ("delegation", "router", "echo", "delegated"),
         ("delegation", "router", "echo", "done"),
@@ -95,7 +95,7 @@ def test_unclear_request_gets_a_clarifying_question(tmp_path: Path) -> None:
     assert reply.status == "needs_clarification"
     assert reply.reply == "Which file do you mean, and what should I do?"
     assert reply.agents == []
-    assert s.audit.read_all() == []  # nothing was delegated
+    assert [r for r in s.audit.read_all() if r.event != "model_call"] == []  # nothing was delegated
     assert len(model.calls) == 1
 
 
@@ -119,7 +119,7 @@ def test_unknown_or_router_agent_is_never_delegated_to(tmp_path: Path) -> None:
         reply, s = _ask(tmp_path / target, model, "find my file")
         assert reply.action == "clarify", target
         assert model.agent_calls() == []
-        assert s.audit.read_all() == []
+        assert [r for r in s.audit.read_all() if r.event != "model_call"] == []
 
 
 def test_invalid_model_output_is_a_question_not_a_guess(tmp_path: Path) -> None:
@@ -163,7 +163,7 @@ def test_router_can_answer_small_talk(tmp_path: Path) -> None:
     model = ScriptedModel(router=route("answer", 0.95, answer="Hi! How can I help?"))
     reply, s = _ask(tmp_path, model, "hi")
     assert (reply.action, reply.status, reply.reply) == ("answer", "done", "Hi! How can I help?")
-    assert s.audit.read_all() == []
+    assert [r for r in s.audit.read_all() if r.event != "model_call"] == []
 
 
 def test_history_is_used_for_routing(tmp_path: Path) -> None:
@@ -218,3 +218,19 @@ def test_router_code_has_no_agent_specific_branches() -> None:
         source = inspect.getsource(module)
         for agent_id in ("echo", "file_system", "coding"):
             assert f'"{agent_id}"' not in source and f"'{agent_id}'" not in source
+
+
+def test_every_model_call_is_audited_with_its_time(tmp_path: Path) -> None:
+    model = ScriptedModel(
+        router=route(steps=[{"agent": "echo", "goal": "Echo 'hi'"}]), agent=say("Echo: hi")
+    )
+    reply, s = _ask(tmp_path, model, "echo hi")
+    records = s.audit.read_all()
+    calls = [r for r in records if r.event == "model_call"]
+    delegated = next(r for r in records if r.event == "delegation")
+    assert [(r.agent, r.task_id) for r in calls] == [
+        ("router", reply.task_id),
+        ("echo", delegated.task_id),
+    ]
+    assert all(r.duration_ms is not None and r.duration_ms >= 0 for r in calls)
+    assert set(calls[0].args) == {"prompt_len", "output_len", "load_s", "prefill_s", "gen_s"}

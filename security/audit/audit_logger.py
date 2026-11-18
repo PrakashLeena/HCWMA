@@ -1,4 +1,5 @@
-"""Audit log: one JSON line per tool call and per delegation (rule 7, master document 9.5).
+"""Audit log: one JSON line per tool call and per delegation (rule 7, master document 9.5),
+plus one per model call with its timings only.
 
 Records hold a short argument summary only: secret-looking keys are redacted, strings are
 truncated and collections are reduced to their length, so file contents and secrets do not
@@ -54,7 +55,9 @@ class AuditRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ts: str = Field(default_factory=_now)
-    event: Literal["tool_call", "delegation", "approval", "stop", "memory", "generated_tool"]
+    event: Literal[
+        "tool_call", "delegation", "approval", "stop", "memory", "generated_tool", "model_call"
+    ]
     task_id: str
     parent_task_id: str | None = None
     agent: str
@@ -179,6 +182,29 @@ class AuditLogger:
             args=summarize_args(details or {}),
             outcome=outcome,
             reason=reason[:300],
+        )
+        self.write(record)
+        return record
+
+    def model_call(
+        self,
+        *,
+        task_id: str,
+        agent: str,
+        duration_ms: float,
+        timings: dict[str, float | int],
+        outcome: str = "ok",
+    ) -> AuditRecord:
+        """One inference through the model queue, for the time split of a request
+        (`python -m agents.router.timing`). `timings` holds numbers only (prompt and output
+        length in tokens, model load, prompt reading and writing seconds), never text."""
+        record = AuditRecord(
+            event="model_call",
+            task_id=task_id,
+            agent=agent,
+            args={k: v for k, v in timings.items() if isinstance(v, (int, float))},
+            outcome=outcome,
+            duration_ms=round(duration_ms, 2),
         )
         self.write(record)
         return record

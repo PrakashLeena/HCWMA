@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -46,7 +47,8 @@ def test_scan_indexes_approved_and_workspace_only(pc: Layout) -> None:
         "meeting notes.txt",
         "draft-report.md",
     }
-    assert report.files == 4 and report.changed == 4
+    assert (report.files, report.folders) == (4, 2)  # folders: projects, notes
+    assert report.changed == 6
     assert pc.index.get_meta("last_scan")
 
 
@@ -85,7 +87,8 @@ def test_rescan_picks_up_changes_and_deletions(pc: Layout) -> None:
     (pc.docs / "projects" / "budget 2026.xlsx").unlink()
     write(pc.docs / "projects" / "new-plan.md")
     report = scan(pc.index, pc.policy)
-    assert (report.changed, report.removed) == (1, 1)
+    # new-plan.md, plus the 'projects' folder whose modified time moved
+    assert report.removed == 1 and report.changed >= 1
     assert "new-plan.md" in _indexed(pc) and "budget 2026.xlsx" not in _indexed(pc)
 
 
@@ -111,3 +114,48 @@ def test_links_are_not_followed(pc: Layout) -> None:
     scan(pc.index, pc.policy)
     assert "annek-private.txt" not in _indexed(pc)
     assert "key-link.txt" not in _indexed(pc)
+
+
+def _folders(pc: Layout) -> set[str]:
+    """Names of every folder row in the index, read straight from the database."""
+    import sqlite3
+
+    with closing(sqlite3.connect(pc.index.db_path)) as conn:
+        return {r[0] for r in conn.execute("SELECT name FROM files WHERE kind = 'folder'")}
+
+
+def test_sub_folders_are_indexed_as_folders(pc: Layout) -> None:
+    write(pc.docs / "family" / "amma" / "photo.jpg")
+    scan(pc.index, pc.policy)
+    hits = pc.index.search(["amma"], kind="folder")
+    assert [(Path(h.path).name, h.kind, h.size) for h in hits] == [("amma", "folder", 0)]
+    assert pc.index.count("folder") == 4  # projects, notes, family, family/amma
+    assert pc.index.count() == 5  # files only, as before
+
+
+def test_protected_skipped_and_unapproved_folders_are_never_indexed(pc: Layout) -> None:
+    write(pc.docs / "project" / ".venv" / "lib" / "x.py")
+    write(pc.docs / "project" / ".git" / "objects" / "y")
+    write(pc.docs / "project" / "__pycache__" / "z.pyc")
+    scan(pc.index, pc.policy)
+    folders = _folders(pc)
+    # not secrets (protected), node_modules/.venv/.git/__pycache__ or anything under them
+    assert folders == {"projects", "notes", "project"}
+
+
+def test_index_from_before_folders_gains_the_kind_column(tmp_path: Path) -> None:
+    import sqlite3
+
+    from memory.pc_index.index import FileIndex
+
+    db = tmp_path / "old.sqlite"
+    with sqlite3.connect(db) as conn:  # the step-8 schema, without `kind`
+        conn.executescript(
+            "CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, "
+            "dir TEXT NOT NULL, name TEXT NOT NULL, ext TEXT NOT NULL, size INTEGER NOT NULL, "
+            "mtime REAL NOT NULL, root TEXT NOT NULL);"
+            "INSERT INTO files VALUES (1, 'C:/r/a.txt', 'C:/r', 'a.txt', 'txt', 1, 0, 'C:/r');"
+        )
+    conn.close()
+    index = FileIndex(db)
+    assert index.count() == 1 and index.count("folder") == 0

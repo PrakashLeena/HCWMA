@@ -66,3 +66,21 @@ def test_concurrent_writes_do_not_interleave(tmp_path: Path) -> None:
     for t in threads:
         t.join()
     assert len(log.read_all()) == 100
+
+
+def test_model_call_record_holds_numbers_only(tmp_path: Path) -> None:
+    log = AuditLogger(tmp_path / "audit.jsonl")
+    log.model_call(
+        task_id="t",
+        agent="router",
+        duration_ms=1234.567,
+        timings={"prompt_len": 900, "prefill_s": 3.5, "text": "secret prompt"},  # type: ignore[dict-item]
+    )
+    rec = log.read_all()[0]
+    assert (rec.event, rec.agent, rec.task_id, rec.duration_ms) == (
+        "model_call",
+        "router",
+        "t",
+        1234.57,
+    )
+    assert rec.args == {"prompt_len": 900, "prefill_s": 3.5}  # never text

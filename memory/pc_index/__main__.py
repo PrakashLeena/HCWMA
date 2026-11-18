@@ -29,7 +29,8 @@ def main() -> int:
     for root in report.roots:
         print(f"  {root}")
     print(
-        f"{report.files} files, {report.changed} added or changed, {report.removed} removed "
+        f"{report.files} files and {report.folders} folders, {report.changed} added or changed, "
+        f"{report.removed} removed "
         f"in {time.perf_counter() - start:.1f}s"
     )
     try:
