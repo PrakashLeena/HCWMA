@@ -3,7 +3,7 @@
 id: echo
 name: Echo Test Agent
 status: enabled
-router_line: "tells the current time and date; \"what time is it\", \"today's date\"; repeats a message back (echo test)"
+router_line: "tells the current time and date (\"what time is it\", \"today's date\"); also echoes/repeats a message"
 description: >
   Test agent. Repeats back what the user asked it to echo or repeat, and can tell the
   current date and time on this PC.

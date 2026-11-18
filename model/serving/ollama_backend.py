@@ -59,6 +59,7 @@ class OllamaBackend:
         max_tokens: int = 512,
         response_format: dict[str, Any] | None = None,
         temperature: float | None = None,
+        seed: int | None = None,
     ) -> GenerateResult:
         options: dict[str, Any] = {
             "num_predict": max_tokens,
@@ -66,6 +67,8 @@ class OllamaBackend:
         }
         if temperature is not None:
             options["temperature"] = temperature
+        if seed is not None:
+            options["seed"] = seed
         payload: dict[str, Any] = {
             "model": self.config.ollama_model,
             "messages": [_to_ollama(m) for m in messages],

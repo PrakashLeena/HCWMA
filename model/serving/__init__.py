@@ -33,6 +33,7 @@ class Backend(Protocol):
         max_tokens: int = 512,
         response_format: dict[str, Any] | None = None,
         temperature: float | None = None,
+        seed: int | None = None,
     ) -> GenerateResult: ...
 
     def load(self) -> float: ...
@@ -62,6 +63,7 @@ def generate(
     max_tokens: int = 512,
     response_format: dict[str, Any] | None = None,
     temperature: float | None = None,
+    seed: int | None = None,
 ) -> GenerateResult:
     return get_backend().generate(
         messages,
@@ -69,4 +71,5 @@ def generate(
         max_tokens=max_tokens,
         response_format=response_format,
         temperature=temperature,
+        seed=seed,
     )
