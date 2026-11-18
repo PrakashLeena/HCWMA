@@ -1,0 +1,6 @@
+PASS  65.3s  expect=debugging       got=debugging conf=0.90  'My script prints the wrong average, what is wrong with it?'
+PASS  39.2s  expect=answer          got=answer    conf=0.95  'My laptop shows a blue screen error, what should I do?'
+PASS  36.3s  expect=not memory_librarian got=clarify   conf=0.90  'Remind me on Friday to pay the rent'
+PASS  39.9s  expect=answer          got=answer    conf=0.90  'How much RAM is this laptop using right now?'
+
+scored 4/4; skipped 0 (agent not built yet: )
