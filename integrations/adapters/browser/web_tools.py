@@ -11,7 +11,7 @@ section 11). These tools therefore do three things in code, with no model involv
   anonymous, so there is no account to impersonate (9.2). Size, time and content type are
   capped. Known limit: the name is resolved once for the check and again by the HTTP client,
   so a hostile DNS server could answer differently the second time (DNS rebinding); the
-  fix is a pinned-address transport, planned for the App Automation / Playwright step.
+  fix is a pinned-address transport, a prerequisite for adding web search or Playwright.
 - **Return visible text only.** Scripts, styles, comments, `<head>` metadata and anything
   the page hides (`hidden`, `display:none`, `visibility:hidden`, zero font size, `aria-hidden`)
   are dropped, and the result says how much hidden text was removed. This is a first filter

@@ -190,5 +190,5 @@ from it, with the page address as the source.
 - Read PDFs or pages behind a login or paywall.
 - Known limit: the address is checked and then fetched by a second lookup, so a hostile DNS
   server could in theory answer differently the second time (DNS rebinding). Closing this needs
-  a pinned-address transport, planned with Playwright.
+  a pinned-address transport, which must exist before web search or Playwright are added.
 - The tools ship as `quarantined`: they run only after the owner approves the manifests.
