@@ -12,6 +12,7 @@ from typing import Any
 import anyio
 import pytest
 
+from integrations.adapters.browser.web_tools import WebToolDeps, web_tool_specs
 from integrations.adapters.local_data.memory_tools import MemoryToolDeps, memory_tool_specs
 from integrations.adapters.pc.code_tools import CodeToolDeps, code_tool_specs
 from integrations.adapters.pc.file_tools import FileToolDeps, file_tool_specs
@@ -70,6 +71,7 @@ def _catalog(pc: Layout) -> CapabilityCatalog:
         *code_tool_specs(CodeToolDeps(pc.policy), status="approved"),
         *image_tool_specs(ImageToolDeps(pc.policy), status="approved"),
         *memory_tool_specs(mem, status="approved"),
+        *web_tool_specs(WebToolDeps(), status="approved"),
     ):
         catalog.register(spec)
     return catalog

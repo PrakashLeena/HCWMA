@@ -1,0 +1,15 @@
+FAIL  31.2s  expect=not file_system got=file_system conf=0.90  'Open notes.txt and summarize what it says'
+PASS  31.3s  expect=web_research    got=web_research conf=0.90  'Download the latest Python installer from python.org'
+PASS  30.8s  expect=web_research    got=web_research conf=0.90  'Search the web for the best Python tutorial'
+PASS  30.4s  expect=web_research    got=web_research conf=0.90  'The website returns error 500, look up what that means'
+PASS  30.0s  expect=web_research    got=web_research conf=0.90  'Search the web for free stock photos of mountains'
+PASS  30.6s  expect=web_research    got=web_research conf=0.90  'Search the web for reviews of the Framework 13 laptop'
+PASS  31.3s  expect=web_research    got=web_research conf=0.90  'Summarize this article for me: https://example.com/news/item'
+PASS  31.4s  expect=web_research    got=web_research conf=0.90  'Open https://www.python.org/downloads/ and tell me the latest version'
+PASS  32.0s  expect=web_research    got=web_research conf=0.90  'What does https://en.wikipedia.org/wiki/Photosynthesis say about chlorophyll?'
+PASS  32.8s  expect=web_research    got=web_research conf=0.90  'Read this page and give me the three main points: https://example.org/blog/post'
+PASS  31.3s  expect=web_research    got=web_research conf=0.90  'Look up what HTTP status 404 means on developer.mozilla.org'
+PASS  32.1s  expect=web_research    got=web_research conf=0.90  'Check the pricing page at https://example.com/pricing and tell me the cheapest plan'
+PASS  32.1s  expect=web_research    got=web_research conf=0.90  'Go to the Ollama website and tell me what it is'
+
+scored 12/13; skipped 0 (agent not built yet: )

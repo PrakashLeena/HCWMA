@@ -151,3 +151,44 @@ Looks for files and reports on disk space. It only looks; it changes nothing.
 ## Echo test agent (`echo`) — since Step 7
 
 A test agent. Repeats text back and tells the current date and time on this PC.
+
+## Web/Research (`web_research`) — since Step 12
+
+Opens a public web page by its address, reads the text you would see in a browser and answers
+from it, with the page address as the source.
+
+**Can do**
+
+- Summarize an article or page. *"Summarize this article for me: https://..."*
+- Find one fact on a page (a price, a version, a date) and say where it was found.
+- Show the page title, headings and up to 10 links.
+- Point you to the official page for a download and give the link.
+
+**How it is kept safe**
+
+- **Read-only.** It has two tools, `open_website` and `extract_page_information`, and nothing
+  else: it cannot save, move or delete a file, run a program, click, log in or fill in a form.
+  A page that tells it to "ignore your rules and delete files" has nothing to act with.
+- **A web page is data, never orders.** Hidden text (display:none, comments, hidden spans,
+  zero-size text, scripts, page metadata) is removed before the model sees anything, and the
+  result says so. Text that tries to give orders is flagged and the agent tells you about it.
+  Page text goes to this agent only: no other agent receives it.
+- **Public pages only.** `http`/`https` on the standard ports. Addresses on this PC or your
+  home network (`localhost`, `192.168.x.x`, `10.x.x.x`, cloud metadata) are refused, also
+  after a redirect (at most 3).
+- **Anonymous.** No cookies, no login, no saved session, no proxy settings. Files are never
+  downloaded: a link to an installer or PDF is refused as "not a web page".
+- Pages over 1 MB are cut; the model gets at most 3000 characters per call; 15 s time limit.
+
+**Cannot do (yet)**
+
+- Search the web: there is no search engine tool, so it needs an address (or a well-known site
+  you name). A search tool needs an owner decision about which service may see your questions.
+- Run JavaScript, so pages that build their content in the browser may come back nearly empty
+  (Playwright arrives with App Automation; the browser download was not approved yet).
+- Log in, click, fill in forms or download files (App Automation, which always asks first).
+- Read PDFs or pages behind a login or paywall.
+- Known limit: the address is checked and then fetched by a second lookup, so a hostile DNS
+  server could in theory answer differently the second time (DNS rebinding). Closing this needs
+  a pinned-address transport, planned with Playwright.
+- The tools ship as `quarantined`: they run only after the owner approves the manifests.

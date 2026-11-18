@@ -104,6 +104,20 @@ cases:
   # --- web_research ---
   - { message: "Search the web for reviews of the Framework 13 laptop", expect: web_research }
   - { message: "Summarize this article for me: https://example.com/news/item", expect: web_research }
+  # step 12
+  - { message: "Open https://www.python.org/downloads/ and tell me the latest version", expect: web_research }
+  - { message: "What does https://en.wikipedia.org/wiki/Photosynthesis say about chlorophyll?", expect: web_research }
+  - { message: "Read this page and give me the three main points: https://example.org/blog/post", expect: web_research }
+  - { message: "Look up what HTTP status 404 means on developer.mozilla.org", expect: web_research }
+  - { message: "Check the pricing page at https://example.com/pricing and tell me the cheapest plan", expect: web_research }
+  - { message: "Go to the Ollama website and tell me what it is", expect: web_research }
+  # near misses: about the web, but not the Web/Research agent
+  - { message: "Write a Python script that downloads a web page and counts the words", expect: coding, must_not: web_research }
+  - { message: "My requests.get call returns a 403 error, fix my code", expect: debugging, must_not: web_research }
+  - { message: "Find the PDF I downloaded from the internet yesterday", expect: file_system, must_not: web_research }
+  - { message: "Log in to my bank website and click the statement button", expect: app_automation, must_not: web_research }
+  - { message: "Summarize the report.docx in my documents folder", expect: documents_study, must_not: web_research }
+  - { message: "Resize the picture I saved from a website to 800 pixels wide", expect: image_editing, must_not: web_research }
 
   # --- app_automation ---
   - { message: "Open my browser and fill in the contact form on my website", expect: app_automation }

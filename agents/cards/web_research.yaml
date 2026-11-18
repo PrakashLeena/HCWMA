@@ -1,0 +1,36 @@
+# Web/Research agent (build step 12; master document 4.3, 4.4, 9.2, 11).
+# Opens public web pages and reads, summarizes and cites them. Read-only (T1): it has no
+# tool that writes, downloads, logs in, clicks or runs anything, so a web page cannot make it
+# change anything even if the page tells it to. Page text is untrusted data (rule 13).
+# No web search tool yet: it works from addresses the owner gives or the Router passes on.
+# Draft by Claude Code on 2026-11-18 — owner to review.
+id: web_research
+name: Web/Research Agent
+status: enabled
+router_line: "read a web page by link or site name, summarize an article, look something up online, \"download X from python.org\" (reads the official page, gives the link); no logins, no clicking"
+description: >
+  Opens a public web page by its address, reads the visible text and answers from it:
+  summaries, facts, headings, links, with the page address as the source. Read-only: it does
+  not download files, log in, fill in forms or click anything. It has no search engine yet,
+  so it needs a page address (or a well-known site) to start from.
+handles:
+  - summarize this article or web page (a link is given)
+  - what does this website say about something
+  - look up something on a site such as python.org or wikipedia.org
+  - search the web for something (it opens a likely page, and says it has no search engine)
+  - where to get or download a program (it reads the official page and gives the link; it cannot download)
+  - check a web page for a fact or a number and say where it was found
+does_not_handle:
+  - downloading or installing files or programs (it only reads pages and gives the link)
+  - logging in, filling in forms, clicking buttons or using web apps (→ app_automation)
+  - files on this PC, even if they are called notes or articles (→ file_system, documents_study)
+  - writing or fixing code (→ coding, debugging)
+  - the owner's own website's code errors
+tools:
+  - open_website
+  - extract_page_information
+permission_tier: T1
+approval_required: []
+memory_scopes: []
+system_prompt: prompts/web_research.md
+limits: { max_steps: 6, timeout_s: 420 }
