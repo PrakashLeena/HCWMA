@@ -24,6 +24,8 @@ change the design.
 - Add a sub-agent with `/add-agent`. Add a tool or adapter with `/add-tool`.
 - Small commits on a branch named `step-<n>-<short-name>`.
 - If a step needs an owner decision that is not in `docs/DECISIONS.md`, ask. Do not guess.
+- Never chain commit or push after tests in one command. Run the tests, read the result, and
+  commit (then push) only if everything passed.
 
 ## Architecture rules (never break these)
 
