@@ -20,3 +20,12 @@ memory_scopes: [task]
 record_outcomes: false  # a test agent; its tasks are not worth remembering
 system_prompt: prompts/echo.md
 limits: { max_steps: 4, timeout_s: 120 }
+
+# Router fast path (agents/router/fast_path.py): `patterns` send a very clear request
+# straight here without a Router model call; `keywords` stop other agents' fast
+# matches when the message also sounds like this agent's job.
+fast_route:
+  patterns:
+    - '^\W*what\s+time\s+is\s+it(\s+(right\s+)?now)?\W*$'
+    - '^\W*what(''s|\s+is)\s+today''s\s+date\b'
+  keywords: [echo, repeat back]

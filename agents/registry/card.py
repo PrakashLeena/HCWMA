@@ -7,6 +7,7 @@ only place an agent's tools and tier are declared; the runtime builds the agent'
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -29,6 +30,34 @@ class CardLimits(BaseModel):
     # Model turns this agent may take in one task (each turn may propose tool calls).
     max_steps: int = Field(default=10, ge=1, le=50)
     timeout_s: float = Field(default=120, gt=0, le=1800)
+
+
+class FastRoute(BaseModel):
+    """Rule-based routing for very clear requests, before the model Router runs.
+
+    `patterns`: regular expressions (case-insensitive, `re.search` on the owner's message).
+    One match sends the request straight to this agent, without a Router model call, unless
+    another enabled agent's pattern also matches or another agent's `keywords` appear.
+    `keywords`: whole words or phrases that point to this agent. They never route anything
+    by themselves; they only stop *other* agents' fast matches, so a mixed request (find a
+    file AND fix a bug) goes to the model Router as before.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    patterns: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _compiles(self) -> FastRoute:
+        for pattern in self.patterns:
+            try:
+                re.compile(pattern, re.IGNORECASE)
+            except re.error as exc:
+                raise ValueError(
+                    f"fast_route pattern does not compile: {pattern!r}: {exc}"
+                ) from exc
+        return self
 
 
 class AgentCard(BaseModel):
@@ -62,6 +91,8 @@ class AgentCard(BaseModel):
     # words contain one, and direct answers are skipped when they do. Empty: always offer
     # every tool on the card.
     change_words: list[str] = Field(default_factory=list)
+    # Rule-based Router fast path for very clear requests (see FastRoute). Workers only.
+    fast_route: FastRoute | None = None
     # Write a short episodic note when this agent finishes a task (memory policy 4).
     # Off for agents whose goals must not be repeated into memory (the Librarian: a
     # "forget X" goal would otherwise store X again).
@@ -76,6 +107,8 @@ class AgentCard(BaseModel):
                 raise ValueError("a router card must not list any tools (rule 2)")
             if self.permission_tier != PermissionTier.T0:
                 raise ValueError("a router card must have permission_tier T0")
+            if self.fast_route is not None:
+                raise ValueError("a router card cannot have fast_route")
         elif not self.handles:
             raise ValueError("a worker card needs at least one 'handles' entry for routing")
         if len(set(self.tools)) != len(self.tools):

@@ -378,9 +378,9 @@ def test_tools_outside_the_allowlist_are_denied(tmp_path: Path) -> None:
         GenerateResult(text="I cannot."),
     ]
     model = ScriptedModel(
-        router=to_librarian("what time is it"), agent=lambda _m, _k: script.pop(0)
+        router=to_librarian("tell me the time please"), agent=lambda _m, _k: script.pop(0)
     )
-    reply, s = ask(tmp_path, model, memory, "what time is it", catalog=catalog)
+    reply, s = ask(tmp_path, model, memory, "tell me the time please", catalog=catalog)
     calls = [(r.tool, r.outcome) for r in s.audit.read_all() if r.event == "tool_call"]
     assert calls == [("get_system_time", "denied"), ("search_files", "unknown_tool")]
     assert reply.status == "done"
