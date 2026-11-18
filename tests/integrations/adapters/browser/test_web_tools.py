@@ -253,3 +253,131 @@ def test_manifests_are_read_only_t1_and_start_quarantined() -> None:
     catalog = default_catalog()
     assert catalog.get("open_website") is not None
     assert "open_website" not in {s.name for s in catalog.callable_tools()}
+
+
+# ---------- every non-public range, by every route in ----------
+
+# One host per range the owner listed, plus the edges of 172.16.0.0/12 and forms that name
+# the same machine in another way (IPv4-mapped IPv6, a single decimal number, hex).
+NON_PUBLIC_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "127.1.2.3",
+    "[::1]",
+    "0.0.0.0",
+    "192.168.0.1",
+    "192.168.255.254",
+    "10.0.0.1",
+    "10.255.255.254",
+    "172.16.0.1",
+    "172.20.10.5",
+    "172.31.255.254",
+    "169.254.0.1",
+    "169.254.169.254",
+    "[::ffff:127.0.0.1]",
+    "[::ffff:192.168.1.1]",
+]
+
+# 127.0.0.1 written as one number or in hex. Depending on the OS the lookup either resolves
+# them (then they are "not a public" address) or fails ("could not be found"); both refuse.
+ODD_FORMS = ["2130706433", "0x7f000001", "017700000001"]
+
+
+@pytest.mark.parametrize("host", ODD_FORMS)
+def test_odd_spellings_of_localhost_are_refused_by_every_route(
+    host: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(302, headers={"location": f"http://{host}/x"})
+
+    _patch_network(monkeypatch, handler)
+    why = "not a public|could not be found"
+    with pytest.raises(ToolRefused, match=why):
+        check_url(f"http://{host}/")
+    with pytest.raises(ToolRefused, match=why):
+        fetch_public(f"http://{host}/")
+    with pytest.raises(ToolRefused, match=why):
+        fetch_public(PUBLIC)  # redirects there
+    assert [str(r.url) for r in sent] == [PUBLIC]
+
+
+@pytest.mark.parametrize("host", NON_PUBLIC_HOSTS)
+def test_check_url_refuses_every_non_public_host(host: str) -> None:
+    for scheme in ("http", "https"):
+        with pytest.raises(ToolRefused, match="not a public"):
+            check_url(f"{scheme}://{host}/x")
+
+
+@pytest.mark.parametrize("host", NON_PUBLIC_HOSTS)
+def test_open_website_refuses_every_non_public_host_before_any_request(
+    host: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, html="secret admin page")
+
+    _patch_network(monkeypatch, handler)
+    open_site = {s.name: s for s in web_tool_specs(WebToolDeps(), status="approved")}[
+        "open_website"
+    ]
+    with pytest.raises(ToolRefused, match="not a public"):
+        open_site.handler(OpenWebsiteInput(url=f"http://{host}/admin"))
+    assert sent == []  # refused on the address, not after asking the machine
+
+
+@pytest.mark.parametrize("host", NON_PUBLIC_HOSTS)
+def test_a_redirect_to_every_non_public_host_is_refused_before_it_is_followed(
+    host: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(str(request.url))
+        return httpx.Response(302, headers={"location": f"http://{host}/inner"})
+
+    _patch_network(monkeypatch, handler)
+    open_site = {s.name: s for s in web_tool_specs(WebToolDeps(), status="approved")}[
+        "open_website"
+    ]
+    with pytest.raises(ToolRefused, match="not a public"):
+        open_site.handler(OpenWebsiteInput(url=PUBLIC))
+    assert sent == [PUBLIC]  # only the public first hop was ever requested
+
+
+def test_a_redirect_chain_is_checked_at_every_hop(monkeypatch: pytest.MonkeyPatch) -> None:
+    hops = {
+        PUBLIC: "https://93.184.216.35/second",  # public -> public is fine
+        "https://93.184.216.35/second": "http://172.16.5.5/third",  # public -> private is not
+    }
+    sent: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(str(request.url))
+        return httpx.Response(302, headers={"location": hops[str(request.url)]})
+
+    _patch_network(monkeypatch, handler)
+    with pytest.raises(ToolRefused, match="not a public"):
+        fetch_public(PUBLIC)
+    assert sent == [PUBLIC, "https://93.184.216.35/second"]
+
+
+def test_a_relative_redirect_stays_on_the_public_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/page":
+            return httpx.Response(302, headers={"location": "/moved"})
+        return httpx.Response(200, html="<p>moved</p>")
+
+    _patch_network(monkeypatch, handler)
+    page = fetch_public(PUBLIC)
+    assert page.final_url == "https://93.184.216.34/moved" and "moved" in page.body
+
+
+@pytest.mark.parametrize("host", ["172.15.255.255", "172.32.0.1", "11.0.0.1", "169.253.0.1"])
+def test_addresses_just_outside_the_private_ranges_are_still_allowed(host: str) -> None:
+    # guards against a rule that is too broad (and so, one day, gets switched off)
+    assert check_url(f"https://{host}/") == f"https://{host}/"
