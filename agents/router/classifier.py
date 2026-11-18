@@ -86,6 +86,7 @@ class Classifier:
             max_tokens=ROUTER_MAX_TOKENS,
             response_format=RoutingDecision.model_json_schema(),
             temperature=0,
+            seed=0,  # fixed seed: the same request always routes the same way
         )
         return self.check(result.text)
 
