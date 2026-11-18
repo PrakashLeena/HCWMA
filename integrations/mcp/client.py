@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Settings the tool server must share with the backend. The MCP SDK starts the server with
 # a minimal environment, so these are passed on explicitly (build step 10: both processes
 # must open the same memory folder).
-SHARED_ENV = ("HCWMA_DATA_DIR",)
+SHARED_ENV = ("HCWMA_DATA_DIR", "HCWMA_GENERATED_DIR")
 DEFAULT_CALL_TIMEOUT_S = 60.0
 
 

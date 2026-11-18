@@ -16,6 +16,10 @@ from integrations.adapters.browser.web_tools import WebToolDeps, web_tool_specs
 from integrations.adapters.desktop.ui_interface import UiGuard
 from integrations.adapters.desktop.ui_tools import UiToolDeps, ui_tool_specs
 from integrations.adapters.local_data.memory_tools import MemoryToolDeps, memory_tool_specs
+from integrations.adapters.local_data.tool_builder_tools import (
+    ToolBuilderDeps,
+    tool_builder_specs,
+)
 from integrations.adapters.pc.code_tools import CodeToolDeps, code_tool_specs
 from integrations.adapters.pc.file_tools import FileToolDeps, file_tool_specs
 from integrations.adapters.pc.file_write_tools import file_write_tool_specs
@@ -75,6 +79,7 @@ def _catalog(pc: Layout) -> CapabilityCatalog:
         *memory_tool_specs(mem, status="approved"),
         *web_tool_specs(WebToolDeps(), status="approved"),
         *ui_tool_specs(UiToolDeps(None, UiGuard()), status="approved"),  # type: ignore[arg-type]
+        *tool_builder_specs(ToolBuilderDeps(), status="approved"),
     ):
         catalog.register(spec)
     return catalog

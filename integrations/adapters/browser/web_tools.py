@@ -124,9 +124,23 @@ class FetchedPage:
 Fetcher = Callable[[str], FetchedPage]
 
 
-def fetch_public(url: str) -> FetchedPage:
-    """The real fetcher. Tests and demos pass their own `Fetcher` instead."""
-    current = check_url(url)
+def _host_of(url: str) -> str:
+    return (urlsplit(url).hostname or "").lower()
+
+
+def fetch_public(url: str, allowed_hosts: frozenset[str] | None = None) -> FetchedPage:
+    """The real fetcher. Tests and demos pass their own `Fetcher` instead.
+
+    `allowed_hosts` (generated tools, build step 13): the address and every redirect must stay
+    on exactly these host names, so a tool can only reach what its manifest declares.
+    """
+
+    def on_list(address: str) -> str:
+        if allowed_hosts is not None and _host_of(address) not in allowed_hosts:
+            raise ToolRefused(f"'{_host_of(address)}' is not a host this tool declared")
+        return address
+
+    current = check_url(on_list(url))
     headers = {"User-Agent": USER_AGENT, "Accept": ", ".join(ACCEPTED_TYPES)}
     with httpx.Client(
         follow_redirects=False,
@@ -141,7 +155,7 @@ def fetch_public(url: str) -> FetchedPage:
                         target = response.headers.get("location", "")
                         if not target:
                             raise ToolRefused("the page redirected to nowhere")
-                        current = check_url(urljoin(current, target))
+                        current = check_url(on_list(urljoin(current, target)))
                         continue
                     ctype = response.headers.get("content-type", "").split(";")[0].strip().lower()
                     if ctype not in ACCEPTED_TYPES:

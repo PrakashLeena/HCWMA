@@ -35,6 +35,8 @@ from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape
 
+from agents.runtime import model_lock
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RUNNER_SOURCE = Path(__file__).resolve().with_name("sandbox_vm_runner.py")
 SANDBOX_HOME = REPO_ROOT / "workspace" / "sandbox"
@@ -192,7 +194,9 @@ def model_released(backend: Any | None = None, queue: Any | None = None) -> Iter
         was_loaded = bool(backend.runtime_info().get("loaded"))
     except Exception:  # runtime not running: nothing in RAM
         was_loaded = False
-    with queue.exclusive():
+    # The tool server cannot hold the backend's queue, so this file lock does: the backend's
+    # ModelQueue refuses new inference until it is released (after the model is reloaded).
+    with model_lock.hold("testing a tool"), queue.exclusive():
         if was_loaded:
             backend.unload()
             deadline = time.monotonic() + 30

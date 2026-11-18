@@ -1,0 +1,5 @@
+PASS  30.2s  expect=tool_builder    got=tool_builder conf=0.90  "Build a new tool that can read my smart thermostat's local API"
+PASS  31.2s  expect=tool_builder    got=tool_builder conf=0.90  'Make me a new tool that counts the words in any text I give it'
+PASS  30.2s  expect=tool_builder    got=tool_builder conf=0.90  'Create a tool that converts miles to kilometres'
+
+scored 3/3; skipped 0 (agent not built yet: )

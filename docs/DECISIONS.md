@@ -89,3 +89,59 @@ Numbers in `docs/benchmarks.md`.
 
 - The Tool Builder's sandbox-test tool wrapper must call `PathPolicy` on the tool folder before
   staging (verify check 8) and write an audit record for every sandbox run (check 10).
+
+## Tool Builder (Step 13)
+
+Owner rules (2026-11-18, from the Step 13 request): v1 generated tools are read-only
+(`side_effects: none`; no files, secrets, shell, subprocess or ctypes); network only to hosts in
+the manifest through the shared web fetch; tests only in Windows Sandbox; any changed byte sends
+a tool back to quarantine; the owner sees the summary, the permissions and the full code.
+
+Design choices made by Claude Code, **owner to confirm or change**:
+
+- Approval state is kept in `%LOCALAPPDATA%\HCWMA\generated_tools\state.json` (outside the
+  repository, next to memory; `HCWMA_DATA_DIR` overrides it), per exact content hash.
+- The owner picks which agents may use an approved tool when approving it (agent cards are
+  not edited); the tool is always T1.
+- The four Tool Builder tool manifests (`find_existing_tools`, `scaffold_tool`, `run_tool_tests`,
+  `submit_for_approval`) ship `quarantined` until the owner approves them
+  (`TOOL_BUILDER_TOOLS_STATUS` in `integrations/adapters/local_data/tool_builder_tools.py`).
+
+Owner decisions on the review (2026-11-18), all three implemented:
+
+1. **Model-queue race.** While a sandbox run is active the backend must not reload Qwen. The run
+   takes a lock file `model_busy.json` in `%LOCALAPPDATA%\HCWMA` (`agents/runtime/model_lock.py`;
+   never deleted, released by writing `active: false`; it also stops counting after its time limit
+   or when its owner process is gone). `ModelQueue.generate` and `/chat` refuse while it is held:
+   "busy: testing a tool, try again shortly". Released only after Qwen is reloaded.
+2. **`exec` exception, approved on one condition.** `integrations/generated_tools/runner.py` calls
+   `exec` on an APPROVED tool's code, in a separate child process (guard hook, restricted
+   builtins, time and memory limit, scrubbed environment). The condition: immediately before
+   `exec` the runner itself recomputes the SHA-256 of the files it was sent and compares it with
+   the approved hash, and re-runs the static check on that exact code; either failing means
+   nothing runs. The gateway side also re-reads the files and the approval right before starting
+   the child. Tests: a file changed after approval is refused. This is the only place that execs
+   model-written code; the verify skill's "no exec" rule is unchanged (this is a reviewed exception).
+3. **Protected path.** `~/AppData/Local/HCWMA/generated_tools` is in `protected_paths`
+   (`configs/permissions.yaml`, a stricter change). An approved tool is callable only if BOTH the
+   owner assigned the agent at approval AND the policy layer allows it (allowlist, approved
+   status, tier); tests cover each half failing alone.
+
+### Tool Builder tool manifests approved (owner, 2026-11-18)
+
+The owner approved the four manifests (`find_existing_tools` T0, `scaffold_tool` T2,
+`run_tool_tests` T2, `submit_for_approval` T2) after these tests passed
+(`tests/integrations/generated_tools/test_lifecycle.py`):
+
+1. The four tools can only record "tested" / "submitted" in the state file; no code in the
+   Tool Builder's tool module can reach `approve`, `revoke`, `set_disabled`, `restore_files` or
+   the review service, and a repo-wide test lists the only files that call them (the review
+   service, the token-protected backend routes, and the proof/demo scripts that play the owner).
+2. `scaffold_tool` accepts only names matching `^[a-z][a-z0-9_]{2,40}$` (no "..", slashes,
+   drive letters or dots) and refuses Windows device names. It refuses to overwrite a tool that
+   is currently approved: the approved files stay untouched and in use, and a new version must be
+   built under a new name (e.g. `word_count_v2`), which starts quarantined.
+3. `scaffold_tool` refuses files over the fixed limits, counted in bytes: manifest 8 KB, adapter
+   20 KB, tests 20 KB (stricter than the 50 KB suggested); nothing is written when refused.
+
+`TOOL_BUILDER_TOOLS_STATUS` is now `"approved"`.

@@ -1,0 +1,42 @@
+
+> I need a new tool called word_count. It should take a text and return the number of words and the number of lines. Nothing else exists for this, so please build it.
+  [router -> tool_builder | delegate | done]
+  I built `word_count`, which counts words and lines in plain text input. Sandbox tests passed (2/2). The tool is now submitted for approval and waits on the Tools page; it cannot be used until the owner approves it.
+
+--- audit (this run) ---
+  tool_builder -> find_existing_tools  [ok]
+  tool_builder -> scaffold_tool  [ok]
+  tool_builder -> run_tool_tests  [ok]
+  tool_builder -> submit_for_approval  [ok]
+  tool_builder -> word_count scaffold [written]
+  tool_builder -> word_count sandbox_test [passed]
+  tool_builder -> word_count submit [submitted]
+  [PASS] Router sent it to the Tool Builder
+  [PASS] the model wrote the three files
+  [PASS] tool is quarantined
+  [PASS] sandbox tests passed for these exact files
+  [PASS] submitted for review
+  [PASS] sandbox run audited
+  [PASS] cannot be called while quarantined
+
+--- what the owner sees ---
+word_count 0.1.0: Count the words, lines and characters in a text.
+It takes: text (string).
+It returns: words (integer), lines (integer).
+It cannot read or write any file, run any program or use any password or key.
+It cannot use the network.
+It changes nothing on this PC (read-only).
+import re
+
+def run(args, ctx):
+    text = args.get("text", "")
+    words = len([w for w in re.split(r'\s+', text) if w])
+    lines = text.count('\n') + 1 if text else 0
+    return {"words": words, "lines": lines}
+
+call after approval: {'words': 4, 'lines': 2}
+  [PASS] callable after approval
+  [PASS] the answer is right (4 words)
+  [PASS] one edited line -> quarantined, uncallable
+
+PASS: 10/10 checks
