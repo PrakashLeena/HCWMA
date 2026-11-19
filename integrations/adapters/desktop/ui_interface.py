@@ -66,6 +66,9 @@ SYSTEM_SECURITY = frozenset(
         "gpedit", "wf", "mpcmdrun",
     }
 )  # fmt: skip
+# Owner decision 2026-11-19: WhatsApp Desktop is used only by the Communication agent, through
+# its own tools (`whatsapp_tools.py`); App Automation may not click or type in it.
+COMMUNICATION_ONLY_APPS = frozenset({"whatsapp", "whatsapp.root", "whatsappbeta"})
 BLOCKED_CLASSES = frozenset(
     {"shell_traywnd", "shell_secondarytraywnd", "progman", "workerw", "#32768"}
 )  # the taskbar, the desktop, context menus
@@ -214,6 +217,8 @@ class UiGuard:
             return "password managers and credential windows are off-limits"
         if app in COMMAND_RUNNERS:
             return "terminals, code editors and other programs that run commands are off-limits"
+        if app in COMMUNICATION_ONLY_APPS or "whatsapp" in window.title.lower():
+            return "WhatsApp is used only by the Communication agent, through its own tools"
         if app in SYSTEM_SECURITY or window.class_name.lower() in BLOCKED_CLASSES:
             return "system security, settings and shell windows are off-limits"
         if app in self._apps:

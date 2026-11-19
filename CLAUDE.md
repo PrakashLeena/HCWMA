@@ -101,6 +101,7 @@ python -m agents.router.eval_routing --expect web_research --message "Open notes
 python -m integrations.adapters.official_api.gmail_login import-client <file>   # Step 15: once, move the Google OAuth client file into the credential store (keep the file outside the repo)
 python -m integrations.adapters.official_api.gmail_login login   # Step 15: Gmail sign-in in your browser (also: status | logout)
 python -m agents.router.demo_gmail [read] [draft] [send]   # Step 15 check on your REAL Gmail (needs Ollama + the Gmail login; the send step waits for your approval)
+python -m agents.router.demo_whatsapp --chat "Message yourself" [list] [read] [send]   # Step 15 check on your REAL WhatsApp Desktop (needs Ollama + WhatsApp open and linked; the send step waits for your y; only your own chat is sent to)
 ```
 
 Keep this section current when commands change.

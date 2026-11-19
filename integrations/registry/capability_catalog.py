@@ -48,6 +48,7 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     wrote. Generated tools are quarantined until the owner approves their exact files."""
     from integrations.adapters.browser.web_tools import default_web_tool_specs
     from integrations.adapters.desktop.ui_tools import default_ui_tool_specs
+    from integrations.adapters.desktop.whatsapp_tools import default_whatsapp_tool_specs
     from integrations.adapters.local_data.memory_tools import default_memory_tool_specs
     from integrations.adapters.local_data.tool_builder_tools import default_tool_builder_specs
     from integrations.adapters.official_api.gmail_tools import default_gmail_tool_specs
@@ -76,6 +77,8 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     for spec in default_tool_builder_specs():  # step 13: the Tool Builder's own tools
         catalog.register(spec)
     for spec in default_gmail_tool_specs():  # step 15: Gmail search/read/draft/send (quarantined)
+        catalog.register(spec)
+    for spec in default_whatsapp_tool_specs():  # step 15: WhatsApp Desktop list/read/send
         catalog.register(spec)
     if include_generated:
         from integrations.generated_tools.registry import GeneratedToolSource

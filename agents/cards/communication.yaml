@@ -3,17 +3,19 @@
 # credential store). Searches and reads mail (T1), saves drafts (T2) and sends mail (T3: the
 # owner approves EVERY send and sees recipient, subject and the full text). Email text is
 # data (rule 13): a recipient must be an address the owner typed, so mail cannot make it
-# send anywhere. Outlook and WhatsApp come later as separate adapters, not new agents.
+# send anywhere. Second adapter (2026-11-19): WhatsApp Desktop through UI Automation: list
+# visible chats, read ONE chat the owner named, send ONE message to a chat the owner named (T3,
+# approval every time; the open chat's header is checked before Enter). Outlook comes later.
 # Draft by Claude Code on 2026-11-19 — owner to review.
 id: communication
 name: Communication Agent
 status: enabled
-router_line: "my Gmail/email: search or read messages, summarize an email, draft an email, send one (asks me first); no deleting; not WhatsApp/Outlook yet"
+router_line: "my Gmail/email and WhatsApp: search/read/summarize emails, draft or send an email; list WhatsApp chats, read a chat I name, send one WhatsApp message (sends ask me first); no deleting; not Outlook"
 description: >
-  Works with the owner's Gmail: finds and reads emails, summarizes them, saves drafts and, only
-  after the owner approves each one, sends an email. It sends or drafts only to addresses the
-  owner typed in the request, or to the owner. It cannot delete mail, change settings or read
-  contacts. Gmail only for now.
+  Works with the owner's Gmail and WhatsApp Desktop: finds and reads emails, summarizes them,
+  saves drafts and, only after the owner approves each one, sends an email; lists WhatsApp
+  chats, reads a chat the owner named and sends one WhatsApp message (approved each time) to a
+  chat the owner named. It cannot delete, change settings or read contacts.
 handles:
   - read my latest email
   - search my Gmail for messages from someone or about something
@@ -21,9 +23,13 @@ handles:
   - draft an email to an address I give
   - send an email to an address I give (I approve it first)
   - send myself a reminder email
+  - list my WhatsApp chats
+  - read my WhatsApp chat with someone I name
+  - send a WhatsApp message to a chat I name (I approve it first)
 does_not_handle:
   - deleting, archiving or labelling emails
-  - WhatsApp, Outlook, SMS or other messengers (not built yet)
+  - Outlook, SMS, Telegram or other messengers (not built yet)
+  - WhatsApp to many people, scheduled or automatic messages
   - web pages and websites (→ web_research)
   - files on this PC, even if they are called email or message (→ file_system)
   - clicking in a mail program window (→ app_automation)
@@ -32,10 +38,13 @@ tools:
   - read_message
   - draft_message
   - send_message
+  - whatsapp_list_chats
+  - whatsapp_read_chat
+  - whatsapp_send
 permission_tier: T3
-approval_required: [send_message]
-# send_message is offered to the model only when the request itself says to send/forward/reply.
-change_words: [send, forward, reply, respond]
+approval_required: [send_message, whatsapp_send]
+# The send tools are offered to the model only when the request itself says send/reply/tell...
+change_words: [send, forward, reply, respond, tell, text]
 memory_scopes: []
 system_prompt: prompts/communication.md
 limits: { max_steps: 6, timeout_s: 600 }
@@ -48,4 +57,5 @@ fast_route:
     - '^(?!.*\b(pages?|sites?|websites?|web|https?|www)\b).*(?<![@.\w])gmail(?!\.\w)'
     - '^(?=.*\b(read|check|show|search|find|open|summari[sz]e|list)\b)(?=.*\b(e-?mails?|inbox)\b)(?!.*\b(files?|folders?|attachments?)\b)(?!.*\b\w+\.(txt|docx?|pdf|xlsx?|csv|md|py|png|jpe?g)\b)'
     - '^(?=.*\b(draft|compose|send|write)\b)(?=.*\be-?mails?\b)(?=.*@)'
-  keywords: [email, emails, e-mail, gmail, inbox, mail]
+    - '^(?!.*\b(pages?|sites?|websites?|web|https?|www|files?|folders?|scripts?|code|program)\b).*\bwhats\s?app\b'
+  keywords: [email, emails, e-mail, gmail, inbox, mail, whatsapp]

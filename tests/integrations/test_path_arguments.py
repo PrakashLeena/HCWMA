@@ -15,6 +15,7 @@ import pytest
 from integrations.adapters.browser.web_tools import WebToolDeps, web_tool_specs
 from integrations.adapters.desktop.ui_interface import UiGuard
 from integrations.adapters.desktop.ui_tools import UiToolDeps, ui_tool_specs
+from integrations.adapters.desktop.whatsapp_tools import WhatsAppToolDeps, whatsapp_tool_specs
 from integrations.adapters.local_data.memory_tools import MemoryToolDeps, memory_tool_specs
 from integrations.adapters.local_data.tool_builder_tools import (
     ToolBuilderDeps,
@@ -82,6 +83,7 @@ def _catalog(pc: Layout) -> CapabilityCatalog:
         *ui_tool_specs(UiToolDeps(None, UiGuard()), status="approved"),  # type: ignore[arg-type]
         *tool_builder_specs(ToolBuilderDeps(), status="approved"),
         *gmail_tool_specs(GmailToolDeps(), status="approved"),
+        *whatsapp_tool_specs(WhatsAppToolDeps(None), status="approved"),  # type: ignore[arg-type]
     ):
         catalog.register(spec)
     return catalog
