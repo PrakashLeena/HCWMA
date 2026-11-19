@@ -17,3 +17,5 @@ def _isolated_hcwma_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("HCWMA_DATA_DIR", str(tmp_path / "hcwma-data"))
     # Tool Builder output (step 13): tests never read or write the real integrations/generated/.
     monkeypatch.setenv("HCWMA_GENERATED_DIR", str(tmp_path / "generated"))
+    # Gmail (step 15): tests never read or change the owner's real credential store.
+    monkeypatch.setenv("HCWMA_DISABLE_KEYRING", "1")

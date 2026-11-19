@@ -14,11 +14,13 @@ Not yet here: asking the Tool Builder when nothing fits (Step 13).
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from agents.router.classifier import Classifier, RoutingDecision
+from agents.router.classifier import Classifier, RouteStep, RoutingDecision
 from agents.router.fast_path import fast_route
 from agents.runtime.agent_runtime import OWNER_DENIED, AgentRuntime
 from agents.runtime.stop import STOPPED_BY_OWNER, StopControl
@@ -37,6 +39,20 @@ from security.approvals.approval_service import ApprovalService
 log = logging.getLogger(__name__)
 
 ROUTER_DEPTH = 0
+# A reply to a clarification question is short ("yes", an address, "the second one"). Longer
+# messages are new requests and are routed as such.
+MAX_ANSWER_WORDS = 12
+MAX_PENDING = 50
+
+
+@dataclass(frozen=True)
+class _Pending:
+    """A clarification question HCWMA asked, and what it was about."""
+
+    question: str
+    original: str  # the owner's request the question was about, exactly as typed
+    goal: str
+    agent: str | None  # the agent that asked; None when the Router itself asked
 
 
 class RouterReply(BaseModel):
@@ -67,6 +83,9 @@ class Router:
         # and has no tool to do so: only the owner can, through the backend.
         self.stop = stop
         self.approvals = approvals
+        # Clarification questions waiting for their answer, keyed by the exact reply text the
+        # owner saw. In memory only (a restart simply routes the answer as a new request).
+        self._pending: OrderedDict[str, _Pending] = OrderedDict()
 
     async def handle(self, conversation: list[Message]) -> RouterReply:
         if not conversation or conversation[-1].role != "user":
@@ -129,17 +148,70 @@ class Router:
             log.warning("could not save the session summary")
             return False
 
+    def _remember(self, reply: str, pending: _Pending) -> None:
+        self._pending[reply.strip()] = pending
+        while len(self._pending) > MAX_PENDING:
+            self._pending.popitem(last=False)
+
+    def _answer_to_clarification(self, conversation: list[Message]) -> tuple[_Pending, str] | None:
+        """If the owner's last message answers the clarification we just asked, the pending
+        question and the answer. A clear new request is never taken for an answer."""
+        if len(conversation) < 3:
+            return None
+        asked, answer = conversation[-2], conversation[-1]
+        if asked.role != "assistant":
+            return None
+        pending = self._pending.pop(asked.content.strip(), None)
+        if pending is None:
+            return None
+        text = answer.content.strip()
+        if not text or len(text.split()) > MAX_ANSWER_WORDS:
+            return None
+        if fast_route(self._runtime.registry, text) is not None:
+            return None  # a clear request of its own (the question stays unanswered)
+        return pending, text
+
     async def _handle(self, task_id: str, conversation: list[Message]) -> RouterReply:
-        # Very clear requests skip the model: rules from the agent cards (fast_path.py).
-        decision = fast_route(self._runtime.registry, conversation[-1].content)
-        if decision is not None:
-            log.info("fast path: %s", decision.steps[0].agent)
-        else:
-            decision = await self._classifier.classify(
-                conversation, self._recall(conversation), task_id=task_id
-            )
+        user_message = conversation[-1].content
+        decision: RoutingDecision | None = None
+        followup = self._answer_to_clarification(conversation)
+        if followup is not None:
+            pending, answer = followup
+            user_message = f"{pending.original} {answer}"  # both are the owner's own words
+            if pending.agent is not None:
+                # The agent asked: it carries on with the same request and the answer. The
+                # model is not asked to route again.
+                goal = (
+                    f"{pending.goal} You asked: {pending.question} The owner answered: {answer}"
+                )[:500]
+                decision = RoutingDecision(
+                    action="delegate",
+                    confidence=1.0,
+                    steps=[RouteStep(agent=pending.agent, goal=goal)],
+                )
+                log.info("clarification answered: back to %s", pending.agent)
+            else:
+                # The Router asked: route the original request again, with the answer in it.
+                combined = (
+                    f'{pending.original} (You asked: "{pending.question}" '
+                    f"The owner answered: {answer})"
+                )
+                conversation = [*conversation[:-3], Message(role="user", content=combined)]
+        if decision is None:
+            # Very clear requests skip the model: rules from the agent cards (fast_path.py).
+            decision = fast_route(self._runtime.registry, conversation[-1].content)
+            if decision is not None:
+                log.info("fast path: %s", decision.steps[0].agent)
+            else:
+                decision = await self._classifier.classify(
+                    conversation, self._recall(conversation), task_id=task_id
+                )
 
         if decision.action == "clarify":
+            self._remember(
+                decision.question,
+                _Pending(decision.question, user_message, user_message[:500], None),
+            )
             return RouterReply(
                 task_id=task_id,
                 action="clarify",
@@ -150,7 +222,7 @@ class Router:
             return RouterReply(
                 task_id=task_id, action="answer", reply=decision.answer, status="done"
             )
-        return await self._delegate(task_id, decision, conversation[-1].content)
+        return await self._delegate(task_id, decision, user_message)
 
     async def _delegate(
         self, task_id: str, decision: RoutingDecision, user_message: str
@@ -177,6 +249,12 @@ class Router:
         self._record(task_id, done)
 
         last = _result(done[-1])
+        if last.status == "needs_clarification":
+            step = decision.steps[len(done) - 1]
+            self._remember(
+                _compose(done),
+                _Pending(last.summary, user_message, step.goal, step.agent),
+            )
         return RouterReply(
             task_id=task_id,
             action="delegate",

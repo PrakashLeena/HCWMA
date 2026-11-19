@@ -35,6 +35,9 @@ from integrations.mcp.tool_schemas import PermissionTier
 from security.audit.audit_logger import AuditLogger
 
 DEFAULT_APPROVAL_TIMEOUT_S = 300.0
+# Long enough to show a whole email (body limit 5000 chars) so the owner approves what is
+# really sent, never a cut-off version of it.
+MAX_SUMMARY_CHARS = 6500
 ApprovalOutcome = Literal["approved", "denied", "expired", "cancelled"]
 _State = Literal["pending", "approved", "denied", "expired", "cancelled", "used"]
 
@@ -108,7 +111,7 @@ class ApprovalService:
             agent=agent,
             tool=tool,
             tier=tier,
-            summary=summary[:500],
+            summary=summary[:MAX_SUMMARY_CHARS],
             arguments=arguments,
             digest=action_hash(tool, arguments),
             expires_at=time.monotonic() + self._timeout_s,

@@ -50,6 +50,7 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     from integrations.adapters.desktop.ui_tools import default_ui_tool_specs
     from integrations.adapters.local_data.memory_tools import default_memory_tool_specs
     from integrations.adapters.local_data.tool_builder_tools import default_tool_builder_specs
+    from integrations.adapters.official_api.gmail_tools import default_gmail_tool_specs
     from integrations.adapters.pc.code_tools import default_code_tool_specs
     from integrations.adapters.pc.file_tools import default_file_tool_specs
     from integrations.adapters.pc.file_write_tools import default_file_write_tool_specs
@@ -73,6 +74,8 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     for spec in default_ui_tool_specs():  # step 12: desktop apps, T3 actions (quarantined)
         catalog.register(spec)
     for spec in default_tool_builder_specs():  # step 13: the Tool Builder's own tools
+        catalog.register(spec)
+    for spec in default_gmail_tool_specs():  # step 15: Gmail search/read/draft/send (quarantined)
         catalog.register(spec)
     if include_generated:
         from integrations.generated_tools.registry import GeneratedToolSource

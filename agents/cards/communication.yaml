@@ -1,0 +1,51 @@
+# Communication agent (build step 15; master document 4.3, 4.4, 9.2, 11).
+# First adapter: Gmail, through the official Gmail API (OAuth desktop login, token in the OS
+# credential store). Searches and reads mail (T1), saves drafts (T2) and sends mail (T3: the
+# owner approves EVERY send and sees recipient, subject and the full text). Email text is
+# data (rule 13): a recipient must be an address the owner typed, so mail cannot make it
+# send anywhere. Outlook and WhatsApp come later as separate adapters, not new agents.
+# Draft by Claude Code on 2026-11-19 — owner to review.
+id: communication
+name: Communication Agent
+status: enabled
+router_line: "my Gmail/email: search or read messages, summarize an email, draft an email, send one (asks me first); no deleting; not WhatsApp/Outlook yet"
+description: >
+  Works with the owner's Gmail: finds and reads emails, summarizes them, saves drafts and, only
+  after the owner approves each one, sends an email. It sends or drafts only to addresses the
+  owner typed in the request, or to the owner. It cannot delete mail, change settings or read
+  contacts. Gmail only for now.
+handles:
+  - read my latest email
+  - search my Gmail for messages from someone or about something
+  - summarize an email
+  - draft an email to an address I give
+  - send an email to an address I give (I approve it first)
+  - send myself a reminder email
+does_not_handle:
+  - deleting, archiving or labelling emails
+  - WhatsApp, Outlook, SMS or other messengers (not built yet)
+  - web pages and websites (→ web_research)
+  - files on this PC, even if they are called email or message (→ file_system)
+  - clicking in a mail program window (→ app_automation)
+tools:
+  - search_messages
+  - read_message
+  - draft_message
+  - send_message
+permission_tier: T3
+approval_required: [send_message]
+# send_message is offered to the model only when the request itself says to send/forward/reply.
+change_words: [send, forward, reply, respond]
+memory_scopes: []
+system_prompt: prompts/communication.md
+limits: { max_steps: 6, timeout_s: 600 }
+
+# Router fast path (agents/router/fast_path.py): `patterns` send a very clear request
+# straight here without a Router model call; `keywords` stop other agents' fast
+# matches when the message also sounds like this agent's job.
+fast_route:
+  patterns:
+    - '^(?!.*\b(pages?|sites?|websites?|web|https?|www)\b).*(?<![@.\w])gmail(?!\.\w)'
+    - '^(?=.*\b(read|check|show|search|find|open|summari[sz]e|list)\b)(?=.*\b(e-?mails?|inbox)\b)(?!.*\b(files?|folders?|attachments?)\b)(?!.*\b\w+\.(txt|docx?|pdf|xlsx?|csv|md|py|png|jpe?g)\b)'
+    - '^(?=.*\b(draft|compose|send|write)\b)(?=.*\be-?mails?\b)(?=.*@)'
+  keywords: [email, emails, e-mail, gmail, inbox, mail]

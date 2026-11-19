@@ -98,6 +98,9 @@ python -m integrations.adapters.pc.sandbox_proof   # Step 13 prerequisite: Windo
 python -m integrations.generated_tools.proof   # Step 13 check: one tool end to end (generate, real Windows Sandbox test, quarantined, approve, callable, edit one line -> quarantined; ~1 min, writes integrations/generated/word_count/ then moves it to the Recycle Bin)
 python -m agents.router.demo_toolbuilder   # Step 13 check with Qwen writing the tool (needs Ollama + Windows Sandbox, ~10-20 min, can fail: a 4B model may need retries)
 python -m agents.router.eval_routing --expect web_research --message "Open notes.txt and summarize what it says"   # web cases + near misses only
+python -m integrations.adapters.official_api.gmail_login import-client <file>   # Step 15: once, move the Google OAuth client file into the credential store (keep the file outside the repo)
+python -m integrations.adapters.official_api.gmail_login login   # Step 15: Gmail sign-in in your browser (also: status | logout)
+python -m agents.router.demo_gmail [read] [draft] [send]   # Step 15 check on your REAL Gmail (needs Ollama + the Gmail login; the send step waits for your approval)
 ```
 
 Keep this section current when commands change.
