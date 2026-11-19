@@ -22,11 +22,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import anyio
 from pydantic import BaseModel
@@ -83,11 +84,27 @@ class ApprovalAnswer:
     waited_s: float
 
 
+class ApprovalJournal(Protocol):
+    """`backend.reliability.journal.TaskJournal` (or a test double)."""
+
+    def open_approval(self, approval_id: str, *, task_id: str, agent: str, tool: str) -> None: ...
+
+    def close_approval(self, approval_id: str, outcome: str) -> None: ...
+
+
 class ApprovalService:
-    def __init__(self, audit: AuditLogger, timeout_s: float = DEFAULT_APPROVAL_TIMEOUT_S) -> None:
+    def __init__(
+        self,
+        audit: AuditLogger,
+        timeout_s: float = DEFAULT_APPROVAL_TIMEOUT_S,
+        journal: ApprovalJournal | None = None,
+    ) -> None:
         if timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
         self._audit = audit
+        # Build step 18: open prompts are journaled so the next start can cancel any that a
+        # crash left behind (they are in memory only and can never be answered after it).
+        self.journal = journal
         self._timeout_s = timeout_s
         self._requests: dict[str, _Request] = {}
         self._lock = threading.Lock()
@@ -209,6 +226,16 @@ class ApprovalService:
         self._log(req, state)
 
     def _log(self, req: _Request, outcome: str) -> None:
+        if self.journal is not None:
+            try:
+                if outcome == "requested":
+                    self.journal.open_approval(
+                        req.id, task_id=req.task_id, agent=req.agent, tool=req.tool
+                    )
+                else:
+                    self.journal.close_approval(req.id, outcome)
+            except Exception:  # noqa: BLE001 - the journal must never block an approval
+                logging.getLogger(__name__).warning("task journal write failed")
         self._audit.approval(
             task_id=req.task_id,
             agent=req.agent,

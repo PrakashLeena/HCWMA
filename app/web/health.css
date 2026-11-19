@@ -1,0 +1,14 @@
+.health { max-width: 760px; margin: 0 auto; padding: 16px; width: 100%; box-sizing: border-box; }
+.health table { width: 100%; border-collapse: collapse; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.health td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.health tr:last-child td { border-bottom: none; }
+.health td.name { font-weight: 600; white-space: nowrap; width: 1%; }
+.health td.mark { width: 1%; font-weight: 700; }
+.health .ok { color: #067647; }
+.health .bad { color: var(--error); }
+.health .unknown { color: var(--muted); }
+.health h2 { font-size: 15px; margin: 20px 0 6px; }
+.health .banner { padding: 10px 12px; border-radius: 8px; border: 1px solid currentColor; }
+.health .banner.warn { color: #b54708; }
+.health .muted { color: var(--muted); font-size: 13px; }

@@ -450,7 +450,7 @@ class MemoryService:
         """Delete all of memory, and all of it in every backup file."""
         removed = self.store.delete_all()
         cleaned = 0
-        for backup in self.backups():
+        for backup in self.all_backup_copies():
             try:
                 MemoryStore(backup).delete_all()
                 cleaned += 1
@@ -462,9 +462,19 @@ class MemoryService:
         )  # fmt: skip
         return removed
 
+    def all_backup_copies(self) -> list[Path]:
+        """Every copy of memory on disk: the memory-only backups and the memory database in
+        each full backup (build step 18), so a forget reaches all of them."""
+        full = (
+            sorted(self.backup_dir.glob(f"full-*/memory/{self.store.path.name}"))
+            if self.backup_dir.is_dir()
+            else []
+        )
+        return [*self.backups(), *full]
+
     def _purge_backups(self, ids: list[str]) -> int:
         cleaned = 0
-        for backup in self.backups():
+        for backup in self.all_backup_copies():
             try:
                 if MemoryStore(backup).delete(ids):
                     cleaned += 1

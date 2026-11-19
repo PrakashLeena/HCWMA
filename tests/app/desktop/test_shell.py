@@ -165,6 +165,44 @@ class FakeBackend:
         self.stops += 1
         return self.report
 
+    # build step 18
+    show = False
+    recovery = ""
+    warnings: list[str] = []  # noqa: RUF012 - replaced per test
+    paused = False
+    plugged_only = False
+    reachable = True
+    backups = 0
+
+    def show_requested(self) -> bool:
+        wanted, self.show = self.show, False
+        return wanted
+
+    def recovery_message(self) -> str:
+        return self.recovery
+
+    def resource_warnings(self) -> list[str]:
+        return list(self.warnings)
+
+    def set_model_paused(self, paused: bool) -> bool | None:
+        if not self.reachable:
+            return None
+        self.paused = paused
+        return paused
+
+    def settings(self) -> dict[str, Any]:
+        return {"heavy_only_when_plugged_in": self.plugged_only}
+
+    def set_plugged_in_only(self, on: bool) -> bool | None:
+        if not self.reachable:
+            return None
+        self.plugged_only = on
+        return on
+
+    def backup_now(self) -> str | None:
+        self.backups += 1
+        return "full-20261119-120000" if self.reachable else None
+
 
 @pytest.fixture(scope="module")
 def qt_app() -> QApplication:
@@ -175,7 +213,16 @@ def test_tray_menu_has_open_stop_and_quit(qt_app: QApplication) -> None:
     backend, opened, quits = FakeBackend(), [], []
     tray = Tray(backend, make_icon(), lambda: opened.append(1), lambda: quits.append(1))
     labels = [a.text() for a in tray.menu.actions() if not a.isSeparator()]
-    assert labels == ["Open HCWMA", "Stop everything", "Quit HCWMA"]
+    assert labels == [
+        "Open HCWMA",
+        "Health",
+        "Stop everything",
+        "Pause model",
+        "Heavy tasks only when plugged in",
+        "Start with Windows",
+        "Back up now",
+        "Quit HCWMA",
+    ]
     assert tray.icon.contextMenu() is tray.menu and not tray.icon.icon().isNull()
 
     tray.stop_action.trigger()

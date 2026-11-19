@@ -23,12 +23,17 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, R
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.router.router import RouterReply
 from agents.runtime.model_lock import BUSY_MESSAGE, ModelBusy, check_free
+from agents.runtime.model_queue import PAUSED_MESSAGE, ModelPaused
 from backend.auth.token import token_matches
 from backend.config import BackendConfig
+from backend.reliability.health import HealthReport
+from backend.reliability.resources import low_resource_warnings
+from backend.reliability.service import ReliabilityService
 from backend.schemas.approvals import (
     ApprovalDecision,
     DecisionResponse,
@@ -46,6 +51,10 @@ from model.serving import Message
 logger = logging.getLogger("hcwma.backend")
 
 WEB_DIR = Path(__file__).resolve().parents[2] / "app" / "web"
+
+
+class SettingsChange(BaseModel):
+    heavy_only_when_plugged_in: bool
 
 
 class ChatHandler(Protocol):
@@ -73,15 +82,24 @@ def create_app(
     review: ReviewService | None = None,
     planner: PlannerStore | None = None,
     clock: Callable[[], datetime] | None = None,
+    reliability: ReliabilityService | None = None,
 ) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if reliability is not None:
+            # Step 18: before any new request, whatever a crash left running is marked
+            # interrupted (never re-run) and its approval prompts are cancelled.
+            reliability.recover()
         async with handler_factory() as handler:
             app.state.handler = handler
-            yield
+            if reliability is None:
+                yield
+            else:
+                async with reliability.run(lambda: getattr(handler, "stop", None)):
+                    yield
 
     app = FastAPI(title="HCWMA", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     # No CORS middleware on purpose: no other origin may call this API.
@@ -119,12 +137,22 @@ def create_app(
     ) -> ChatResponse:
         conversation = [Message(role=t.role, content=t.content) for t in request.messages]
         start = time.perf_counter()
+        if reliability is not None:
+            # Step 18: every chat request runs Qwen (a heavy task). Refused while the model is
+            # paused, RAM or disk is low, or on battery when the owner asked for that.
+            refused = reliability.refusal()
+            if refused is not None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=refused)
         try:
             check_free()  # a sandbox tool test holds the model (build step 13)
             reply = await http.app.state.handler.handle(conversation)
         except ModelBusy:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=BUSY_MESSAGE
+            ) from None
+        except ModelPaused:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=PAUSED_MESSAGE
             ) from None
         except Exception as exc:
             # Log the error type only: no message content and no runtime internals.
@@ -253,6 +281,69 @@ def create_app(
                 for item in due
             ]
         }
+
+    # --- build step 18: reliability (health page, pause model, settings, backup) -----------
+    # Owner-only, like /approvals: they need the per-install token; no agent tool reaches them.
+
+    def rel() -> ReliabilityService:
+        if reliability is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not available")
+        return reliability
+
+    @app.get("/health/details", dependencies=[Depends(require_token)])
+    def health_details() -> HealthReport:
+        return rel().health()
+
+    @app.get("/recovery", dependencies=[Depends(require_token)])
+    def recovery() -> dict[str, object]:
+        report = rel().recovery
+        return {"message": report.message(), "tasks": [t.label for t in report.interrupted_tasks]}
+
+    @app.get("/resources", dependencies=[Depends(require_token)])
+    def resources() -> dict[str, object]:
+        service = rel()
+        return {
+            "warnings": low_resource_warnings(service.snapshot(), service.current_settings()),
+            "model_paused": service.model.paused,
+        }
+
+    @app.post("/model/pause", dependencies=[Depends(require_token)])
+    def pause_model() -> dict[str, bool]:
+        rel().pause_model()
+        return {"paused": True}
+
+    @app.post("/model/resume", dependencies=[Depends(require_token)])
+    def resume_model() -> dict[str, bool]:
+        rel().resume_model()
+        return {"paused": False}
+
+    @app.get("/settings", dependencies=[Depends(require_token)])
+    def get_settings() -> dict[str, object]:
+        return rel().current_settings().model_dump()
+
+    @app.post("/settings", dependencies=[Depends(require_token)])
+    def change_settings(body: SettingsChange) -> dict[str, object]:
+        return rel().update_settings(**body.model_dump()).model_dump()
+
+    @app.post("/backup", dependencies=[Depends(require_token)])
+    def backup_now() -> dict[str, str]:
+        return {"backup": rel().backup_now("owner").name}
+
+    @app.post("/app/show", dependencies=[Depends(require_token)])
+    def ask_to_show() -> dict[str, bool]:
+        """A second start of the app asks this one to bring its window forward."""
+        rel().show_requested = True
+        return {"ok": True}
+
+    @app.post("/app/show/take", dependencies=[Depends(require_token)])
+    def take_show_request() -> dict[str, bool]:
+        service = rel()
+        wanted, service.show_requested = service.show_requested, False
+        return {"show": wanted}
+
+    @app.get("/status", include_in_schema=False)
+    def health_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "health.html", media_type="text/html")
 
     @app.get("/tools", include_in_schema=False)
     def tools_page() -> FileResponse:

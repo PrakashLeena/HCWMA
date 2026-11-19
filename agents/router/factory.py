@@ -15,6 +15,7 @@ from agents.runtime.agent_runtime import AgentRuntime
 from agents.runtime.model_queue import ModelQueue, get_model_queue
 from agents.runtime.policy import PolicyLayer
 from agents.runtime.stop import StopControl
+from backend.reliability.journal import TaskJournal
 from integrations.mcp.client import McpToolClient, local_server_params
 from integrations.mcp.server import build_server
 from integrations.registry.capability_catalog import CapabilityCatalog, default_catalog
@@ -77,6 +78,7 @@ async def open_router(
     memory: MemoryService | None = None,
     with_memory: bool = True,
     run_memory_maintenance: bool = False,
+    journal: TaskJournal | None = None,
 ) -> AsyncIterator[Router]:
     """Start the local MCP server (stdio child process) and yield a ready Router.
 
@@ -85,6 +87,7 @@ async def open_router(
     `memory`/`with_memory`: the memory service (default: the real one in the HCWMA data
     folder); `with_memory=False` runs without memory.
     `run_memory_maintenance`: also run the daily clean-up and backup job (the backend does).
+    `journal`: record every request and approval prompt for crash recovery (step 18).
     """
     config = load_permissions_config()
     registry = registry or AgentRegistry.from_dir()
@@ -98,7 +101,7 @@ async def open_router(
         if run_memory_maintenance and memory is not None:
             await stack.enter_async_context(memory_maintenance(memory))
         client = await stack.enter_async_context(McpToolClient(transport))
-        approvals = ApprovalService(audit, timeout_s=approval_timeout_s)
+        approvals = ApprovalService(audit, timeout_s=approval_timeout_s, journal=journal)
         policy = PolicyLayer(
             client=client,
             catalog=catalog or default_catalog(),
@@ -116,5 +119,8 @@ async def open_router(
             memory=memory,
         )
         yield Router(
-            runtime, stop=StopControl(audit, approvals), approvals=approvals, memory=memory
+            runtime,
+            stop=StopControl(audit, approvals, journal=journal),
+            approvals=approvals,
+            memory=memory,
         )

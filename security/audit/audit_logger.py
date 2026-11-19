@@ -64,7 +64,15 @@ class AuditRecord(BaseModel):
 
     ts: str = Field(default_factory=_now)
     event: Literal[
-        "tool_call", "delegation", "approval", "stop", "memory", "generated_tool", "model_call"
+        "tool_call",
+        "delegation",
+        "approval",
+        "stop",
+        "memory",
+        "generated_tool",
+        "model_call",
+        "recovery",
+        "reliability",
     ]
     task_id: str
     parent_task_id: str | None = None
@@ -166,6 +174,27 @@ class AuditLogger:
             agent="owner",
             outcome="stopped",
             reason=f"{len(task_ids)} task(s) halted, {approvals_cancelled} approval(s) withdrawn",
+        )
+        self.write(record)
+        return record
+
+    def recovery(self, *, task_id: str, outcome: str, reason: str = "") -> AuditRecord:
+        """A task left running by a crash or a PC sleep, marked interrupted (step 18)."""
+        record = AuditRecord(
+            event="recovery", task_id=task_id, agent="hcwma", outcome=outcome, reason=reason[:300]
+        )
+        self.write(record)
+        return record
+
+    def reliability(self, *, action: str, outcome: str, reason: str = "") -> AuditRecord:
+        """An owner reliability action (pause model, backup, restore, settings; step 18)."""
+        record = AuditRecord(
+            event="reliability",
+            task_id="-",
+            agent="owner",
+            tool=action,
+            outcome=outcome,
+            reason=reason[:300],
         )
         self.write(record)
         return record

@@ -76,7 +76,7 @@ ruff check . && ruff format .   # lint + format
 ollama pull qwen3.5:4b          # local model (needs Ollama running on 127.0.0.1:11434)
 python -m model.serving.chat    # chat with the model in the terminal
 python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU)
-python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Stop everything, Quit); approval prompts appear in the window
+python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Health, Stop everything, Pause model, plugged-in-only, Start with Windows, Back up now, Quit); approval prompts appear in the window; only one HCWMA may run (lock in the data folder)
 python -m backend.api           # backend + chat page only, in a browser, on http://127.0.0.1:8765/ (chat goes through the Router; also scans and watches the PC file index)
 python -m backend.auth.token    # print the per-install API token (--rotate for a new one)
 python -m integrations.mcp.smoke  # Step 6 check: MCP discovery, allowed + refused call, audit records
@@ -103,6 +103,10 @@ python -m integrations.adapters.official_api.gmail_login login   # Step 15: Gmai
 python -m agents.router.demo_gmail [read] [draft] [send]   # Step 15 check on your REAL Gmail (needs Ollama + the Gmail login; the send step waits for your approval)
 python -m agents.router.demo_whatsapp --chat "Message yourself" [list] [read] [send]   # Step 15 check on your REAL WhatsApp Desktop (needs Ollama + WhatsApp open and linked; the send step waits for your y; only your own chat is sent to)
 python -m agents.router.demo_planner_docs   # Step 15 (Planner + Documents & Study) check THROUGH the running desktop app (start python -m app.desktop first, new code; needs Ollama, ~8 min): summarize/open/PDF/Word docs from workspace/step15_docs_demo_<time>/, planted "delete files" line ignored, originals unchanged; "Remind me on Friday", a 2-minute reminder shown by the tray, demo items cancelled at the end
+deployment\installer\install.cmd        # Step 18: installer for a fresh Windows PC (venv + pinned packages, Ollama check, asks before the model pull, token, health, shortcuts; -DryRun)
+deployment\scripts\start_hcwma.cmd      # Step 18: one-click start (pythonw, no console); a second start brings the running window forward
+python -m backend.reliability backup    # Step 18: full backup now (memory, planner, tool state, settings, configs; newest 7 kept). Also: backups | restore <folder> [--data-dir D --configs-dir C] | health | tasks | startup on|off|status
+python -m backend.reliability.crash_drill   # Step 18 check: forced restart mid-task (approval waiting) -> interrupted, prompt cancelled, nothing re-run (quit the app first; needs Ollama, ~3-6 min; own data folder in workspace/step18_drill_<time>/)
 python -m agents.router.demo_settings   # System Settings check THROUGH the running desktop app (start python -m app.desktop first; needs Ollama, ~6 min): status by code, Bluetooth flipped and flipped back, each after you click Approve in the app; Do Not Disturb honestly refused
 ```
 
