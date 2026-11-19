@@ -45,4 +45,4 @@ fast_route:
     - '^\s*(please\s+)?remember\s+that\b'
     # "forget X", but not "forget that / it": those need the conversation
     - '^\s*(please\s+)?forget\b(?!\s+(that|it|this|those|them)\b)'
-  keywords: [remember, forget, memory, keep in mind, note that, remind]
+  keywords: [remember, forget, memory, keep in mind, note that]

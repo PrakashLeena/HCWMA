@@ -82,9 +82,11 @@ class AgentCard(BaseModel):
     # memory block (memory tools, if any, still use `memory_scopes`). Fewer scopes, shorter
     # prompt: on a CPU every prompt token costs reading time.
     prompt_memory_scopes: list[str] | None = None
-    # Read-only tools whose successful result is the answer, formatted by code
-    # (`ToolSpec.answer`), without another model turn. Skipped when the tool says the result
-    # needs a next step (nothing found) or when the owner's words ask for a change.
+    # Tools whose successful result is the answer, formatted by code (`ToolSpec.answer`),
+    # without another model turn: read-only lookups, and local writes that need no approval
+    # (build step 15: a planner entry, a new workspace document). Skipped when the tool says
+    # the result needs a next step (nothing found). When the owner's words contain a change
+    # word, only a finished write still answers from code.
     direct_answer_tools: list[str] = Field(default_factory=list)
     # Words (whole words, any case) that mean the owner asks for a change. If set: the
     # `approval_required` tools are offered to the model only when the goal or the owner's

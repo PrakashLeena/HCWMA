@@ -19,3 +19,6 @@ PySide6_WebEngine==6.12.0.140
 pillow==12.3.0     # step 12: image tools (resize, crop, convert, filters); small, no system software
 uiautomation==2.0.29  # step 12: App Automation reads and operates desktop windows (Windows UI Automation); small, no system software
 comtypes==1.5.0    # step 12: required by uiautomation
+pypdf==7.1.1       # step 15: Documents & Study reads the text of PDF files (pure Python, small)
+python-docx==1.2.0 # step 15: Documents & Study reads and creates .docx files (small)
+lxml==6.1.3        # step 15: required by python-docx

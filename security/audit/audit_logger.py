@@ -24,8 +24,9 @@ DEFAULT_AUDIT_PATH = REPO_ROOT / "security" / "audit" / "logs" / "audit.jsonl"
 
 _SECRET_KEY = re.compile(r"pass|secret|token|key|credential|auth|cookie|session", re.IGNORECASE)
 _MAX_STR = 80
-# Message text (an email body) is the owner's private content: the log keeps only its length.
-_CONTENT_KEY = re.compile(r"^body$", re.IGNORECASE)
+# Message text (an email body) and document or file text (`content`, step 15) are the
+# owner's private content: the log keeps only their length.
+_CONTENT_KEY = re.compile(r"^(body|content)$", re.IGNORECASE)
 
 
 def _summarize_value(value: Any) -> Any:

@@ -1,0 +1,52 @@
+# Planner agent (build step 15; master document 4.3).
+# Reminders, to-dos and deadlines in HCWMA's own database (no cloud calendar yet). Code works
+# out the date from the owner's own words (`when_parser.py`), and the tray app shows a desktop
+# notification at a reminder's or deadline's due time. Nothing is ever erased: items are
+# marked done or cancelled. Every result is worded by code: one model call per request.
+# Draft by Claude Code on 2026-11-19 — owner to review.
+id: planner
+name: Planner Agent
+status: enabled
+router_line: "reminders (\"remind me on Friday to ...\"), to-do list, deadlines, what is planned for a day or week (HCWMA's own planner, desktop notification at the time); no Google/Outlook calendar"
+description: >
+  Keeps the owner's reminders, to-dos and deadlines in HCWMA's own planner on this PC: adds
+  them, lists what is planned for a day or a week, marks items done or cancelled. A reminder
+  or deadline shows a desktop notification from the HCWMA tray app at its time.
+handles:
+  - remind me on Friday to pay the rent
+  - remind me tomorrow at 9 to call the bank
+  - remind me in 20 minutes to check the oven
+  - add buy milk to my to-do list
+  - my assignment deadline is 25 November
+  - what's on my calendar for Friday
+  - what reminders do I have this week
+  - show my to-do list
+  - mark the rent reminder as done
+  - cancel reminder number 3
+does_not_handle:
+  - Google Calendar, Outlook or other online calendars (not built yet)
+  - sending a reminder by email or WhatsApp (→ communication)
+  - remember-that facts about the owner (→ memory_librarian)
+  - alarms or timers in other apps (→ app_automation)
+tools:
+  - planner_add
+  - planner_list
+  - planner_close
+permission_tier: T2
+approval_required: []
+memory_scopes: []
+direct_answer_tools: [planner_add, planner_list, planner_close]
+system_prompt: prompts/planner.md
+limits: { max_steps: 3, timeout_s: 300 }
+
+# Router fast path (agents/router/fast_path.py): `patterns` send a very clear request
+# straight here without a Router model call; `keywords` stop other agents' fast
+# matches when the message also sounds like this agent's job.
+fast_route:
+  patterns:
+    - '^\W*(please\s+|hey\s+|can\s+you\s+|could\s+you\s+)*remind\s+me\b'
+    - '\bset\s+(a|an|me\s+a)\s+reminder\b'
+    - '\b(add|put)\b.{0,60}\b(to\s*-?\s*do|todo)(\s+list)?\b'
+    - '\b(show|list|what''?s|what\s+is|what\s+are|read)\b.{0,30}\b(my\s+)?(reminders|to\s*-?\s*dos?|todo\s+list|deadlines|agenda|calendar|planner)\b'
+    - '\b(my|the)\s+\w+(\s+\w+)?\s+deadline\s+is\b'
+  keywords: [remind, reminder, reminders, to-do, todo, to-dos, todos, deadline, deadlines, calendar, agenda, planner]

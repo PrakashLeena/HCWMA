@@ -84,3 +84,14 @@ def test_model_call_record_holds_numbers_only(tmp_path: Path) -> None:
         1234.57,
     )
     assert rec.args == {"prompt_len": 900, "prefill_s": 3.5}  # never text
+
+
+def test_document_and_file_content_is_logged_as_a_length_only() -> None:
+    """Step 15: create_document / write_file text never reaches the audit log."""
+    from security.audit.audit_logger import summarize_args
+
+    text = "My private diary entry about the hospital visit."
+    assert summarize_args({"name": "notes", "content": text}) == {
+        "name": "notes",
+        "content": f"<text {len(text)} chars>",
+    }

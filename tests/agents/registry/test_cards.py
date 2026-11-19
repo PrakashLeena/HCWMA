@@ -39,10 +39,12 @@ def test_shipped_cards_load() -> None:
         "coding",
         "communication",
         "debugging",
+        "documents_study",
         "echo",
         "file_system",
         "image_editing",
         "memory_librarian",
+        "planner",
         "tool_builder",
         "web_research",
     ]

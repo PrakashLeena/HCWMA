@@ -71,6 +71,11 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "search_files": {"query": "report"},
     "submit_for_approval": {"name": "word_count"},
     "write_file": {"path": "a.py", "content": "x"},
+    "planner_add": {"title": "pay the rent", "when": "on Friday"},
+    "planner_list": {},
+    "planner_close": {"item_id": 1},
+    "read_document": {"path": "notes.txt"},
+    "create_document": {"name": "summary", "content": "x"},
 }
 
 
