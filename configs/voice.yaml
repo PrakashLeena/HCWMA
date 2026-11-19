@@ -1,0 +1,17 @@
+# Voice (build step 14). Push-to-talk only: there is no wake word and the microphone is
+# open only while the owner holds the talk button or the hotkey.
+#
+# Owner's choice after the benchmark (docs/voice_benchmarks_stt.md, _tts.md), 2026-11-19:
+# Whisper small for speech-to-text, MMS-TTS for English and Tamil, espeak-ng for Sinhala.
+
+stt_model: small              # faster-whisper checkpoint (tiny | base | small)
+models_dir: workspace/voice_models   # relative to the repo; gitignored
+max_record_seconds: 30        # the microphone closes by itself after this
+max_transcribe_seconds: 40    # a runaway (hallucinating) transcription is cut off here
+stt_ram_mb: 1100              # free RAM needed on top of the app's minimum to load Whisper
+speak_max_chars: 1200         # longer replies are cut before speaking
+
+# Debug only. When true, each push-to-talk recording is ALSO saved as a .wav in
+# workspace/voice_debug/. Off by default: microphone audio otherwise stays in memory only
+# and is dropped after it is transcribed.
+debug_save_audio: false

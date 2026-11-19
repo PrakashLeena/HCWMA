@@ -76,7 +76,7 @@ ruff check . && ruff format .   # lint + format
 ollama pull qwen3.5:4b          # local model (needs Ollama running on 127.0.0.1:11434)
 python -m model.serving.chat    # chat with the model in the terminal
 python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU)
-python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Health, Stop everything, Pause model, plugged-in-only, Start with Windows, Back up now, Quit); approval prompts appear in the window; only one HCWMA may run (lock in the data folder)
+python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Health, Stop everything, Pause model, plugged-in-only, Start with Windows, Back up now, Quit); approval prompts appear in the window; push-to-talk: hold the talk button or F9; only one HCWMA may run (lock in the data folder)
 python -m backend.api           # backend + chat page only, in a browser, on http://127.0.0.1:8765/ (chat goes through the Router; also scans and watches the PC file index)
 python -m backend.auth.token    # print the per-install API token (--rotate for a new one)
 python -m integrations.mcp.smoke  # Step 6 check: MCP discovery, allowed + refused call, audit records
@@ -108,6 +108,10 @@ deployment\scripts\start_hcwma.cmd      # Step 18: one-click start (pythonw, no 
 python -m backend.reliability backup    # Step 18: full backup now (memory, planner, tool state, settings, configs; newest 7 kept). Also: backups | restore <folder> [--data-dir D --configs-dir C] | health | tasks | startup on|off|status
 python -m backend.reliability.crash_drill   # Step 18 check: forced restart mid-task (approval waiting) -> interrupted, prompt cancelled, nothing re-run (quit the app first; needs Ollama, ~3-6 min; own data folder in workspace/step18_drill_<time>/)
 python -m agents.router.demo_settings   # System Settings check THROUGH the running desktop app (start python -m app.desktop first; needs Ollama, ~6 min): status by code, Bluetooth flipped and flipped back, each after you click Approve in the app; Do Not Disturb honestly refused
+python -m voice download             # Step 14: Whisper small (~484 MB) + MMS English/Tamil voices into workspace/voice_models/ (also: status | say "text")
+python -m voice.bench.record_samples  # Step 14: record your 5-second benchmark clips (--lang en|ta|si) into workspace/voice_bench/
+python -m voice.bench.stt_bench       # Step 14: score Whisper tiny/base/small on those clips -> docs/voice_benchmarks_stt.md (--models medium --allow-large asks first)
+python -m voice.bench.tts_bench       # Step 14: Windows voices vs MMS vs espeak-ng per language -> docs/voice_benchmarks_tts.md
 ```
 
 Keep this section current when commands change.

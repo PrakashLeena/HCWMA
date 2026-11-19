@@ -36,6 +36,17 @@
       <textarea id="chat-input" rows="2" placeholder="Message HCWMA (Enter to send, Shift+Enter for a new line)" required></textarea>
       <button id="send" type="submit">Send</button>
     </div>
+    <div id="voice-row" class="row voice" hidden>
+      <button id="talk" type="button" class="talk"
+              title="Hold to talk; release to send. Hotkey: hold F9. Approvals are never given by voice.">Hold to talk (F9)</button>
+      <label for="voice-lang" class="voice-label">Language</label>
+      <select id="voice-lang">
+        <option value="en">English</option>
+        <option value="ta">Tamil (experimental)</option>
+        <option value="si">Sinhala (experimental)</option>
+      </select>
+      <span id="voice-state" class="voice-state"></span>
+    </div>
   </form>
 
   <script src="/static/chat.js"></script>
