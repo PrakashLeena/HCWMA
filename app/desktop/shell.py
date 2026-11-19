@@ -4,7 +4,8 @@
   refused, so the API token handed to the page can never reach another site.
 - The token is handed over in memory (the page's sessionStorage, in an off-the-record
   browser profile). It is never written to disk and the owner does not paste it.
-- The tray icon has "Stop everything", tells the owner when an approval is waiting, and
+- The tray icon has "Stop everything", tells the owner when an approval is waiting, shows a
+  desktop notification when a planner reminder or deadline is due (build step 15), and
   keeps HCWMA running when the window is closed.
 
 Approving or denying happens in the window (the approval card in the chat page).
@@ -22,12 +23,15 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
 APP_NAME = "HCWMA"
 TOKEN_STORAGE_KEY = "hcwma-token"  # noqa: S105 - the storage key name, same as app/web/chat.js
 POLL_MS = 2000
+REMINDER_POLL_MS = 15_000
 
 
 class TrayBackend(Protocol):
     """What the tray needs from `app.desktop.backend.BackendClient`."""
 
     def pending_approvals(self) -> list[dict[str, Any]]: ...
+
+    def due_reminders(self) -> list[dict[str, Any]]: ...
 
     def stop_everything(self) -> dict[str, int] | None: ...
 
@@ -60,6 +64,15 @@ def stop_message(report: dict[str, int] | None) -> str:
     if not report.get("stopped_tasks") and not report.get("cancelled_approvals"):
         return "Nothing was running."
     return "Stopped. Everything HCWMA was doing has been halted."
+
+
+def reminder_message(due: list[dict[str, Any]]) -> str:
+    """The notification text for due planner items (titles are shown as plain text)."""
+    lines = []
+    for item in due[:5]:
+        label = "Deadline" if item.get("kind") == "deadline" else "Reminder"
+        lines.append(f"{label}: {item.get('title', '')} ({item.get('due_text', '')})")
+    return "\n".join(lines)
 
 
 def make_icon() -> QIcon:
@@ -108,10 +121,15 @@ class Tray:
         self.timer = QTimer()
         self.timer.setInterval(POLL_MS)
         self.timer.timeout.connect(self.check_approvals)
+        self.reminder_timer = QTimer()
+        self.reminder_timer.setInterval(REMINDER_POLL_MS)
+        self.reminder_timer.timeout.connect(self.check_reminders)
 
     def show(self) -> None:
         self.icon.show()
         self.timer.start()
+        self.reminder_timer.start()
+        QTimer.singleShot(3000, self.check_reminders)  # missed while HCWMA was off
 
     def notify(self, text: str) -> None:
         self.icon.showMessage(APP_NAME, text, self.icon.icon(), 6000)
@@ -133,6 +151,17 @@ class Tray:
             self.notify(f"Approval needed: {first.get('tool', 'an action')}. Open HCWMA to answer.")
             self._on_open()
         return new
+
+    def check_reminders(self) -> str | None:
+        """Show one desktop notification for the reminders and deadlines now due."""
+        due = self._backend.due_reminders()
+        if not due:
+            return None
+        text = reminder_message(due)
+        self.icon.showMessage(
+            f"{APP_NAME} reminder", text, QSystemTrayIcon.MessageIcon.Information, 30_000
+        )
+        return text
 
     def _activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         if reason in (
@@ -209,6 +238,7 @@ def run_shell(backend: TrayBackend, base_url: str, token: str, on_exit: Any) -> 
     def quit_app() -> None:
         window.quitting = True
         tray.timer.stop()
+        tray.reminder_timer.stop()
         tray.icon.hide()
         window.close()
         app.quit()

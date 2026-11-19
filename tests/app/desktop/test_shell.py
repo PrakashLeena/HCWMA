@@ -152,9 +152,14 @@ class FakeBackend:
         self.pending: list[dict[str, Any]] = []
         self.report: dict[str, int] | None = {"stopped_tasks": 1, "cancelled_approvals": 0}
         self.stops = 0
+        self.due: list[dict[str, Any]] = []
 
     def pending_approvals(self) -> list[dict[str, Any]]:
         return self.pending
+
+    def due_reminders(self) -> list[dict[str, Any]]:
+        due, self.due = self.due, []
+        return due
 
     def stop_everything(self) -> dict[str, int] | None:
         self.stops += 1
@@ -204,3 +209,23 @@ def test_tray_brings_the_window_forward_once_per_new_prompt(qt_app: QApplication
     backend.pending = []
     tray.check_approvals()
     assert tray.icon.toolTip() == "HCWMA"
+
+
+def test_tray_shows_a_notification_for_due_reminders(qt_app: QApplication) -> None:
+    """Step 15: a planner reminder becomes a desktop notification at its time."""
+    backend = FakeBackend()
+    tray = Tray(backend, make_icon(), lambda: None, lambda: None)
+    shown: list[tuple[str, str]] = []
+    tray.icon.showMessage = lambda title, text, *_: shown.append((title, text))  # type: ignore[method-assign]
+    assert tray.check_reminders() is None and shown == []
+
+    backend.due = [
+        {"kind": "reminder", "title": "pay the rent", "due_text": "Fri 20 Nov 2026, 09:00"},
+        {"kind": "deadline", "title": "essay", "due_text": "Fri 20 Nov 2026, 17:00"},
+    ]
+    text = tray.check_reminders()
+    assert text == (
+        "Reminder: pay the rent (Fri 20 Nov 2026, 09:00)\nDeadline: essay (Fri 20 Nov 2026, 17:00)"
+    )
+    assert shown == [("HCWMA reminder", text)]
+    assert tray.check_reminders() is None  # each one is shown once

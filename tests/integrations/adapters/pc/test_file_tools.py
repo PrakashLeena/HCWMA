@@ -555,14 +555,15 @@ def test_disk_usage_answer(pc: Layout) -> None:
     assert text is not None and text.startswith("Drives:") and str(pc.docs) in text
 
 
-def test_only_read_only_tools_answer_from_code() -> None:
+def test_only_lookups_and_unapproved_local_writes_answer_from_code() -> None:
     from agents.runtime.policy import _answer
     from integrations.mcp.tool_schemas import ToolResult
 
     catalog = default_catalog()
     for spec in catalog.all_tools():
-        if spec.answer is not None:
-            assert spec.manifest.side_effects == "none" and not spec.manifest.approval_required
+        if spec.answer is not None:  # step 15: also planner entries and new workspace documents
+            assert spec.manifest.side_effects != "external_action"
+            assert not spec.manifest.approval_required
     search = catalog.get("search_files")
     assert search is not None and search.answer is not None
     assert _answer(search, ToolResult.failure("tool_error", "boom")) is None

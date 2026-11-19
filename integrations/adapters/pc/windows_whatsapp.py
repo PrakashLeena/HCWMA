@@ -29,6 +29,7 @@ from integrations.adapters.desktop.whatsapp_tools import (
     WhatsAppUnavailable,
     normalize_name,
 )
+from integrations.adapters.pc.windows_focus import bring_to_front
 
 Token = tuple[str, str]  # (control type without "Control", name)
 
@@ -262,24 +263,9 @@ class WindowsWhatsApp:
         return int(user32.GetAncestor(user32.GetForegroundWindow(), 2))  # GA_ROOT
 
     def _bring_forward(self, window) -> None:  # noqa: ANN001
-        user32 = ctypes.windll.user32
         handle = window.NativeWindowHandle
-        if user32.IsIconic(handle):
-            user32.ShowWindow(handle, 9)  # SW_RESTORE
-        for _attempt in range(3):
-            window.SetActive()
-            time.sleep(0.3)
-            if self._foreground_root() == handle:
-                return
-            # Windows refuses focus changes from a process that is not in front (the HCWMA
-            # window usually is). A tap of the Alt key lifts that lock for the next call.
-            user32.keybd_event(0x12, 0, 0, 0)  # VK_MENU down
-            user32.keybd_event(0x12, 0, 2, 0)  # VK_MENU up (KEYEVENTF_KEYUP)
-            user32.SetForegroundWindow(handle)
-            time.sleep(0.3)
-            if self._foreground_root() == handle:
-                return
-        raise WhatsAppRefused("could not bring WhatsApp to the front; nothing was done")
+        if not bring_to_front(handle, window.SetActive, in_front=self._foreground_root):
+            raise WhatsAppRefused("could not bring WhatsApp to the front; nothing was done")
 
     def _keys(self, window, *codes: int) -> None:  # noqa: ANN001
         auto = _auto()

@@ -1,5 +1,5 @@
 """The shell's link to the local backend: run it in a background thread, and a small client
-for the three things the tray needs (is it up, what waits for approval, stop everything).
+for what the tray needs (is it up, what waits for approval, due reminders, stop everything).
 
 Everything here talks to 127.0.0.1 only. Nothing in this module needs Qt.
 """
@@ -56,6 +56,13 @@ class BackendClient:
     def pending_approvals(self) -> list[dict[str, Any]]:
         try:
             return list(self._request("GET", "/approvals")["pending"])
+        except (OSError, ValueError, KeyError):
+            return []
+
+    def due_reminders(self) -> list[dict[str, Any]]:
+        """Reminders and deadlines that are due now (each is returned once)."""
+        try:
+            return list(self._request("POST", "/reminders/due")["due"])
         except (OSError, ValueError, KeyError):
             return []
 

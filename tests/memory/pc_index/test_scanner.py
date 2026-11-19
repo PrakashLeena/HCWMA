@@ -188,3 +188,33 @@ def test_scan_reads_metadata_only_and_never_opens_a_file(
     monkeypatch.undo()
     assert opened == []
     assert report.files == 4 and report.folders == 2
+
+
+def test_the_index_never_lists_its_own_data_folder(
+    pc: Layout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step 15: the repository sits inside an approved folder, so the index used to list its
+    own database files (and re-index on every write to them)."""
+    from memory.pc_index import scanner
+
+    own = pc.docs / "hcwma" / "memory" / "pc_index" / "data"
+    write(own / "index.sqlite", "db")
+    write(own / "index.sqlite-wal", "wal")
+    write(pc.docs / "hcwma" / "readme.md", "keep me")
+    monkeypatch.setattr(scanner, "SKIP_DIRS", (own,))
+
+    scan(pc.index, pc.policy)
+    names = _indexed(pc)
+    assert "readme.md" in names
+    assert not names & {"index.sqlite", "index.sqlite-wal", "data"}
+    assert scanner.has_skipped_part(own / "index.sqlite", pc.docs)
+    assert scanner.entry_for(own / "index.sqlite", pc.docs, pc.policy) is None
+
+
+def test_the_real_skip_list_is_the_index_folder() -> None:
+    from memory.pc_index.index import DEFAULT_INDEX_PATH
+    from memory.pc_index.scanner import is_own_data
+
+    assert is_own_data(DEFAULT_INDEX_PATH)
+    assert is_own_data(DEFAULT_INDEX_PATH.parent / "demo_pc" / "x.txt")
+    assert not is_own_data(DEFAULT_INDEX_PATH.parents[1] / "scanner.py")

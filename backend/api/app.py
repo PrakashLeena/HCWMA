@@ -15,6 +15,7 @@ import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -37,6 +38,8 @@ from backend.schemas.approvals import (
     ToolRollbackRequest,
 )
 from backend.schemas.chat import ChatRequest, ChatResponse, HealthResponse
+from integrations.adapters.local_data.planner_store import PlannerStore
+from integrations.adapters.local_data.when_parser import describe
 from integrations.generated_tools.review import ReviewRefused, ReviewService
 from model.serving import Message
 
@@ -68,6 +71,8 @@ def create_app(
     token: str,
     config: BackendConfig,
     review: ReviewService | None = None,
+    planner: PlannerStore | None = None,
+    clock: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
@@ -221,6 +226,33 @@ def create_app(
             return reviewer().rollback(name, body.hash)
         except ReviewRefused as exc:
             raise refuse(exc) from None
+
+    # --- build step 15: reminders and deadlines that are due --------------------------------
+    # The tray app asks every few seconds and shows a desktop notification for each one.
+    # POST because it marks them shown, so each one is notified once.
+
+    def planner_store() -> PlannerStore:
+        if getattr(app.state, "planner", None) is None:
+            app.state.planner = planner or PlannerStore.default()
+        store: PlannerStore = app.state.planner
+        return store
+
+    @app.post("/reminders/due", dependencies=[Depends(require_token)])
+    def reminders_due() -> dict[str, list[dict[str, object]]]:
+        now = (clock or datetime.now)()
+        due = planner_store().take_due(now)
+        return {
+            "due": [
+                {
+                    "id": item.id,
+                    "kind": item.kind,
+                    "title": item.title,
+                    "due": item.due,
+                    "due_text": describe(datetime.fromisoformat(item.due)) if item.due else "",
+                }
+                for item in due
+            ]
+        }
 
     @app.get("/tools", include_in_schema=False)
     def tools_page() -> FileResponse:

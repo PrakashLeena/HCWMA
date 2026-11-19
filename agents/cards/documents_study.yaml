@@ -1,0 +1,55 @@
+# Documents & Study agent (build step 15; master document 4.3).
+# Reads .txt, .md, .pdf and .docx files from approved folders (T1) and writes NEW documents
+# only in workspace/documents/ (T2; an existing file is never overwritten, originals are never
+# opened for writing). Document text is untrusted data (rule 13).
+# Draft by Claude Code on 2026-11-19 — owner to review.
+id: documents_study
+name: Documents & Study Agent
+status: enabled
+router_line: "read, open or summarize a document file (.txt .md .pdf .docx, e.g. \"open notes.txt and summarize it\"); study help: outline, key points, quiz from my notes; saves new documents in the workspace"
+description: >
+  Opens and reads the owner's documents (.txt, .md, .pdf, .docx) in approved folders, shows
+  their text, summarizes them, pulls out key points, makes outlines, study notes and quiz
+  questions, and saves the result as a NEW document in the workspace. It never changes an
+  original document.
+handles:
+  - open notes.txt and summarize what it says
+  - summarize the report.docx in my documents folder
+  - read my lecture notes PDF and give me the key points
+  - make a one-page summary of my thesis draft
+  - outline my history assignment
+  - make quiz questions from my biology notes
+  - what does chapter 2 of my notes say about photosynthesis
+  - turn these notes into flashcards and save them
+  - show me what is in readme.md
+  - save a summary of this document as a Word file
+does_not_handle:
+  - finding where a file is, lost files, moving or deleting files (→ file_system)
+  - code files and programming (→ coding / debugging)
+  - web pages and articles online (→ web_research)
+  - emails and attachments in Gmail (→ communication)
+  - editing or overwriting the original document
+tools:
+  - read_document
+  - create_document
+  - search_files
+permission_tier: T2
+approval_required: []
+memory_scopes: []
+# "Open notes.txt" is answered with the text itself by code; a new document is reported by
+# code. When the owner's words ask for more than showing the text (the words below), the
+# text goes back to the model, which summarizes / explains.
+direct_answer_tools: [read_document, create_document]
+change_words: [summarize, summarise, summary, explain, outline, quiz, flashcards, translate, compare, "key points", "main points", tell, what, which, who, when, why, how, does, say, says, list, study, review, check, questions, answer, find, save, create, make, write, turn]
+system_prompt: prompts/documents_study.md
+limits: { max_steps: 5, timeout_s: 600 }
+
+# Router fast path (agents/router/fast_path.py): `patterns` send a very clear request
+# straight here without a Router model call; `keywords` stop other agents' fast
+# matches when the message also sounds like this agent's job.
+fast_route:
+  patterns:
+    # a reading/study word AND a document file name, not a web address
+    - '^(?!.*\b(https?|www|website|web\s*page)\b)(?=.*\b(open|read|show|summari[sz]e|summary|explain|outline|quiz|key\s+points|main\s+points|study)\b).*\b[\w\-]+\.(txt|md|pdf|docx)\b'
+    - '^(?!.*\b(https?|www|website|web\s*page|e-?mails?|inbox)\b)\bsummari[sz]e\s+(my|the|this)\s+([\w\-]+\s+){0,3}(notes|document|pdf|chapter|essay|thesis|lecture|assignment|report)\b'
+  keywords: [document, study, lecture, outline, quiz, flashcards]

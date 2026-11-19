@@ -233,3 +233,31 @@ def test_session_summary_is_scheduled_after_the_reply() -> None:
         bad = c.post("/chat", json={**_chat("hi"), "session_id": "../x"}, headers=AUTH)
     assert ok.status_code == 200 and none.status_code == 200 and bad.status_code == 422
     assert router.summaries == [(1, "abcd-1234-ef")]
+
+
+# ---------- step 15: due planner reminders for the tray ----------
+
+
+def test_due_reminders_need_the_token_and_come_once(model: FakeRouter, tmp_path: Any) -> None:
+    from datetime import datetime
+
+    from integrations.adapters.local_data.planner_store import PlannerStore
+
+    store = PlannerStore(tmp_path / "planner.sqlite3")
+    made = datetime(2026, 11, 19, 8, 0)
+    store.add("reminder", "pay the rent", datetime(2026, 11, 19, 9, 0), made)
+    store.add("reminder", "later", datetime(2026, 11, 19, 18, 0), made)
+    app = create_app(
+        handler_factory=model.factory,
+        token=TOKEN,
+        config=BackendConfig(),
+        planner=store,
+        clock=lambda: datetime(2026, 11, 19, 9, 0, 30),
+    )
+    with TestClient(app, base_url=BASE_URL) as c:
+        assert c.post("/reminders/due").status_code == 401
+        first = c.post("/reminders/due", headers=AUTH).json()["due"]
+        assert [(d["title"], d["due_text"]) for d in first] == [
+            ("pay the rent", "Thu 19 Nov 2026, 09:00")
+        ]
+        assert c.post("/reminders/due", headers=AUTH).json() == {"due": []}

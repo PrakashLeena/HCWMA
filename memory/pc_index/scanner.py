@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from memory.pc_index.index import FileEntry, FileIndex
+from memory.pc_index.index import DEFAULT_INDEX_PATH, FileEntry, FileIndex
 from security.permissions.path_check import PathDenied, PathPolicy
 
 SKIP_DIR_NAMES = frozenset(
@@ -27,6 +27,10 @@ SKIP_DIR_NAMES = frozenset(
     | {".pytest_cache", ".ruff_cache", ".mypy_cache", "$recycle.bin", "system volume information"}
 )
 META_LAST_SCAN = "last_scan"
+# The index's own files (build step 15): the repository is inside an approved folder, so
+# without this the index would list its own database and the watcher would re-index on
+# every write to it.
+SKIP_DIRS: tuple[Path, ...] = (DEFAULT_INDEX_PATH.parent,)
 
 
 @dataclass(frozen=True)
@@ -64,9 +68,14 @@ def root_of(path: str | Path, roots: list[Path]) -> Path | None:
     return next((r for r in roots if _inside(path, r)), None)
 
 
+def is_own_data(path: str | Path) -> bool:
+    """True for the PC index's own data folder and everything in it."""
+    return any(_inside(path, skip) for skip in SKIP_DIRS)
+
+
 def allowed_dir(path: Path, policy: PathPolicy) -> bool:
     """True if the scanner may list `path`: readable by policy and not a link elsewhere."""
-    if path.name.lower() in SKIP_DIR_NAMES:
+    if path.name.lower() in SKIP_DIR_NAMES or is_own_data(path):
         return False
     try:
         real = policy.check(path, "read")
@@ -77,6 +86,8 @@ def allowed_dir(path: Path, policy: PathPolicy) -> bool:
 
 def entry_for(path: Path, root: Path, policy: PathPolicy) -> FileEntry | None:
     """The index entry for one file, or None if it must not be indexed or is gone."""
+    if is_own_data(path):
+        return None
     try:
         if path.is_symlink() or not _same(policy.check(path, "read"), path):
             return None
@@ -103,6 +114,8 @@ def folder_entry_for(path: Path, root: Path, policy: PathPolicy) -> FileEntry | 
 
 
 def has_skipped_part(path: Path, root: Path) -> bool:
+    if is_own_data(path):
+        return True
     try:
         parts = path.relative_to(root).parts
     except ValueError:

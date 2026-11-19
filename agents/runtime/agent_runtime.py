@@ -78,7 +78,9 @@ class ToolGateway(Protocol):
         context: CallerContext | None = None,
     ) -> ToolResult: ...
 
-    def direct_answer(self, tool: str, result: ToolResult) -> str | None: ...
+    def direct_answer(
+        self, tool: str, result: ToolResult, lookup_needs_model: bool = False
+    ) -> str | None: ...
 
 
 def wrap_tool_output(tool: str, result: ToolResult) -> str:
@@ -371,7 +373,6 @@ class AgentRuntime:
         ]
         records: list[ToolCallRecord] = []
         direct_tools = set(card.direct_answer_tools)
-        may_answer_directly = bool(direct_tools) and not asks_for_change
 
         def stop(limit: str, summary: str) -> TaskResult:
             return TaskResult(
@@ -441,11 +442,14 @@ class AgentRuntime:
                         content=wrap_tool_output(call.name, outcome),
                     )
                 )
-            # The turn's last call was a successful read-only lookup the card lets code
-            # answer: format it without another model call (a CPU turn of ~1 minute).
+            # The turn's last call succeeded and the card lets code answer it: format it
+            # without another model call (a CPU turn of ~1 minute). When the owner's words
+            # ask for more than a lookup (change words), only a finished write answers.
             last = result.tool_calls[-1]
-            if may_answer_directly and last.name in direct_tools and outcome.ok:
-                answer = self._gateway.direct_answer(last.name, outcome)
+            if last.name in direct_tools and outcome.ok:
+                answer = self._gateway.direct_answer(
+                    last.name, outcome, lookup_needs_model=asks_for_change
+                )
                 if answer:
                     return TaskResult(status="done", summary=answer, tool_calls=records)
 

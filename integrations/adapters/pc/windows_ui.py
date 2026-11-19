@@ -20,6 +20,7 @@ from integrations.adapters.desktop.ui_interface import (
     WindowInfo,
     is_sensitive_field,
 )
+from integrations.adapters.pc.windows_focus import bring_to_front
 
 MAX_NODES = 1500
 MAX_DEPTH = 14
@@ -255,12 +256,13 @@ class WindowsUi:
         return int(user32.GetAncestor(user32.GetForegroundWindow(), 2))  # GA_ROOT
 
     def _bring_forward(self, window_id: str) -> None:
+        """The window must really be in front before a click or keystroke (step 15: the
+        same foreground-lock fix as WhatsApp; Windows refuses focus to a background
+        process while the HCWMA window is in front)."""
         root = self._window_control(window_id)
         if root is None:
             raise UiError("that window is gone")
-        root.SetActive()
-        time.sleep(0.25)
-        if self._foreground_root() != int(window_id):
+        if not bring_to_front(int(window_id), root.SetActive, in_front=self._foreground_root):
             raise UiError("could not bring that window to the front; nothing was done")
 
     def click(self, element_id: str) -> str:

@@ -2,6 +2,67 @@
 
 One section per agent. Updated whenever an agent is added or changed (`add-agent` skill).
 
+## Planner (`planner`) — since Step 15
+
+Keeps your reminders, to-dos and deadlines in HCWMA's own planner on this PC. No Google or
+Outlook calendar yet.
+
+**Can do**
+
+- Add a reminder: *"Remind me on Friday to pay the rent"*, *"remind me tomorrow at 9 to call
+  the bank"*, *"remind me in 20 minutes to check the oven"*.
+- Add a to-do (with or without a date) or a deadline: *"Add buy milk to my to-do list"*, *"my
+  assignment deadline is 25 November"*.
+- Show what is planned: *"What's on my calendar for Friday?"*, *"my reminders this week"*,
+  *"show my to-do list"*.
+- Mark an item done or cancelled by its number (#3).
+- At a reminder's or deadline's time the HCWMA tray icon shows a desktop notification.
+  Reminders that came due while HCWMA was closed are shown the next time it starts.
+
+**How it is kept safe / fast**
+
+- The date is worked out by code from your own words, not by the model. A day without a time
+  means 09:00; numeric dates are day/month (25/11). Unclear words ("sometime soon") make it
+  ask you instead of guessing.
+- Nothing is ever erased: done and cancelled items stay in the database
+  (`%LOCALAPPDATA%\HCWMA\planner\planner.sqlite3`, outside the repository).
+- Every answer is written by code: one model call per request.
+
+**Cannot do (yet)**
+
+- Online calendars, repeating reminders ("every Monday"), sending a reminder by email or
+  WhatsApp (ask Communication), alarms with sound. The notification needs HCWMA running.
+
+**Memory:** it reads none.
+
+## Documents & Study (`documents_study`) — since Step 15
+
+Reads your documents and helps you study from them.
+
+**Can do**
+
+- Open and read .txt, .md, .pdf and .docx files in your approved folders or `workspace/`:
+  *"Open notes.txt"*, *"open notes.txt and summarize it"*. A bare file name is found through
+  the file index; if several files have that name, it asks which one.
+- Summaries, key points, outlines, quiz questions and flashcards from a document.
+- Save the result as a NEW .md, .txt or Word (.docx) file in `workspace/documents/`.
+
+**How it is kept safe / fast**
+
+- **Originals are never changed.** New documents go only to `workspace/documents/`; an existing
+  name gets `_2`, `_3`; nothing is overwritten. It cannot choose another folder.
+- Protected paths and unapproved folders are refused. Password-protected PDFs are not opened.
+- Document text is data: an instruction written inside a document is never followed.
+- *"Open X"* is answered with the text itself, by code (one model call). A summary needs a
+  second model call; long documents are read 6,000 characters at a time.
+
+**Cannot do (yet)**
+
+- Read scanned PDFs (pictures of text), spreadsheets or slides; edit a document in place;
+  read email attachments.
+
+**Memory:** it reads none.
+
 ## Image Editing (`image_editing`) — since Step 12
 
 Resizes, crops, converts and filters pictures. It changes the file, not the meaning: it cannot

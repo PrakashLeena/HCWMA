@@ -152,7 +152,7 @@ cases:
   - { message: "Erase all of your memory about me", expect: memory_librarian }
   - { message: "Refresh the file index please", expect: memory_librarian }
   # near misses: sound like memory, but are another agent's job
-  - { message: "Remind me on Friday to pay the rent", expect: answer, must_not: memory_librarian }  # known failure until the Planner agent (Step 15): routes to clarify
+  - { message: "Remind me on Friday to pay the rent", expect: planner, must_not: memory_librarian }
   - { message: "Find the file where I wrote down my sister's address", expect: file_system, must_not: memory_librarian }
   - { message: "Restore my deleted notes from the Recycle Bin", expect: file_system, must_not: memory_librarian }
   - { message: "Write a Python function that caches results in memory", expect: coding, must_not: memory_librarian }
@@ -198,10 +198,44 @@ cases:
   # --- planner ---
   - { message: "Remind me tomorrow at 9 to call the bank", expect: planner }
   - { message: "What's on my calendar for Friday?", expect: planner }
+  # step 15: Planner agent (HCWMA's own planner, no cloud calendar)
+  - { message: "Remind me in 20 minutes to take the bread out", expect: planner }
+  - { message: "Please remind me on 25 November to renew my passport", expect: planner }
+  - { message: "Add buy milk to my to-do list", expect: planner }
+  - { message: "Show my to-do list", expect: planner }
+  - { message: "What reminders do I have this week?", expect: planner }
+  - { message: "My assignment deadline is next Monday at 5pm", expect: planner }
+  - { message: "Set a reminder for Sunday evening to call Amma", expect: planner }
+  - { message: "Mark reminder 3 as done", expect: planner }
+  - { message: "What do I have planned for tomorrow?", expect: planner }
+  - { message: "Cancel the rent reminder", expect: planner }
+  # near misses: sound like planning, but are another agent's job
+  - { message: "Send myself a reminder email about the dentist tomorrow", expect: communication, must_not: planner }
+  - { message: "Remember that my rent is due on the first of every month", expect: memory_librarian, must_not: planner }
+  - { message: "Write a Python script that reminds me to drink water", expect: coding, must_not: planner }
+  - { message: "Find the file with my exam timetable", expect: file_system, must_not: planner }
+  - { message: "Open the Google Calendar website and tell me what it costs", expect: web_research, must_not: planner }
+  - { message: "Summarize my notes about the project deadline in notes.txt", expect: documents_study, must_not: planner }
 
   # --- documents_study ---
   - { message: "Summarize my lecture notes on thermodynamics into one page", expect: documents_study }
   - { message: "Help me outline my history assignment about the industrial revolution", expect: documents_study }
+  # step 15: Documents & Study agent
+  - { message: "Open notes.txt and summarize", expect: documents_study }
+  - { message: "Read thesis-draft.pdf and give me the key points", expect: documents_study }
+  - { message: "Show me what is in readme.md", expect: documents_study }
+  - { message: "Make five quiz questions from biology-notes.docx", expect: documents_study }
+  - { message: "Explain chapter 2 of my lecture notes PDF in simple words", expect: documents_study }
+  - { message: "Summarize meeting-minutes.docx and save the summary as a Word file", expect: documents_study }
+  - { message: "What does project-plan.md say about the budget?", expect: documents_study }
+  - { message: "Turn my chemistry notes into flashcards", expect: documents_study }
+  # near misses: about documents, but another agent's job
+  - { message: "Where is my thesis-draft.pdf? I can't find it", expect: file_system, must_not: documents_study }
+  - { message: "Delete the old notes.txt from my desktop", expect: file_system, must_not: documents_study }
+  - { message: "Summarize this article: https://example.com/blog/study-tips", expect: web_research, must_not: documents_study }
+  - { message: "Write a Python script that converts PDF files to text", expect: coding, must_not: documents_study }
+  - { message: "Summarize the email from my professor", expect: communication, must_not: documents_study }
+  - { message: "Resize the scanned page image scan1.png to 1000 pixels wide", expect: image_editing, must_not: documents_study }
 
   # --- answer (small talk, about HCWMA, nothing can do it) ---
   - { message: "hi!", expect: answer }

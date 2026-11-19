@@ -165,17 +165,27 @@ class PolicyLayer:
         result = await self._client.call_tool(tool, sent, timeout_s=spec.manifest.timeout_s + 5)
         return finish(result, reason=reason if result.ok else "")
 
-    def direct_answer(self, tool: str, result: ToolResult) -> str | None:
-        """The code-built answer for a successful read-only lookup, or None (see
-        `ToolSpec.answer` and `AgentCard.direct_answer`)."""
-        return _answer(self._catalog.get(tool), result)
+    def direct_answer(
+        self, tool: str, result: ToolResult, lookup_needs_model: bool = False
+    ) -> str | None:
+        """The code-built answer for a successful call, or None (see `ToolSpec.answer` and
+        `AgentCard.direct_answer_tools`). `lookup_needs_model`: the owner asked for more than
+        the lookup (a summary, a change), so a read-only result goes back to the model; a
+        finished local write is still reported by code."""
+        spec = self._catalog.get(tool)
+        if lookup_needs_model and (spec is None or spec.manifest.side_effects == "none"):
+            return None
+        return _answer(spec, result)
 
 
 def _answer(spec: ToolSpec | None, result: ToolResult) -> str | None:
     if spec is None or spec.answer is None or not result.ok or result.data is None:
         return None
-    if spec.manifest.side_effects != "none" or spec.manifest.approval_required:
-        return None  # only read-only lookups answer from code
+    if spec.manifest.side_effects == "external_action" or spec.manifest.approval_required:
+        # Read-only lookups and local writes that need no approval (a workspace file, a
+        # planner entry) answer from code; anything the owner approves, or that reaches
+        # outside the PC, gets the model's own report.
+        return None
     try:
         text = spec.answer(spec.output_model.model_validate(result.data))
     except Exception:  # noqa: BLE001 - fall back to the model, never fail the task

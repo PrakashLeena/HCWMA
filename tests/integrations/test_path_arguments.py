@@ -17,12 +17,15 @@ from integrations.adapters.desktop.ui_interface import UiGuard
 from integrations.adapters.desktop.ui_tools import UiToolDeps, ui_tool_specs
 from integrations.adapters.desktop.whatsapp_tools import WhatsAppToolDeps, whatsapp_tool_specs
 from integrations.adapters.local_data.memory_tools import MemoryToolDeps, memory_tool_specs
+from integrations.adapters.local_data.planner_store import PlannerStore
+from integrations.adapters.local_data.planner_tools import PlannerDeps, planner_tool_specs
 from integrations.adapters.local_data.tool_builder_tools import (
     ToolBuilderDeps,
     tool_builder_specs,
 )
 from integrations.adapters.official_api.gmail_tools import GmailToolDeps, gmail_tool_specs
 from integrations.adapters.pc.code_tools import CodeToolDeps, code_tool_specs
+from integrations.adapters.pc.document_tools import DocumentToolDeps, document_tool_specs
 from integrations.adapters.pc.file_tools import FileToolDeps, file_tool_specs
 from integrations.adapters.pc.file_write_tools import file_write_tool_specs
 from integrations.adapters.pc.image_tools import ImageToolDeps, image_tool_specs
@@ -48,6 +51,7 @@ EXPECTED = {
     ("image_info", "path"),
     ("move_file", "destination"),
     ("move_file", "source"),
+    ("read_document", "path"),
     ("read_file", "path"),
     ("read_logs", "path"),
     ("reindex_folder", "folder"),
@@ -84,6 +88,8 @@ def _catalog(pc: Layout) -> CapabilityCatalog:
         *tool_builder_specs(ToolBuilderDeps(), status="approved"),
         *gmail_tool_specs(GmailToolDeps(), status="approved"),
         *whatsapp_tool_specs(WhatsAppToolDeps(None), status="approved"),  # type: ignore[arg-type]
+        *planner_tool_specs(PlannerDeps(PlannerStore(pc.tmp / "planner.sqlite3")), "approved"),
+        *document_tool_specs(DocumentToolDeps(pc.policy, pc.index), status="approved"),
     ):
         catalog.register(spec)
     return catalog
@@ -109,6 +115,7 @@ def _args(pc: Layout, tool: str, field: str, bad: str) -> dict[str, Any]:
         "get_disk_usage": {},
         "image_info": {"path": ok_file},
         "move_file": {"source": ok_file, "destination": str(pc.docs / "notes" / "moved.txt")},
+        "read_document": {"path": ok_file},
         "read_file": {"path": ok_file},
         "read_logs": {},
         "reindex_folder": {},
