@@ -2,6 +2,37 @@
 
 One section per agent. Updated whenever an agent is added or changed (`add-agent` skill).
 
+## System Settings (`system_settings`) — since Step 15
+
+Reads and changes a few everyday Windows switches on this PC (owner decision 2026-11-19).
+
+**Can do**
+
+- Tell you the current state: *"What are my current settings?"*, *"is my Bluetooth on?"*,
+  *"is battery saver on?"* (Wi-Fi, Bluetooth, volume and mute, brightness, dark/light mode,
+  battery level and battery saver). Answered by code: one model call.
+- Turn Wi-Fi or Bluetooth on or off, set the volume or mute/unmute, set the built-in screen's
+  brightness, switch dark or light mode. **Every change asks you first** in the approval window,
+  every time; it shows what will change and the current value.
+
+**How it is kept safe**
+
+- Official Windows APIs only (WinRT radios, Core Audio, WMI brightness), no clicking in the
+  Settings app, no admin rights. After each change it reads the setting back and says honestly
+  if Windows did not apply it.
+- Dark/light mode writes only the two per-user theme values in the registry; nothing else in
+  the registry is ever written.
+
+**Cannot do**
+
+- Switch battery saver or Do Not Disturb (Windows has no safe way; use Quick Settings,
+  Windows key + A). Connect to a Wi-Fi network, DNS, VPN, proxy or any network setup.
+- Firewall, Windows Defender, user accounts, Windows Update, drivers, the registry, anything
+  that needs admin rights: there is no tool for these at all.
+- External monitors' brightness (only the built-in laptop screen).
+
+**Memory:** it reads none.
+
 ## Planner (`planner`) — since Step 15
 
 Keeps your reminders, to-dos and deadlines in HCWMA's own planner on this PC. No Google or

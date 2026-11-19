@@ -48,4 +48,4 @@ limits: { max_steps: 8, timeout_s: 600 }
 # straight here without a Router model call; `keywords` stop other agents' fast
 # matches when the message also sounds like this agent's job.
 fast_route:
-  keywords: [click, window, button, dialog, screen, type, press]
+  keywords: [click, window, button, dialog, on my screen, on the screen, on screen, type, press]

@@ -58,6 +58,7 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     from integrations.adapters.pc.file_tools import default_file_tool_specs
     from integrations.adapters.pc.file_write_tools import default_file_write_tool_specs
     from integrations.adapters.pc.image_tools import default_image_tool_specs
+    from integrations.adapters.pc.system_settings import default_settings_tool_specs
     from integrations.adapters.pc.system_time import get_system_time_spec
 
     catalog = CapabilityCatalog()
@@ -85,6 +86,8 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     for spec in default_planner_tool_specs():  # step 15: reminders, to-dos, deadlines
         catalog.register(spec)
     for spec in default_document_tool_specs():  # step 15: read documents, create new ones
+        catalog.register(spec)
+    for spec in default_settings_tool_specs():  # step 15: reversible Windows toggles (T1/T3)
         catalog.register(spec)
     if include_generated:
         from integrations.generated_tools.registry import GeneratedToolSource

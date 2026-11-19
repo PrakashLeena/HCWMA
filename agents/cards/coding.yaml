@@ -43,4 +43,7 @@ limits: { max_steps: 10, timeout_s: 900 }
 # straight here without a Router model call; `keywords` stop other agents' fast
 # matches when the message also sounds like this agent's job.
 fast_route:
+  # Step 15 (System Settings): "write a script that turns the volume down" is code, not a switch.
+  patterns:
+    - '^\W*(please\s+)?(write|make|create)\s+(me\s+)?(a|an)\s+(small\s+|simple\s+)?(python\s+)?(script|program)\b'
   keywords: [write, script, program, code, function, class, scaffold, python, implement, unit tests]

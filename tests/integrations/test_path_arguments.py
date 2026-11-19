@@ -30,6 +30,11 @@ from integrations.adapters.pc.file_tools import FileToolDeps, file_tool_specs
 from integrations.adapters.pc.file_write_tools import file_write_tool_specs
 from integrations.adapters.pc.image_tools import ImageToolDeps, image_tool_specs
 from integrations.adapters.pc.recycle_bin import RecycledItem
+from integrations.adapters.pc.system_settings import (
+    SettingsDeps,
+    UnsupportedSettings,
+    settings_tool_specs,
+)
 from integrations.adapters.pc.system_time import get_system_time_spec
 from integrations.mcp.server import execute
 from integrations.mcp.tool_schemas import CALLER_KEY, CallerContext
@@ -90,6 +95,7 @@ def _catalog(pc: Layout) -> CapabilityCatalog:
         *whatsapp_tool_specs(WhatsAppToolDeps(None), status="approved"),  # type: ignore[arg-type]
         *planner_tool_specs(PlannerDeps(PlannerStore(pc.tmp / "planner.sqlite3")), "approved"),
         *document_tool_specs(DocumentToolDeps(pc.policy, pc.index), status="approved"),
+        *settings_tool_specs(SettingsDeps(UnsupportedSettings()), status="approved"),
     ):
         catalog.register(spec)
     return catalog

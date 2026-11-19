@@ -76,6 +76,11 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "planner_close": {"item_id": 1},
     "read_document": {"path": "notes.txt"},
     "create_document": {"name": "summary", "content": "x"},
+    "get_settings_status": {},
+    "set_radio": {"radio": "bluetooth", "state": "off"},
+    "set_volume": {"level": 30},
+    "set_brightness": {"level": 50},
+    "set_theme": {"mode": "dark"},
 }
 
 

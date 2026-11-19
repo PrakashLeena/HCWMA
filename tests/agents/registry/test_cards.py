@@ -45,6 +45,7 @@ def test_shipped_cards_load() -> None:
         "image_editing",
         "memory_librarian",
         "planner",
+        "system_settings",
         "tool_builder",
         "web_research",
     ]

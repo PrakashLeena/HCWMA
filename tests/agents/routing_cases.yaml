@@ -250,3 +250,24 @@ cases:
   - { message: "change the thing we talked about", expect: clarify }
   - { message: "make it better", expect: clarify }
   - { message: "open it", expect: clarify }
+
+  # --- system_settings (step 15; owner decision 2026-11-19: reversible Windows toggles, T3) ---
+  - { message: "Turn off Bluetooth", expect: system_settings }
+  - { message: "Turn the Wi-Fi back on please", expect: system_settings }
+  - { message: "Is my Bluetooth on?", expect: system_settings }
+  - { message: "Set the volume to 30 percent", expect: system_settings }
+  - { message: "Mute the sound", expect: system_settings }
+  - { message: "Unmute my laptop", expect: system_settings }
+  - { message: "Set the screen brightness to 60", expect: system_settings }
+  - { message: "Make my screen a bit dimmer, like 40 percent brightness", expect: system_settings }
+  - { message: "Switch Windows to dark mode", expect: system_settings }
+  - { message: "Is battery saver on?", expect: system_settings }
+  - { message: "What are my current Wi-Fi, Bluetooth and volume settings?", expect: system_settings }
+  - { message: "Disable wifi", expect: system_settings }
+  # near misses: sound like settings, but are another agent's job
+  - { message: "Increase the brightness of holiday.jpg and save a copy", expect: image_editing, must_not: system_settings }
+  - { message: "Remember that I always want dark mode in my apps", expect: memory_librarian, must_not: system_settings }
+  - { message: "Remind me tomorrow at 10 to turn off the wifi", expect: planner, must_not: system_settings }
+  - { message: "Click the mute button in my music player window", expect: app_automation, must_not: system_settings }
+  - { message: "Send a WhatsApp message to Sam saying turn on your bluetooth", expect: communication, must_not: system_settings }
+  - { message: "Write a Python script that turns the volume down", expect: coding, must_not: system_settings }

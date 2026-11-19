@@ -1,0 +1,71 @@
+# System Settings agent (build step 15; master document 4.3, 9.4).
+# Owner decision 2026-11-19 (docs/DECISIONS.md): a fixed list of reversible Windows toggles is
+# T3 (the owner approves EVERY change), not T4. Official Windows APIs only, no UI clicking, no
+# admin rights. Nothing else in Windows settings is reachable: no tool exists for firewall,
+# Defender, accounts, updates, drivers, DNS, network configuration or the registry (except the
+# two per-user theme values). Battery saver and Do Not Disturb: no public API to switch them.
+# The status lookup is worded by code: a status question needs one model call.
+# Draft by Claude Code on 2026-11-19 — owner to review.
+id: system_settings
+name: System Settings Agent
+status: enabled
+router_line: "switch this PC's own settings NOW (not writing code for it): Wi-Fi or Bluetooth on/off, sound volume or mute, screen brightness, dark/light mode, battery saver status; asks me before every change; nothing else in Windows settings"
+description: >
+  Reads and changes a few everyday Windows switches on this PC: Wi-Fi and Bluetooth on or off,
+  the sound volume and mute, the screen brightness, and dark or light mode. It can also say
+  whether battery saver is on. Every change needs the owner's approval first. It cannot touch
+  anything else in Windows settings (no firewall, antivirus, accounts, updates, drivers, DNS or
+  network setup), and it cannot switch battery saver or Do Not Disturb.
+handles:
+  - turn off Bluetooth
+  - turn Wi-Fi back on
+  - is my Wi-Fi on?
+  - set the volume to 30 percent
+  - mute the sound
+  - unmute my laptop
+  - set the screen brightness to 60
+  - switch to dark mode
+  - put Windows in light mode
+  - is battery saver on?
+  - what are my current settings (volume, brightness, Wi-Fi, Bluetooth)
+does_not_handle:
+  - connecting to a particular Wi-Fi network, passwords, DNS, VPN, IP or proxy settings (refused)
+  - firewall, Windows Defender, user accounts, Windows Update, drivers, the registry (refused)
+  - switching battery saver or Do Not Disturb (Windows has no safe way; use Quick Settings)
+  - brightness or colours of a photo (→ image_editing)
+  - settings inside another program's window (→ app_automation)
+  - remembering the owner's preferences (→ memory_librarian)
+tools:
+  - get_settings_status
+  - set_radio
+  - set_volume
+  - set_brightness
+  - set_theme
+permission_tier: T3
+approval_required: [set_radio, set_volume, set_brightness, set_theme]
+memory_scopes: []
+direct_answer_tools: [get_settings_status]
+system_prompt: prompts/system_settings.md
+limits: { max_steps: 3, timeout_s: 300 }
+
+# Router fast path (agents/router/fast_path.py): `patterns` send a very clear request
+# straight here without a Router model call; `keywords` stop other agents' fast
+# matches when the message also sounds like this agent's job.
+fast_route:
+  patterns:
+    - '\b(turn|switch|put)\s+(on|off)\s+(the\s+|my\s+)?(wi-?fi|bluetooth)\b'
+    - '\b(turn|switch|put)\s+(the\s+|my\s+)?(wi-?fi|bluetooth)\s+(back\s+)?(on|off)\b'
+    - '\b(enable|disable)\s+(the\s+|my\s+)?(wi-?fi|bluetooth)\b'
+    - '\b(is|are)\s+(the\s+|my\s+)?(wi-?fi|bluetooth)\s+(on|off|enabled|disabled)\b'
+    - '\b(set|turn|put)\s+(the\s+|my\s+)?(sound\s+|system\s+)?volume\s+(to|up|down)\b'
+    - '^\W*(please\s+)?(mute|unmute)(\s+(the|my))?(\s+(sound|volume|audio|speakers?|pc|laptop|computer))?\W*$'
+    - '\b(what''?s|what\s+is)\s+(the\s+|my\s+)?(volume|screen\s+brightness)\b'
+    - '\b(set|change|turn)\s+(the\s+|my\s+)?screen\s+brightness\b'
+    - '\b(switch|change|go|turn\s+on|put\s+\w+\s+in|use)\b.{0,20}\b(dark|light)\s+(mode|theme)\b'
+    - '\b(battery|energy)\s+saver\b'
+    - '\bdo\s+not\s+disturb\b'
+    - '\b(current|my)\s+(pc\s+|windows\s+|system\s+)?settings(\s+status)?\s*\??\s*$'
+    - '\b(current|my)\s+(wi-?fi|bluetooth|volume|brightness)\b.{0,40}\bsettings\b'
+  # No keywords: a request that only MENTIONS a switch (a WhatsApp text, a script, a reminder)
+  # belongs to the agent whose pattern matches it; a real mixed request matches two patterns.
+  keywords: []
