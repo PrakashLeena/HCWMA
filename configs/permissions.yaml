@@ -13,10 +13,10 @@ tiers:
     scope: Create and edit inside the HCWMA workspace; run code in the sandbox
     default: allow
   T3:
-    scope: Write, move, rename or restore outside the workspace; non-allowlisted shell; app automation
+    scope: Write, move, rename or restore outside the workspace; non-allowlisted shell; app automation; the fixed list of reversible Windows toggles (Wi-Fi, Bluetooth, volume, brightness, dark/light mode; owner decision 2026-11-19)
     default: approval_required
   T4:
-    scope: Delete; install software; system settings; elevation; anything touching credentials
+    scope: Delete; install software; every other system setting (admin, firewall, Defender, accounts, updates, drivers, DNS, network config, registry); elevation; anything touching credentials
     default: deny
 
 # Folders HCWMA may index and read. Owner decisions 2026-11-18 (first four) and

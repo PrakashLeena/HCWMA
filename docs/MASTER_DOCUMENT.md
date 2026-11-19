@@ -212,6 +212,7 @@ Router rules:
 | Communication (daily-life) | Search, read and draft email/messages | `search_messages`, `read_message`, `draft_message`, `send_message` | Send needs approval |
 | Planner (daily-life) | Calendar, reminders, to-dos, deadlines | `list_events`, `create_event`, `set_reminder` | T2 |
 | Documents & Study (daily-life) | Notes, summaries, reports, assignment help | `read_document`, `summarize`, `create_document` | T2 |
+| System Settings (owner decision 2026-11-19) | Reversible Windows toggles: Wi-Fi, Bluetooth, volume/mute, brightness, dark/light mode; status (incl. battery saver) | `get_settings_status` (T1), `set_radio`, `set_volume`, `set_brightness`, `set_theme` | T3 (approval every change) |
 | Home / Device (later) | Selected smart devices through supported interfaces | per device | Per device |
 
 Notes:

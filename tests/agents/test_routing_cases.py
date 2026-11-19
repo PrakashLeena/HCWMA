@@ -21,6 +21,7 @@ CATALOGUE = {
     "communication",
     "planner",
     "documents_study",
+    "system_settings",  # owner decision 2026-11-19
 }
 
 

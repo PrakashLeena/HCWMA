@@ -174,3 +174,30 @@ The owner approved the four manifests (`find_existing_tools` T0, `scaffold_tool`
 - No bulk sending, no auto-replies, no scheduled messages, no reading chats the owner did not ask
   about. Chat text is untrusted data. Before sending, the open chat's header must match the
   requested name, otherwise stop.
+
+## System Settings agent (Step 15, decided 2026-11-19)
+
+- **Reversible Windows toggles are T3, not T4**: the owner approves EVERY change, each time.
+  The read-only status tool (`get_settings_status`) is T1. Tool manifests set by the owner in the
+  add-agent request (`set_radio`, `set_volume`, `set_brightness`, `set_theme` T3 + approval;
+  `get_settings_status` T1).
+- Allowed actions only: Wi-Fi on/off, Bluetooth on/off, volume level and mute, screen brightness,
+  dark/light mode, battery saver and Do Not Disturb (see below). Everything else in Windows
+  settings stays denied (T4): nothing that needs admin rights, and never firewall, Defender,
+  accounts, updates, drivers, DNS, network configuration or the registry. No tool exists for
+  any of these.
+- Official Windows APIs only, never UI clicking: WinRT `Windows.Devices.Radios` (Wi-Fi,
+  Bluetooth), Core Audio `IAudioEndpointVolume` via comtypes (volume), WMI
+  `WmiMonitorBrightnessMethods` (built-in screen brightness), WinRT `PowerManager` (battery
+  saver status, read only).
+- **Dark/light mode: one narrow registry exception** (owner, 2026-11-19). Windows has no API for
+  it, so `set_theme` writes only the two per-user values `AppsUseLightTheme` and
+  `SystemUsesLightTheme` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`
+  (names are constants in `integrations/adapters/pc/windows_settings.py`) and broadcasts
+  `WM_SETTINGCHANGE "ImmersiveColorSet"`. Nothing else in the registry is ever written.
+- **Battery saver and Do Not Disturb: status only, no toggle** (owner, 2026-11-19). Windows has
+  no public API to switch them (only undocumented internals or UI clicking, both ruled out).
+  Battery saver status is read; the agent tells the owner to use Quick Settings (Win + A).
+- New dependencies (owner approved): `winrt-runtime`, `winrt-Windows.Devices.Radios`,
+  `winrt-Windows.Foundation`, `winrt-Windows.Foundation.Collections`,
+  `winrt-Windows.System.Power` (small, venv only).
