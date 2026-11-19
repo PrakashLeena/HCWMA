@@ -28,14 +28,75 @@ class BackendClient:
         # Never through a system proxy: the token must not leave this PC.
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    def _request(self, method: str, path: str, auth: bool = True) -> Any:
+    def _request(
+        self, method: str, path: str, auth: bool = True, body: dict[str, Any] | None = None
+    ) -> Any:
+        data = json.dumps(body).encode("utf-8") if body is not None else None
         request = urllib.request.Request(  # noqa: S310 - fixed http://127.0.0.1 base URL
-            self.base_url + path, method=method, data=b"" if method == "POST" else None
+            self.base_url + path,
+            method=method,
+            data=data if data is not None else (b"" if method == "POST" else None),
         )
+        if body is not None:
+            request.add_header("Content-Type", "application/json")
         if auth:
             request.add_header("Authorization", f"Bearer {self._token}")
         with self._opener.open(request, timeout=self._timeout_s) as response:
             return json.loads(response.read().decode("utf-8"))
+
+    # ---------- build step 18 ----------
+
+    def ask_to_show(self) -> bool:
+        """Ask the running HCWMA to bring its window forward (a second start does this)."""
+        try:
+            return bool(self._request("POST", "/app/show").get("ok"))
+        except (OSError, ValueError):
+            return False
+
+    def show_requested(self) -> bool:
+        try:
+            return bool(self._request("POST", "/app/show/take").get("show"))
+        except (OSError, ValueError):
+            return False
+
+    def recovery_message(self) -> str:
+        try:
+            return str(self._request("GET", "/recovery").get("message", ""))
+        except (OSError, ValueError):
+            return ""
+
+    def resource_warnings(self) -> list[str]:
+        try:
+            return [str(w) for w in self._request("GET", "/resources").get("warnings", [])]
+        except (OSError, ValueError):
+            return []
+
+    def set_model_paused(self, paused: bool) -> bool | None:
+        """The model's paused state after the change, or None if it failed."""
+        try:
+            path = "/model/pause" if paused else "/model/resume"
+            return bool(self._request("POST", path).get("paused"))
+        except (OSError, ValueError):
+            return None
+
+    def settings(self) -> dict[str, Any]:
+        try:
+            return dict(self._request("GET", "/settings"))
+        except (OSError, ValueError):
+            return {}
+
+    def set_plugged_in_only(self, on: bool) -> bool | None:
+        try:
+            result = self._request("POST", "/settings", body={"heavy_only_when_plugged_in": on})
+            return bool(result.get("heavy_only_when_plugged_in"))
+        except (OSError, ValueError):
+            return None
+
+    def backup_now(self) -> str | None:
+        try:
+            return str(self._request("POST", "/backup").get("backup"))
+        except (OSError, ValueError):
+            return None
 
     def is_up(self) -> bool:
         try:

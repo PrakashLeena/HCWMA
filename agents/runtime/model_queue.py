@@ -17,6 +17,15 @@ from model.serving import GenerateResult, Message, get_backend, load_model_confi
 
 GenerateFn = Callable[..., GenerateResult]
 
+PAUSED_MESSAGE = "the model is paused; choose Resume model in the HCWMA tray menu"
+
+
+class ModelPaused(RuntimeError):
+    """The owner paused the model from the tray (build step 18). Safe to show."""
+
+    def __init__(self) -> None:
+        super().__init__(PAUSED_MESSAGE)
+
 
 class ModelQueue:
     def __init__(self, generate_fn: GenerateFn, max_parallel: int = 1) -> None:
@@ -26,6 +35,9 @@ class ModelQueue:
         self._max_parallel = max_parallel
         self._slots = threading.Semaphore(max_parallel)
         self._fifo = threading.Lock()  # keeps waiting callers in arrival order
+        # Set by the owner's "Pause model" (step 18): no new inference starts (which would
+        # load Qwen again) until "Resume model".
+        self.paused = False
 
     def generate(
         self,
@@ -35,10 +47,14 @@ class ModelQueue:
         **kwargs: Any,
     ) -> GenerateResult:
         check_free()  # a sandbox test is running: do not start (or reload) the model
+        if self.paused:
+            raise ModelPaused
         with self._fifo:
             self._slots.acquire()
         try:
             check_free()  # it may have started while this request waited its turn
+            if self.paused:
+                raise ModelPaused
             return self._generate(messages, tools=tools, max_tokens=max_tokens, **kwargs)
         finally:
             self._slots.release()

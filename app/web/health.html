@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HCWMA — health</title>
+  <link rel="stylesheet" href="/static/chat.css">
+  <link rel="stylesheet" href="/static/health.css">
+</head>
+<body>
+  <header>
+    <h1>Health</h1>
+    <span id="status" class="status">checking…</span>
+    <button id="refresh" type="button" class="link">Check again</button>
+    <a class="link" href="/">Back to chat</a>
+  </header>
+  <main class="health">
+    <p id="refused" class="banner bad" hidden></p>
+    <p id="recovery" class="banner warn" hidden></p>
+    <table id="checks"><tbody></tbody></table>
+    <h2>Settings</h2>
+    <ul id="settings"></ul>
+    <p class="muted">Pause the model, change these settings or back up now from the HCWMA tray menu.</p>
+  </main>
+  <script src="/static/health.js"></script>
+</body>
+</html>

@@ -201,3 +201,35 @@ The owner approved the four manifests (`find_existing_tools` T0, `scaffold_tool`
 - New dependencies (owner approved): `winrt-runtime`, `winrt-Windows.Devices.Radios`,
   `winrt-Windows.Foundation`, `winrt-Windows.Foundation.Collections`,
   `winrt-Windows.System.Power` (small, venv only).
+
+## Reliability (Step 18, owner request 2026-11-19)
+
+Owner rules (from the Step 18 request): one HCWMA at a time; Start with Windows is an owner
+toggle (off by default); a task running at a crash or PC sleep is marked interrupted and never
+re-run, pending approvals are cancelled; daily full backup, keep 7, restore command proven on
+a clean folder; health page; refuse new heavy tasks below 1 GB free RAM or 5 GB free disk;
+"Pause model" unloads Qwen; optional "heavy tasks only when plugged in"; installer for a fresh PC.
+
+Design choices made by Claude Code, **owner to confirm or change**:
+
+- "Heavy task" = every chat request (each one runs Qwen). Approvals, Stop, reminders and the
+  health page are light and always work. The 1 GB / 5 GB limits can only be raised
+  (`settings.json`), never lowered; free disk is the lowest of the data folder's drive and
+  the repository's drive.
+- Pause model also blocks new requests until Resume model (otherwise the next request would
+  load Qwen straight back). It is not remembered across restarts.
+- The task journal (`<data dir>/tasks/journal.sqlite3`) keeps the first 80 characters of each
+  request so the owner can recognise an interrupted one; newest 500 rows kept.
+- Sleep is detected by a wall-clock jump of more than 60 s between 5-second ticks.
+- Full backups (`backups/full-<time>/`) sit next to the existing daily memory-only backups
+  (`memory-*.sqlite3`, Step 10, unchanged). A memory "forget" also cleans the memory copy in
+  every full backup. Restore also puts the repository's `configs/*.yaml` back (after a
+  checksum check), and refuses while HCWMA is running.
+- Start with Windows = one `HCWMA.lnk` in the owner's own Startup folder (no registry, no
+  service); turning it off moves it to the Recycle Bin.
+- The single-instance lock also refuses to reuse a backend that answers on the port without
+  holding the lock (an HCWMA from before Step 18), instead of silently using old code.
+
+Found on 2026-11-19: drive C: (where `%LOCALAPPDATA%\HCWMA` lives) has **4.9 GB free**, below
+the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner to act; the
+"Free SSD ~546 GB" above is out of date).

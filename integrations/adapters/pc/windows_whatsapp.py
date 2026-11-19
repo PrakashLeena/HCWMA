@@ -277,6 +277,19 @@ class WindowsWhatsApp:
             auto.ReleaseKey(code)
         time.sleep(0.08)
 
+    # ----- health (build step 18) -----
+
+    def link_state(self) -> tuple[bool, str]:
+        """(linked, plain status) for the health page. Reads only whether the chat list is
+        showing; no chat names or messages are read, and nothing is clicked or focused."""
+        auto = _auto()
+        with auto.UIAutomationInitializerInThread():
+            try:
+                self._chat_grid(self._window())
+            except WhatsAppUnavailable as exc:
+                return False, str(exc)
+        return True, "linked (chat list showing)"
+
     # ----- list -----
 
     def list_chats(self, limit: int) -> list[ChatRow]:

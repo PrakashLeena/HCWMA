@@ -7,6 +7,10 @@
 - The tray icon has "Stop everything", tells the owner when an approval is waiting, shows a
   desktop notification when a planner reminder or deadline is due (build step 15), and
   keeps HCWMA running when the window is closed.
+- Build step 18: "Health" opens the health page; "Pause model" unloads Qwen; "Heavy tasks
+  only when plugged in" and "Start with Windows" are the owner's toggles; "Back up now".
+  After an unclean exit the tray says which requests were interrupted (never re-run), it
+  warns when RAM or disk runs low, and a second start of HCWMA brings this window forward.
 
 Approving or denying happens in the window (the approval card in the chat page).
 """
@@ -24,6 +28,7 @@ APP_NAME = "HCWMA"
 TOKEN_STORAGE_KEY = "hcwma-token"  # noqa: S105 - the storage key name, same as app/web/chat.js
 POLL_MS = 2000
 REMINDER_POLL_MS = 15_000
+RESOURCE_POLL_MS = 60_000
 
 
 class TrayBackend(Protocol):
@@ -34,6 +39,30 @@ class TrayBackend(Protocol):
     def due_reminders(self) -> list[dict[str, Any]]: ...
 
     def stop_everything(self) -> dict[str, int] | None: ...
+
+    def show_requested(self) -> bool: ...
+
+    def recovery_message(self) -> str: ...
+
+    def resource_warnings(self) -> list[str]: ...
+
+    def set_model_paused(self, paused: bool) -> bool | None: ...
+
+    def settings(self) -> dict[str, Any]: ...
+
+    def set_plugged_in_only(self, on: bool) -> bool | None: ...
+
+    def backup_now(self) -> str | None: ...
+
+
+class AutostartToggle(Protocol):
+    """`app.desktop.autostart.Autostart`."""
+
+    def is_enabled(self) -> bool: ...
+
+    def enable(self) -> object: ...
+
+    def disable(self) -> bool: ...
 
 
 def is_backend_url(url: str, base_url: str) -> bool:
@@ -97,24 +126,56 @@ def make_icon() -> QIcon:
 class Tray:
     """Tray icon: open the window, stop everything, quit. Watches for approval prompts."""
 
-    def __init__(self, backend: TrayBackend, icon: QIcon, on_open: Any, on_quit: Any) -> None:
+    def __init__(
+        self,
+        backend: TrayBackend,
+        icon: QIcon,
+        on_open: Any,
+        on_quit: Any,
+        *,
+        on_health: Any = None,
+        autostart: AutostartToggle | None = None,
+    ) -> None:
         self._backend = backend
         self._on_open = on_open
+        self._autostart = autostart
         self._known: set[str] = set()
+        self._warned: set[str] = set()
         self.icon = QSystemTrayIcon(icon)
         self.icon.setToolTip(APP_NAME)
 
         self.menu = QMenu()
         self.open_action = QAction("Open HCWMA")
+        self.health_action = QAction("Health")
         self.stop_action = QAction("Stop everything")
+        self.pause_action = QAction("Pause model")
+        self.pause_action.setCheckable(True)
+        self.plugged_action = QAction("Heavy tasks only when plugged in")
+        self.plugged_action.setCheckable(True)
+        self.autostart_action = QAction("Start with Windows")
+        self.autostart_action.setCheckable(True)
+        self.backup_action = QAction("Back up now")
         self.quit_action = QAction("Quit HCWMA")
         self.open_action.triggered.connect(on_open)
+        self.health_action.triggered.connect(on_health or on_open)
         self.stop_action.triggered.connect(self.stop_everything)
+        self.pause_action.triggered.connect(self.toggle_pause)
+        self.plugged_action.triggered.connect(self.toggle_plugged_in_only)
+        self.autostart_action.triggered.connect(self.toggle_autostart)
+        self.backup_action.triggered.connect(self.backup_now)
         self.quit_action.triggered.connect(on_quit)
         self.menu.addAction(self.open_action)
+        self.menu.addAction(self.health_action)
         self.menu.addAction(self.stop_action)
         self.menu.addSeparator()
+        self.menu.addAction(self.pause_action)
+        self.menu.addAction(self.plugged_action)
+        self.menu.addAction(self.autostart_action)
+        self.menu.addAction(self.backup_action)
+        self.menu.addSeparator()
         self.menu.addAction(self.quit_action)
+        self.autostart_action.setEnabled(autostart is not None)
+        self.refresh_toggles()
         self.icon.setContextMenu(self.menu)
         self.icon.activated.connect(self._activated)
 
@@ -124,12 +185,107 @@ class Tray:
         self.reminder_timer = QTimer()
         self.reminder_timer.setInterval(REMINDER_POLL_MS)
         self.reminder_timer.timeout.connect(self.check_reminders)
+        self.resource_timer = QTimer()
+        self.resource_timer.setInterval(RESOURCE_POLL_MS)
+        self.resource_timer.timeout.connect(self.check_resources)
 
     def show(self) -> None:
         self.icon.show()
         self.timer.start()
         self.reminder_timer.start()
+        self.resource_timer.start()
         QTimer.singleShot(3000, self.check_reminders)  # missed while HCWMA was off
+        QTimer.singleShot(1500, self.check_recovery)  # what the last unclean exit left
+        QTimer.singleShot(5000, self.check_resources)
+
+    # ---------- build step 18 ----------
+
+    def refresh_toggles(self) -> None:
+        settings = self._backend.settings()
+        self.plugged_action.setChecked(bool(settings.get("heavy_only_when_plugged_in")))
+        if self._autostart is not None:
+            try:
+                self.autostart_action.setChecked(self._autostart.is_enabled())
+            except Exception:  # noqa: BLE001 - shown unticked
+                self.autostart_action.setChecked(False)
+
+    def check_recovery(self) -> str:
+        message = self._backend.recovery_message()
+        if message:
+            self.icon.showMessage(
+                f"{APP_NAME} recovered", message, QSystemTrayIcon.MessageIcon.Warning, 30_000
+            )
+        return message
+
+    def check_resources(self) -> list[str]:
+        """Warn once per new low-resource condition (RAM, disk)."""
+        warnings = self._backend.resource_warnings()
+        keys = ["ram" if "RAM" in w else "disk" for w in warnings]
+        fresh = [w for w, key in zip(warnings, keys, strict=True) if key not in self._warned]
+        self._warned = set(keys)
+        if fresh:
+            self.icon.showMessage(
+                f"{APP_NAME}: low resources",
+                " ".join(fresh) + " New requests are refused until this is fixed.",
+                QSystemTrayIcon.MessageIcon.Warning,
+                20_000,
+            )
+        return fresh
+
+    def toggle_pause(self) -> str:
+        wanted = self.pause_action.isChecked()
+        result = self._backend.set_model_paused(wanted)
+        if result is None:
+            message = "Could not reach HCWMA to change the model."
+            result = not wanted
+        elif result:
+            message = "Model paused: Qwen is being unloaded to free memory. New requests wait."
+        else:
+            message = "Model resumed: Qwen loads again on the next request."
+        self.pause_action.setChecked(result)
+        self.pause_action.setText("Resume model" if result else "Pause model")
+        self.notify(message)
+        return message
+
+    def toggle_plugged_in_only(self) -> str:
+        wanted = self.plugged_action.isChecked()
+        result = self._backend.set_plugged_in_only(wanted)
+        if result is None:
+            self.plugged_action.setChecked(not wanted)
+            message = "Could not reach HCWMA to change the setting."
+        else:
+            self.plugged_action.setChecked(result)
+            message = (
+                "Heavy tasks now run only when the laptop is plugged in."
+                if result
+                else "Heavy tasks run on battery too."
+            )
+        self.notify(message)
+        return message
+
+    def toggle_autostart(self) -> str:
+        wanted = self.autostart_action.isChecked()
+        if self._autostart is None:
+            self.autostart_action.setChecked(False)
+            return "Not supported on this computer."
+        try:
+            if wanted:
+                self._autostart.enable()
+                message = "HCWMA will start when you sign in to Windows."
+            else:
+                self._autostart.disable()
+                message = "HCWMA will no longer start with Windows (shortcut in the Recycle Bin)."
+        except Exception as exc:  # noqa: BLE001 - told to the owner
+            message = f"Could not change it: {type(exc).__name__}"
+        self.refresh_toggles()
+        self.notify(message)
+        return message
+
+    def backup_now(self) -> str:
+        name = self._backend.backup_now()
+        message = f"Backup written: {name}" if name else "The backup failed; see the health page."
+        self.notify(message)
+        return message
 
     def notify(self, text: str) -> None:
         self.icon.showMessage(APP_NAME, text, self.icon.icon(), 6000)
@@ -140,7 +296,11 @@ class Tray:
         return message
 
     def check_approvals(self) -> list[str]:
-        """Bring the window forward when a new approval prompt is waiting."""
+        """Bring the window forward when a new approval prompt is waiting (or when a second
+        start of HCWMA asked for it)."""
+        if self._backend.show_requested():
+            self.notify("HCWMA is already running; here it is.")
+            self._on_open()
         pending = {str(p["id"]): p for p in self._backend.pending_approvals()}
         new = [pid for pid in pending if pid not in self._known]
         self._known = set(pending)
@@ -190,6 +350,7 @@ class ChatWindow(QMainWindow):
             def createWindow(self, _type: Any) -> None:  # noqa: N802 - no pop-ups
                 return None
 
+        self._base_url = base_url
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(icon)
         self.resize(900, 720)
@@ -210,6 +371,11 @@ class ChatWindow(QMainWindow):
         self._view.setPage(self._page)
         self.setCentralWidget(self._view)
         self._view.load(QUrl(base_url + "/"))
+
+    def open_page(self, path: str) -> None:
+        """Show one of the backend's own pages (`/status` is the health page)."""
+        self._view.load(QUrl(self._base_url + path))
+        self.bring_forward()
 
     def bring_forward(self) -> None:
         self.showNormal()
@@ -239,11 +405,21 @@ def run_shell(backend: TrayBackend, base_url: str, token: str, on_exit: Any) -> 
         window.quitting = True
         tray.timer.stop()
         tray.reminder_timer.stop()
+        tray.resource_timer.stop()
         tray.icon.hide()
         window.close()
         app.quit()
 
-    tray = Tray(backend, icon, on_open=window.bring_forward, on_quit=quit_app)
+    from app.desktop.autostart import get_autostart
+
+    tray = Tray(
+        backend,
+        icon,
+        on_open=window.bring_forward,
+        on_quit=quit_app,
+        on_health=lambda: window.open_page("/status"),
+        autostart=get_autostart(),
+    )
     window.on_first_hide = lambda: tray.notify(
         "HCWMA is still running here. Right-click this icon for Stop everything or Quit."
     )

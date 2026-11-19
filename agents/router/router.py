@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from agents.router.classifier import Classifier, RouteStep, RoutingDecision
 from agents.router.fast_path import fast_route
 from agents.runtime.agent_runtime import OWNER_DENIED, AgentRuntime
-from agents.runtime.stop import STOPPED_BY_OWNER, StopControl
+from agents.runtime.stop import INTERRUPTED, STOPPED_BY_OWNER, StopControl
 from agents.runtime.task_envelope import (
     TaskContext,
     TaskEnvelope,
@@ -94,8 +94,20 @@ class Router:
         if self.stop is None:
             return await self._handle(task_id, conversation)
         reply: RouterReply | None = None
-        with self.stop.track(task_id) as scope:
+        with self.stop.track(task_id, conversation[-1].content) as scope:
             reply = await self._handle(task_id, conversation)
+        interrupted = self.stop.interrupted_reason(task_id)
+        if interrupted is not None:
+            return RouterReply(
+                task_id=task_id,
+                action="answer",
+                reply=(
+                    f"Interrupted: {interrupted}. It was not run again; "
+                    "ask again if you still want it."
+                ),
+                status="failed",
+                stopped_by=INTERRUPTED,
+            )
         if scope.cancelled_caught or reply is None:
             return RouterReply(
                 task_id=task_id,
