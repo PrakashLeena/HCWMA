@@ -43,3 +43,9 @@ approval_required: [click_element, type_text, press_key]
 memory_scopes: []
 system_prompt: prompts/app_automation.md
 limits: { max_steps: 8, timeout_s: 600 }
+
+# Router fast path (agents/router/fast_path.py): `patterns` send a very clear request
+# straight here without a Router model call; `keywords` stop other agents' fast
+# matches when the message also sounds like this agent's job.
+fast_route:
+  keywords: [click, window, button, dialog, screen, type, press]

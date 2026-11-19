@@ -82,7 +82,7 @@ python -m backend.auth.token    # print the per-install API token (--rotate for 
 python -m integrations.mcp.smoke  # Step 6 check: MCP discovery, allowed + refused call, audit records
 python -m agents.router.demo       # Step 7 check: Router -> echo -> back, clarifying question, loop stopped (needs Ollama)
 python -m agents.router.measure_speed  # Router prompt size (chars, tokens) and latency for 3 requests (needs Ollama, ~2 min on CPU)
-python -m agents.router.eval_routing  # score the Router on tests/agents/routing_cases.yaml (~15 s per case on CPU)
+python -m agents.router.eval_routing  # score the Router on tests/agents/routing_cases.yaml (~15 s per case on CPU; fast-path cases are instant; --no-fast = model Router only)
 python -m agents.router.timing        # where a request's time went: Router, each agent model call, each tool (latest request, or pass a task id; --total N for older requests)
 python -m agents.router.measure_agent_prompt  # size of a sub-agent's first prompt by part (system, tool schemas, request, memory); --tokens asks the model (~1 min)
 python -m memory.pc_index           # rebuild the PC file index (files and folders) over approved folders + workspace/ (--watch keeps it fresh; the backend does this itself)

@@ -118,3 +118,9 @@ def test_cli_prints_the_split(tmp_path: Path, capsys: Any) -> None:
     out = capsys.readouterr().out
     assert "file_system model calls" in out and "89.3, 23.2" in out
     assert main(["--log", str(tmp_path / "missing.jsonl")]) == 1
+
+
+def test_a_fast_path_request_shows_no_router_time() -> None:
+    fast = [r for r in NEW if not (r["event"] == "model_call" and r["agent"] == "router")]
+    text = render(split(fast, "R"))
+    assert "Router                  0.0 s  (fast path: no model call)" in text

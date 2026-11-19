@@ -406,7 +406,9 @@ def test_window_text_cannot_reach_a_file_deleting_agent(pc: Layout) -> None:
     async def go() -> RouterReply:
         model = ScriptedModel(router=route(steps=steps), agent=agent)
         async with stack(pc.tmp / "run", model, catalog=_catalog(ui), approval_timeout_s=0.5) as s:
-            return await s.router.handle([Message(role="user", content="read Notes, find file")])
+            return await s.router.handle(
+                [Message(role="user", content="read Notes, then look into the doc")]
+            )
 
     reply = anyio.run(go)
     assert reply.agents == [AGENT, "file_system"] and reply.status == "done"

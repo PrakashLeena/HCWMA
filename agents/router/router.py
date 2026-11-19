@@ -19,6 +19,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from agents.router.classifier import Classifier, RoutingDecision
+from agents.router.fast_path import fast_route
 from agents.runtime.agent_runtime import OWNER_DENIED, AgentRuntime
 from agents.runtime.stop import STOPPED_BY_OWNER, StopControl
 from agents.runtime.task_envelope import (
@@ -129,9 +130,14 @@ class Router:
             return False
 
     async def _handle(self, task_id: str, conversation: list[Message]) -> RouterReply:
-        decision = await self._classifier.classify(
-            conversation, self._recall(conversation), task_id=task_id
-        )
+        # Very clear requests skip the model: rules from the agent cards (fast_path.py).
+        decision = fast_route(self._runtime.registry, conversation[-1].content)
+        if decision is not None:
+            log.info("fast path: %s", decision.steps[0].agent)
+        else:
+            decision = await self._classifier.classify(
+                conversation, self._recall(conversation), task_id=task_id
+            )
 
         if decision.action == "clarify":
             return RouterReply(

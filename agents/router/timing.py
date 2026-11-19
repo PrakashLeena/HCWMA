@@ -165,6 +165,9 @@ def render(s: TimingSplit, total_s: float | None = None) -> str:
     total = total_s if total_s is not None else wall
     if s.router_model_s is not None:
         lines.append(f"  Router model        {s.router_model_s:7.1f} s  ({s.router_calls} call)")
+    elif not s.agent_model_estimated and s.agent_model_s:
+        # model calls are audited for this request, yet the Router made none
+        lines.append("  Router                  0.0 s  (fast path: no model call)")
     elif total_s is not None and wall is not None:
         lines.append(
             f"  Router (inferred)   {total_s - wall:7.1f} s  "

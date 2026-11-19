@@ -53,3 +53,13 @@ direct_answer_tools: [search_files, list_recent_files, check_recycle_bin, get_di
 change_words: [restore, recover, undelete, "put back", "bring back", move, rename, delete, remove, trash, erase, "get rid of"]
 system_prompt: prompts/file_system.md
 limits: { max_steps: 6, timeout_s: 420 }
+
+# Router fast path (agents/router/fast_path.py): `patterns` send a very clear request
+# straight here without a Router model call; `keywords` stop other agents' fast
+# matches when the message also sounds like this agent's job.
+fast_route:
+  patterns:
+    # a find word AND "file(s)" / "folder(s)", but not "that file" / "this folder" (those need
+    # the conversation, which only the model Router reads)
+    - '^(?=.*\b(find|locate|missing|lost|where\s+is)\b)(?=.*\b(files?|folders?)\b)(?!.*\b(that|this|these|those|it|same)\s+(files?|folders?)\b)'
+  keywords: [file, files, folder, folders, recycle bin, disk, drive, restore, rename, delete]

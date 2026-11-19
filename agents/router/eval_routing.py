@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict
 
 from agents.registry.agent_registry import AgentRegistry
 from agents.router.classifier import Classifier, RoutingDecision
+from agents.router.fast_path import fast_route
 from agents.runtime.agent_runtime import AgentRuntime
 from agents.runtime.model_queue import get_model_queue
 from model.serving import Message
@@ -60,7 +61,9 @@ class _NoGateway:
         return None
 
 
-async def run(expect: set[str] | None = None, match: list[str] | None = None) -> int:
+async def run(
+    expect: set[str] | None = None, match: list[str] | None = None, fast: bool = True
+) -> int:
     registry = AgentRegistry.from_dir()
     runtime = AgentRuntime(
         registry=registry,
@@ -72,7 +75,7 @@ async def run(expect: set[str] | None = None, match: list[str] | None = None) ->
     classifier = Classifier(registry, runtime)
     enabled = {c.id for c in registry.workers()}
 
-    scored = passed = 0
+    scored = passed = fast_count = fast_passed = 0
     skipped: list[str] = []
     for case in load_cases():
         if expect is not None and case.expect not in expect and case.message not in (match or []):
@@ -82,17 +85,25 @@ async def run(expect: set[str] | None = None, match: list[str] | None = None) ->
             skipped.append(case.expect)
             continue
         start = time.perf_counter()
-        decision = await classifier.classify([Message(role="user", content=case.message)])
+        decision = fast_route(registry, case.message) if fast else None
+        route = "fast " if decision is not None else "model"
+        if decision is None:
+            decision = await classifier.classify([Message(role="user", content=case.message)])
         got = outcome(decision)
         ok = got == case.expect if expect_known else got != case.must_not
         scored += 1
         passed += ok
+        if route == "fast ":
+            fast_count += 1
+            fast_passed += ok
         mark = "PASS" if ok else "FAIL"
         print(
-            f"{mark}  {time.perf_counter() - start:4.1f}s  "
+            f"{mark}  {route} {time.perf_counter() - start:4.1f}s  "
             f"expect={case.expect if expect_known else 'not ' + str(case.must_not):<15} "
             f"got={got:<9} conf={decision.confidence:.2f}  {case.message!r}"
         )
+    if fast:
+        print(f"\nfast path: {fast_count} case(s), {fast_passed} of them correct")
     print(
         f"\nscored {passed}/{scored}; skipped {len(skipped)} (agent not built yet: "
         f"{', '.join(sorted(set(skipped)))})"
@@ -104,9 +115,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Score the Router on routing_cases.yaml")
     parser.add_argument("--expect", nargs="+", help="only cases whose expected agent is listed")
     parser.add_argument("--message", action="append", help="also run the case with this message")
+    parser.add_argument("--no-fast", action="store_true", help="model Router only, no fast path")
     args = parser.parse_args()
     expect = set(args.expect) if args.expect else None
-    raise SystemExit(anyio.run(run, expect, args.message))
+    raise SystemExit(anyio.run(run, expect, args.message, not args.no_fast))
 
 
 if __name__ == "__main__":
