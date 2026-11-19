@@ -10,6 +10,7 @@ protected path (no agent tool can read or change it).
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AUDIT_PATH = REPO_ROOT / "security" / "audit" / "logs" / "audit.jsonl"
+# Tests point this at a temp file so they never write into the real audit log.
+AUDIT_PATH_ENV = "HCWMA_AUDIT_PATH"
+
+
+def default_audit_path() -> Path:
+    override = os.environ.get(AUDIT_PATH_ENV)
+    return Path(override) if override else DEFAULT_AUDIT_PATH
+
 
 _SECRET_KEY = re.compile(r"pass|secret|token|key|credential|auth|cookie|session", re.IGNORECASE)
 _MAX_STR = 80
@@ -77,8 +86,8 @@ class AuditRecord(BaseModel):
 
 
 class AuditLogger:
-    def __init__(self, path: Path = DEFAULT_AUDIT_PATH) -> None:
-        self.path = path
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path if path is not None else default_audit_path()
         self._lock = threading.Lock()
 
     def write(self, record: AuditRecord) -> None:

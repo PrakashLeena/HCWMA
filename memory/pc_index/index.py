@@ -24,6 +24,14 @@ from pathlib import Path
 from typing import Literal
 
 DEFAULT_INDEX_PATH = Path(__file__).resolve().parent / "data" / "index.sqlite"
+# Tests point this at a temp file so they never read or change the real PC index.
+INDEX_PATH_ENV = "HCWMA_INDEX_PATH"
+
+
+def default_index_path() -> Path:
+    override = os.environ.get(INDEX_PATH_ENV)
+    return Path(override) if override else DEFAULT_INDEX_PATH
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS files (
@@ -139,8 +147,8 @@ def _like(term: str) -> str:
 
 
 class FileIndex:
-    def __init__(self, db_path: Path = DEFAULT_INDEX_PATH) -> None:
-        self.db_path = db_path
+    def __init__(self, db_path: Path | None = None) -> None:
+        self.db_path = db_path if db_path is not None else default_index_path()
         self._ready = False
         self._lock = threading.Lock()
 
