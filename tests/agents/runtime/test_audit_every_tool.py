@@ -39,6 +39,9 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "read_message": {"message_id": "18c0ffee00000001"},
     "search_messages": {"query": "x"},
     "send_message": {"to": ["a@example.com"], "subject": "s", "body": "b"},
+    "whatsapp_list_chats": {},
+    "whatsapp_read_chat": {"chat": "Sam"},
+    "whatsapp_send": {"chat": "Sam", "body": "b"},
     "get_disk_usage": {},
     "get_system_time": {},
     "find_existing_tools": {"query": "word count"},
@@ -90,7 +93,9 @@ def _gateway(tmp_path: Path) -> tuple[PolicyLayer, AuditLogger, AgentGrant, Call
         permissions=PermissionManager(load_permissions_config()),
         audit=audit,
     )
-    context = CallerContext(agent_id="all_tools", task_id="t", owner_words="hi a@example.com")
+    context = CallerContext(
+        agent_id="all_tools", task_id="t", owner_words="hi a@example.com, send Sam a note"
+    )
     return policy, audit, agent, context
 
 

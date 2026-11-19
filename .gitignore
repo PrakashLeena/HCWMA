@@ -49,3 +49,6 @@ playwright/.auth/
 Thumbs.db
 .vscode/
 .idea/
+
+# uiautomation writes its error log here (may hold window text)
+@AutomationLog.txt

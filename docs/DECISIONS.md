@@ -160,4 +160,17 @@ The owner approved the four manifests (`find_existing_tools` T0, `scaffold_tool`
 - Gmail tool manifests (`search_messages`, `read_message`, `draft_message`, `send_message`)
   approved by the owner; `send_message` asks every time. A recipient must be an address the owner
   typed or the owner's own address.
-- Outlook and WhatsApp: later sessions, separate adapters.
+- Outlook: a later session, separate adapter.
+
+## WhatsApp / Communication agent (Step 15, decided 2026-11-19)
+
+- WhatsApp through WhatsApp Desktop and the UI Automation layer only: no unofficial WhatsApp
+  libraries, no web scraping.
+- The WhatsApp Desktop window is allowed for the Communication agent only; App Automation keeps
+  it off-limits (`COMMUNICATION_ONLY_APPS` in `integrations/adapters/desktop/ui_interface.py`).
+- Tools: `whatsapp_list_chats` T1, `whatsapp_read_chat` T1 (one chat the owner named),
+  `whatsapp_send` T3 (approval every time, chat name + full text; the chat must be one the owner
+  typed; one message per approval and per request). Manifests approved by the owner 2026-11-19.
+- No bulk sending, no auto-replies, no scheduled messages, no reading chats the owner did not ask
+  about. Chat text is untrusted data. Before sending, the open chat's header must match the
+  requested name, otherwise stop.

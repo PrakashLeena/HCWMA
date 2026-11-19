@@ -182,7 +182,17 @@ cases:
   - { message: "Find the file called email-template.docx", expect: file_system, must_not: communication }
   - { message: "Write a Python script that sends an email", expect: coding, must_not: communication }
   - { message: "Open the page about Gmail features on support.google.com", expect: web_research, must_not: communication }
-  - { message: "Message my friend on WhatsApp that I am late", expect: answer, must_not: communication }
+  # step 15: WhatsApp Desktop (Communication agent)
+  - { message: "Message my friend on WhatsApp that I am late", expect: communication }
+  - { message: "List my WhatsApp chats", expect: communication }
+  - { message: "Read my WhatsApp chat with Amma", expect: communication }
+  - { message: "What did Sam say on WhatsApp?", expect: communication }
+  - { message: "Send a WhatsApp message to Message yourself saying buy milk", expect: communication }
+  - { message: "Do I have unread WhatsApp messages?", expect: communication }
+  - { message: "Tell Ravi on whatsapp that I will call later", expect: communication }
+  - { message: "Open the WhatsApp website and find their privacy policy", expect: web_research, must_not: communication }
+  - { message: "Find the WhatsApp images folder on my PC", expect: file_system, must_not: communication }
+  - { message: "Write a Python script that sends WhatsApp messages", expect: coding, must_not: communication }
   - { message: "My email sending script crashes with a SMTP error, fix it", expect: debugging, must_not: communication }
 
   # --- planner ---
