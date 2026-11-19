@@ -136,4 +136,20 @@ button.quiet { background: none; color: var(--text); border: 1px solid var(--bor
 .approval .who { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
 .approval .row { justify-content: flex-end; }
 
+.row.voice { margin-top: 8px; align-items: center; flex-wrap: wrap; }
+button.talk { padding: 8px 14px; font-size: 14px; user-select: none; touch-action: none; }
+button.talk.listening { background: var(--error); }
+.voice-label { font-weight: 400; font-size: 13px; color: var(--muted); }
+select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.voice-state { color: var(--muted); font-size: 13px; }
+.msg.user.voice::before { content: "\1F3A4  "; }
+
 [hidden] { display: none !important; }

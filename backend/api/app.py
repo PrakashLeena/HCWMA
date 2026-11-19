@@ -7,6 +7,9 @@
 - Inference goes through the shared model queue (architecture rule 3).
 - `/approvals` and `/stop` (step 9) are how the owner answers an approval prompt and halts
   every agent. Like `/chat`, they need the token.
+- `/voice/*` (step 14): push-to-talk. The backend opens the microphone only between
+  `/voice/start` and `/voice/stop`, keeps the audio in memory and returns the transcript; the
+  page then sends it to `/chat` like typed text. No voice route can answer an approval.
 """
 
 from __future__ import annotations
@@ -17,13 +20,14 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.router.router import RouterReply
@@ -47,6 +51,7 @@ from integrations.adapters.local_data.planner_store import PlannerStore
 from integrations.adapters.local_data.when_parser import describe
 from integrations.generated_tools.review import ReviewRefused, ReviewService
 from model.serving import Message
+from voice.service import Transcript, VoiceRefused, VoiceService, VoiceStatus
 
 logger = logging.getLogger("hcwma.backend")
 
@@ -55,6 +60,15 @@ WEB_DIR = Path(__file__).resolve().parents[2] / "app" / "web"
 
 class SettingsChange(BaseModel):
     heavy_only_when_plugged_in: bool
+
+
+class VoiceStart(BaseModel):
+    language: Literal["en", "ta", "si"] = "en"
+
+
+class VoiceSpeak(BaseModel):
+    text: str = Field(max_length=20_000)
+    language: Literal["en", "ta", "si"] | None = None
 
 
 class ChatHandler(Protocol):
@@ -83,6 +97,7 @@ def create_app(
     planner: PlannerStore | None = None,
     clock: Callable[[], datetime] | None = None,
     reliability: ReliabilityService | None = None,
+    voice: VoiceService | None = None,
 ) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
@@ -198,6 +213,8 @@ def create_app(
 
     @app.post("/stop", dependencies=[Depends(require_token)])
     async def stop(http: Request) -> StopReport:
+        if voice is not None:
+            voice.cancel()  # Stop everything also closes the microphone and stops speaking
         control = getattr(http.app.state.handler, "stop", None)
         if control is None:
             return StopReport(stopped_tasks=0, cancelled_approvals=0)
@@ -340,6 +357,63 @@ def create_app(
         service = rel()
         wanted, service.show_requested = service.show_requested, False
         return {"show": wanted}
+
+    # --- build step 14: push-to-talk voice --------------------------------------------------
+    # Owner-only, like /chat. The microphone is open only between /voice/start and /voice/stop
+    # (the page holds the talk button or hotkey) and never longer than max_record_seconds.
+    # The transcript is returned to the page, which shows it and sends it to /chat like typed
+    # text: same Router, same allowlists, same approval cards. None of these routes can answer
+    # an approval, and the transcript is never logged.
+
+    def vs() -> VoiceService:
+        if voice is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="voice is not available"
+            )
+        return voice
+
+    @app.get("/voice", dependencies=[Depends(require_token)])
+    def voice_status() -> VoiceStatus:
+        return vs().status()
+
+    @app.post("/voice/start", dependencies=[Depends(require_token)])
+    def voice_start(body: VoiceStart) -> VoiceStatus:
+        service = vs()
+        min_ram = 0
+        if reliability is not None:
+            refused = reliability.refusal()  # the request will run Qwen: same rules as /chat
+            if refused is not None:
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=refused)
+            min_ram = reliability.current_settings().min_free_ram_mb
+        try:
+            service.start(body.language, min_free_ram_mb=min_ram)
+        except VoiceRefused as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+        return service.status()
+
+    @app.post("/voice/stop", dependencies=[Depends(require_token)])
+    async def voice_stop() -> Transcript:
+        try:
+            return await run_in_threadpool(vs().stop)
+        except RuntimeError as exc:
+            logger.error("voice transcription failed: %s", type(exc).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+            ) from None
+
+    @app.post("/voice/cancel", dependencies=[Depends(require_token)])
+    def voice_cancel() -> dict[str, bool]:
+        vs().cancel()
+        return {"ok": True}
+
+    @app.post("/voice/speak", dependencies=[Depends(require_token)])
+    def voice_speak(body: VoiceSpeak) -> dict[str, str]:
+        return vs().speak(body.text, body.language)
+
+    @app.post("/voice/quiet", dependencies=[Depends(require_token)])
+    def voice_quiet() -> dict[str, bool]:
+        vs().quiet()
+        return {"ok": True}
 
     @app.get("/status", include_in_schema=False)
     def health_page() -> FileResponse:

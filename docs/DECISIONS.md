@@ -48,7 +48,7 @@ Numbers in `docs/benchmarks.md`.
 - Daily-life agents wanted first:
 - Self-built tools need owner approval before first use (default: yes):
 - Image editing needs generative features (default: no):
-- Languages for voice:
+- Languages for voice: English, Tamil, Sinhala (2026-11-19). Push-to-talk only. STT Whisper small (CPU int8, loaded only while talking); TTS MMS for English and Tamil, espeak-ng for Sinhala (owner's choice after docs/voice_benchmarks_stt.md and _tts.md). Tamil and Sinhala are experimental.
 - Phone / second-device access wanted in this version (default: no):
 
 ## Memory (Step 10, decided 2026-11-17)

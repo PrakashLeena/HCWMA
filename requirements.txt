@@ -28,3 +28,14 @@ winrt-Windows.Devices.Radios==3.2.1; sys_platform == "win32"
 winrt-Windows.Foundation==3.2.1; sys_platform == "win32"
 winrt-Windows.Foundation.Collections==3.2.1; sys_platform == "win32"
 winrt-Windows.System.Power==3.2.1; sys_platform == "win32"
+# step 14: voice (owner's choice after the benchmark): Whisper small on CPU int8, MMS-TTS via sherpa-onnx, espeak-ng for Sinhala
+faster-whisper==1.2.1    # speech-to-text
+ctranslate2==4.9.0       # required by faster-whisper
+av==17.1.0               # required by faster-whisper
+onnxruntime==1.23.2      # required by faster-whisper (VAD)
+tokenizers==0.23.3       # required by faster-whisper
+numpy==2.2.6             # audio buffers
+sounddevice==0.5.6       # push-to-talk microphone and speaker playback
+sherpa-onnx==2.0.2       # runs MMS-TTS (English, Tamil)
+sherpa-onnx-core==2.0.2  # required by sherpa-onnx
+espeakng-loader==0.2.4   # bundled espeak-ng: Sinhala speech and fallback
