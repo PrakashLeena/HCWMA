@@ -108,6 +108,15 @@ class PolicyLayer:
                 ToolResult.failure("invalid_arguments", f"invalid arguments: {', '.join(fields)}")
             )
 
+        if spec.precheck is not None:
+            try:
+                refusal = spec.precheck(args, context)
+            except Exception:  # noqa: BLE001 - a broken rule refuses, it never lets a call pass
+                log.warning("precheck() failed for tool %s", spec.name)
+                refusal = "the safety check for this action could not run"
+            if refusal:
+                return finish(ToolResult.failure("denied", refusal))
+
         reason = decision.reason
         if decision.outcome == "needs_approval":
             # The only way past this point is the owner's one-time approval of exactly this

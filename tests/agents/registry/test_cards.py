@@ -37,6 +37,7 @@ def test_shipped_cards_load() -> None:
     assert [c.id for c in registry.workers()] == [
         "app_automation",
         "coding",
+        "communication",
         "debugging",
         "echo",
         "file_system",

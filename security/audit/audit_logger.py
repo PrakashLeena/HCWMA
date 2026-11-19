@@ -24,6 +24,8 @@ DEFAULT_AUDIT_PATH = REPO_ROOT / "security" / "audit" / "logs" / "audit.jsonl"
 
 _SECRET_KEY = re.compile(r"pass|secret|token|key|credential|auth|cookie|session", re.IGNORECASE)
 _MAX_STR = 80
+# Message text (an email body) is the owner's private content: the log keeps only its length.
+_CONTENT_KEY = re.compile(r"^body$", re.IGNORECASE)
 
 
 def _summarize_value(value: Any) -> Any:
@@ -41,10 +43,15 @@ def _summarize_value(value: Any) -> Any:
 
 
 def summarize_args(args: dict[str, Any]) -> dict[str, Any]:
-    return {
-        str(k): "<redacted>" if _SECRET_KEY.search(str(k)) else _summarize_value(v)
-        for k, v in args.items()
-    }
+    summary: dict[str, Any] = {}
+    for key, value in args.items():
+        if _SECRET_KEY.search(str(key)):
+            summary[str(key)] = "<redacted>"
+        elif _CONTENT_KEY.match(str(key)) and isinstance(value, str):
+            summary[str(key)] = f"<text {len(value)} chars>"
+        else:
+            summary[str(key)] = _summarize_value(value)
+    return summary
 
 
 def _now() -> str:

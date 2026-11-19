@@ -149,3 +149,15 @@ The owner approved the four manifests (`find_existing_tools` T0, `scaffold_tool`
    20 KB, tests 20 KB (stricter than the 50 KB suggested); nothing is written when refused.
 
 `TOOL_BUILDER_TOOLS_STATUS` is now `"approved"`.
+
+## Gmail / Communication agent (Step 15, decided 2026-11-19)
+
+- First real app: Gmail, official Gmail API, OAuth desktop flow. The OAuth client file lives
+  outside the repository (`C:\Users\kibox\HCWMA-secrets`); only its id and secret were
+  imported into the Windows credential store (`HCWMA` / `gmail_oauth_client`). The login is the
+  refresh token (`gmail_refresh_token`); the owner's address is kept as `gmail_account_address`.
+- Scopes: `gmail.readonly` and `gmail.compose` only (no delete, settings or contacts).
+- Gmail tool manifests (`search_messages`, `read_message`, `draft_message`, `send_message`)
+  approved by the owner; `send_message` asks every time. A recipient must be an address the owner
+  typed or the owner's own address.
+- Outlook and WhatsApp: later sessions, separate adapters.

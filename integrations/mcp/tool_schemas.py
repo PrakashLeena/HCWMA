@@ -131,6 +131,11 @@ class ToolSpec:
     # from the validated output, or None when the agent's model should decide what comes
     # next (nothing found, needs a follow-up). Used when the agent's card allows it.
     answer: Callable[[Any], str | None] | None = None
+    # A rule the gateway applies BEFORE the owner is asked (build step 15): given the validated
+    # arguments and the trusted caller context, return a refusal text or None. Code only, no
+    # model; used so an action's target must come from the owner's own words, not from text
+    # the agent read. A tool with a precheck always gets the caller context.
+    precheck: Callable[[Any, CallerContext | None], str | None] | None = None
 
     @property
     def name(self) -> str:
