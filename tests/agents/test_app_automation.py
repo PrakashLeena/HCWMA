@@ -276,7 +276,7 @@ def test_tools_outside_the_allowlist_are_denied(pc: Layout) -> None:
         ("get_system_time", "denied"),
     ]
     assert "not on agent 'app_automation' allowlist" in records[0].reason
-    assert (pc.docs / "report.docx").exists() and reply.status == "done" and ui.actions == []
+    assert (pc.docs / "report.docx").exists() and reply.status == "failed" and ui.actions == []
 
 
 def test_quarantined_desktop_tools_cannot_be_called(pc: Layout) -> None:
@@ -310,7 +310,7 @@ def test_off_limits_windows_are_refused_for_every_action(
     assert ui.actions == [], why  # the refusal happens in code, whatever the owner says
     assert [o for _, o in _tool_calls(s)] == ["tool_error"] * 4, why
     assert all("may not touch" in m.content for m in _tool_turns(s)), why
-    assert reply.status == "done"
+    assert reply.status == "failed"
     # the owner is shown that it will be refused, so the prompt itself is honest
     assert all("will refuse" in p.summary for p in seen)
 
@@ -327,7 +327,7 @@ def test_password_and_card_fields_are_never_touched(pc: Layout) -> None:
     assert ui.actions == []
     assert [o for _, o in _tool_calls(s)] == ["tool_error"] * 3
     assert all("password, PIN, card or code field" in m.content for m in _tool_turns(s))
-    assert reply.status == "done"
+    assert reply.status == "failed"
 
 
 def test_a_key_outside_the_safe_list_is_rejected_before_any_prompt(pc: Layout) -> None:
@@ -338,7 +338,7 @@ def test_a_key_outside_the_safe_list_is_rejected_before_any_prompt(pc: Layout) -
         "No.",
     )
     reply, s, seen = _ask(pc, ui, agent, [True])
-    assert ui.actions == [] and seen == [] and reply.status == "done"
+    assert ui.actions == [] and seen == [] and reply.status == "failed"
     assert [o for _, o in _tool_calls(s)] == ["invalid_arguments"] * 2
 
 
@@ -411,7 +411,7 @@ def test_window_text_cannot_reach_a_file_deleting_agent(pc: Layout) -> None:
             )
 
     reply = anyio.run(go)
-    assert reply.agents == [AGENT, "file_system"] and reply.status == "done"
+    assert reply.agents == [AGENT, "file_system"] and reply.status == "failed"
     assert seen_by_file_agent, "the second agent never ran"
     assert not any(
         ATTACK in text.lower() or "Ignore your rules" in text for text in seen_by_file_agent

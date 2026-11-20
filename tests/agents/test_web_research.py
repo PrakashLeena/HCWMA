@@ -175,7 +175,7 @@ def test_an_address_on_the_home_network_is_refused_honestly(pc: Layout) -> None:
     )
     assert _tool_calls(s) == [("open_website", "tool_error")]
     assert "not a public internet address" in _tool_turns(s)[0].content
-    assert reply.status == "done"
+    assert reply.status == "failed"
 
 
 # ---------- refusal ----------
@@ -198,7 +198,9 @@ def test_tools_outside_the_allowlist_are_denied(pc: Layout) -> None:
         ("get_system_time", "denied"),
     ]
     assert "not on agent 'web_research' allowlist" in records[0].reason
-    assert (pc.docs / "report.docx").exists() and reply.status == "done"
+    assert (pc.docs / "report.docx").exists()
+    # no successful tool call: the model's text is not passed on (owner decision 2026-11-20)
+    assert reply.status == "failed" and "I could not do that" in reply.reply
 
 
 def test_quarantined_web_tools_cannot_be_called(pc: Layout) -> None:
@@ -286,7 +288,7 @@ def test_no_other_agent_ever_sees_the_page(pc: Layout) -> None:
 
     reply, s = _ask(pc, ScriptedModel(router=route(steps=steps), agent=agent), _catalog())
 
-    assert reply.agents == [AGENT, "file_system"] and reply.status == "done"
+    assert reply.agents == [AGENT, "file_system"] and reply.status == "failed"
     assert seen_by_file_agent, "the second agent never ran"
     assert not any(ATTACK in text.lower() or "999 dollars" in text for text in seen_by_file_agent)
     assert _tool_calls(s) == [("open_website", "ok")]  # and nobody deleted anything
@@ -304,3 +306,60 @@ def test_the_router_stays_toolless_and_sees_only_the_owners_words(pc: Layout) ->
     assert len(router_calls) == 1  # one routing call, made before the page was opened
     assert all(ATTACK not in m.content.lower() for m in router_calls[0].messages)
     assert router_calls[0].kwargs.get("tools") is None
+
+
+# ---------- grounded answers (owner decision 2026-11-20) ----------
+
+INVENTED = "The site is the portfolio of Dias Peach; write to contact@diaspeach.com"
+
+
+def test_quarantined_web_tools_give_no_invented_content(pc: Layout) -> None:
+    """The real-use bug: tools quarantined, the model 'opened' the site and made it up."""
+    reply, s = _ask(
+        pc,
+        ScriptedModel(router=_to_agent(), agent=lambda _m, _k: GenerateResult(text=INVENTED)),
+        _catalog(status="quarantined"),
+    )
+    assert "Dias Peach" not in reply.reply and "contact@" not in reply.reply
+    assert reply.reply.startswith("I could not do that: this tool is not approved yet")
+    assert "open_website" in reply.reply and reply.status == "failed"
+    assert _tool_calls(s) == []
+
+
+def test_an_answer_without_calling_the_tool_is_refused(pc: Layout) -> None:
+    reply, _ = _ask(
+        pc,
+        ScriptedModel(router=_to_agent(), agent=lambda _m, _k: GenerateResult(text=INVENTED)),
+        _catalog(),
+    )
+    assert "Dias Peach" not in reply.reply
+    assert "answered without using its tools" in reply.reply and reply.status == "failed"
+
+
+def test_a_failed_tool_call_does_not_ground_the_answer(pc: Layout) -> None:
+    from integrations.adapters.browser.web_tools import default_web_tool_specs
+
+    catalog = CapabilityCatalog()
+    for spec in default_web_tool_specs():  # the real fetcher refuses a home-network address
+        catalog.register(spec)
+    script = [_call("open_website", url="http://192.168.1.1/"), GenerateResult(text=INVENTED)]
+    reply, _ = _ask(
+        pc, ScriptedModel(router=_to_agent(), agent=lambda _m, _k: script.pop(0)), catalog
+    )
+    assert "Dias Peach" not in reply.reply
+    assert reply.reply.startswith("I could not do that: 'open_website' did not work")
+    assert "not a public internet address" in reply.reply  # the tool's own reason is kept
+
+
+def test_a_clarifying_question_is_still_allowed_without_a_tool(pc: Layout) -> None:
+    from agents.runtime.agent_runtime import NEEDS_CLARIFICATION
+
+    ask = GenerateResult(text=f"{NEEDS_CLARIFICATION} Which page do you mean?")
+    reply, _ = _ask(pc, ScriptedModel(router=_to_agent(), agent=lambda _m, _k: ask), _catalog())
+    assert "Which page do you mean?" in reply.reply and reply.status == "needs_clarification"
+
+
+def test_the_shipped_web_tools_are_approved() -> None:
+    from integrations.adapters.browser.web_tools import WEB_TOOLS_STATUS
+
+    assert WEB_TOOLS_STATUS == "approved"  # owner, 2026-11-20

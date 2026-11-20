@@ -208,7 +208,7 @@ def test_tools_outside_the_allowlist_are_denied(pc: Layout) -> None:
     ]
     assert "not on agent 'file_system' allowlist" in records[1].reason
     assert (pc.docs / "projects" / "budget 2026.xlsx").exists()
-    assert reply.status == "done"
+    assert reply.status == "failed"
 
 
 # ---------- injection ----------

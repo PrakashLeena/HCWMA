@@ -241,15 +241,21 @@ def test_a_refused_address_is_an_error_not_a_result() -> None:
 # ---------- manifests ----------
 
 
-def test_manifests_are_read_only_t1_and_start_quarantined() -> None:
+def test_manifests_are_read_only_t1_and_owner_approved() -> None:
     specs = default_web_tool_specs()
     assert {s.name for s in specs} == {"open_website", "extract_page_information"}
     for spec in specs:
         m = spec.manifest
-        assert m.status == "quarantined" and m.route == "browser"
+        assert m.status == "approved" and m.route == "browser"  # owner, 2026-11-20
         assert m.permission_tier == PermissionTier.T1 and m.side_effects == "none"
         assert not m.approval_required and m.permissions.filesystem == []
         assert m.permissions.network == ["public_web"] and m.permissions.secrets == []
     catalog = default_catalog()
     assert catalog.get("open_website") is not None
-    assert "open_website" not in {s.name for s in catalog.callable_tools()}
+    assert "open_website" in {s.name for s in catalog.callable_tools()}  # approved 2026-11-20
+
+
+def test_new_web_tool_specs_still_start_quarantined() -> None:
+    """Rule 12: the default for a (changed) web tool is quarantined until the owner approves."""
+    for spec in web_tool_specs(WebToolDeps()):
+        assert spec.manifest.status == "quarantined"

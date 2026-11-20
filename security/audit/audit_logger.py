@@ -31,6 +31,7 @@ def resolve_audit_path() -> Path:
     override = os.environ.get(AUDIT_PATH_ENV)
     return Path(override) if override else DEFAULT_AUDIT_PATH
 
+
 _SECRET_KEY = re.compile(r"pass|secret|token|key|credential|auth|cookie|session", re.IGNORECASE)
 _MAX_STR = 80
 # Message text (an email body) and document or file text (`content`, step 15) are the

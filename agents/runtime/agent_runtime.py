@@ -50,6 +50,38 @@ from security.permissions.permission_manager import AgentGrant
 NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION:"
 READ_ONLY_MAX_TIER = PermissionTier.T1
 OWNER_DENIED = "owner_denied"
+# The agent's card says its answers must come from a tool, but it answered without one
+# successful tool call: the text is not passed on as fact (owner decision 2026-11-20).
+UNGROUNDED = "ungrounded"
+
+
+# A wrapped exception message, e.g. "(OSError: <text from Windows or a web server>)", may
+# carry outside text. Only the part HCWMA's own code wrote is shown to the owner.
+_WRAPPED_EXCEPTION = re.compile(r"\s*\(\w+(?:Error|Exception):.*$", re.DOTALL)
+_EXCEPTION_PREFIX = re.compile(r"^\w+(?:Error|Exception|Refused):\s*")
+
+
+def _code_written(error: str) -> str:
+    return _EXCEPTION_PREFIX.sub("", _WRAPPED_EXCEPTION.sub("", error)).strip().rstrip(".")
+
+
+def ungrounded_reason(
+    card: AgentCard, offered: set[str], hidden: set[str], records: list[ToolCallRecord]
+) -> str:
+    """Why an answer that needed a tool cannot be shown. Plain words for the owner."""
+    not_approved = [t for t in card.tools if t not in offered and t not in hidden]
+    if records:
+        last = records[-1]
+        if last.tool in not_approved or last.error_code == "unknown_tool":
+            return f"the tool '{last.tool}' is not approved yet"
+        error = _code_written(last.error or "")
+        if error:
+            return f"'{last.tool}' did not work: {error}"
+        return f"'{last.tool}' did not work ({last.error_code or 'error'})"
+    if not_approved:
+        return "this tool is not approved yet: " + ", ".join(not_approved)
+    return "the agent answered without using its tools, so the answer could not be checked"
+
 
 RUNTIME_RULES = """\
 Rules that always apply:
@@ -396,6 +428,22 @@ class AgentRuntime:
                     return TaskResult(
                         status="failed", summary="the agent gave no answer", tool_calls=records
                     )
+                if card.requires_tool and not any(r.ok for r in records):
+                    # No successful tool call: the model's text is not checked fact. Never
+                    # pass it on; say why instead (missing approval, failed tool, none used).
+                    offered_names = {t.name for t in offered}
+                    hidden = (
+                        set(card.approval_required)
+                        if card.change_words and not asks_for_change
+                        else set()
+                    )
+                    reason = ungrounded_reason(card, offered_names, hidden, records)
+                    return TaskResult(
+                        status="failed",
+                        summary=f"I could not do that: {reason}.",
+                        tool_calls=records,
+                        stopped_by=UNGROUNDED,
+                    )
                 return TaskResult(status="done", summary=text, tool_calls=records)
 
             messages.append(
@@ -417,7 +465,12 @@ class AgentRuntime:
                     context=context,
                 )
                 records.append(
-                    ToolCallRecord(tool=call.name, ok=outcome.ok, error_code=outcome.error_code)
+                    ToolCallRecord(
+                        tool=call.name,
+                        ok=outcome.ok,
+                        error_code=outcome.error_code,
+                        error=(outcome.error or "")[:300] or None,
+                    )
                 )
                 if outcome.error_code == "approval_denied":
                     # The owner said no. End the task here: the model does not get another

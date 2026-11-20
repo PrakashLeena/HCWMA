@@ -53,3 +53,12 @@ fast_route:
     - '^(?!.*\b(https?|www|website|web\s*page)\b)(?=.*\b(open|read|show|summari[sz]e|summary|explain|outline|quiz|key\s+points|main\s+points|study)\b).*\b[\w\-]+\.(txt|md|pdf|docx)\b'
     - '^(?!.*\b(https?|www|website|web\s*page|e-?mails?|inbox)\b)\bsummari[sz]e\s+(my|the|this)\s+([\w\-]+\s+){0,3}(notes|document|pdf|chapter|essay|thesis|lecture|assignment|report)\b'
   keywords: [document, study, lecture, outline, quiz, flashcards]
+
+# Answers must come from a successful tool call; otherwise the runtime refuses the answer
+# instead of passing it on as fact (owner decision 2026-11-20).
+requires_tool: true
+
+# Live facts only this agent can check: a model-Router answer to such a question is sent here
+# instead (owner decision 2026-11-20).
+live_facts:
+  - '\b\S+\.(pdf|docx|txt|md)\b'

@@ -194,7 +194,7 @@ def test_whatsapp_not_running_is_reported_not_crashed(pc: Layout) -> None:
     wa.state = "not_running"
     script = [_call("whatsapp_list_chats"), GenerateResult(text="WhatsApp is not running.")]
     reply, s = _ask(pc, script, wa, "List my WhatsApp chats")
-    assert reply.status == "done" and _records(s) == [("whatsapp_list_chats", "tool_error")]
+    assert reply.status == "failed" and _records(s) == [("whatsapp_list_chats", "tool_error")]
     tool_turn = next(m for m in s.model.agent_calls()[-1].messages if m.role == "tool")
     assert "not running" in tool_turn.content
 

@@ -31,6 +31,36 @@ Tick a step only when its "Done when" test in `docs/BUILD_PLAN.md` passes.
 - [x] Step 18 — Reliability (2026-11-19)
 - [ ] Step 19 — Expansion
 
+## v1.0 final state (2026-11-20)
+
+Steps 0–3, 5–13, 15 and 18 are done. Step 14 (voice) works for English and Tamil but stays
+unticked until Sinhala is measured. Steps 4 (optional), 16, 17 and 19 are not built.
+All open items and known failures, in one ordered list: [docs/BACKLOG.md](BACKLOG.md).
+
+v1.0 smoke test (`python scripts/smoke_test.py`, through the running desktop app, safe actions
+only; latest result per case, several runs because free RAM fell below the 1 GB floor):
+
+| Case | Agent | Result | Note |
+|---|---|---|---|
+| router | router | PASS | answers about itself |
+| echo ("What time is it on this PC?") | echo | PASS | real time from the tool (after the fast-route fix) |
+| file_system | file_system | PASS | found the marker file |
+| documents_study | documents_study | PASS | summarized notes.txt (full path) |
+| coding | coding | PASS | explained `print(sum(range(5)))` |
+| debugging | debugging | FAIL (quality, backlog 2) | inline code: searched workspace/code, used all 10 steps |
+| image_editing ("What size is the picture …") | image_editing | PASS | 640×480 (after the routing fix) |
+| web_research | web_research | PASS | read example.com for real (tools approved) |
+| memory_librarian | memory_librarian | PASS | |
+| planner | planner | PASS | |
+| gmail_read | communication | PASS | latest email read |
+| whatsapp_list | communication | SKIP | WhatsApp not linked/running |
+| system_settings | system_settings | PASS | "Bluetooth: off." |
+| app_automation | app_automation | PASS | listed open windows |
+| tool_builder | tool_builder | PASS | checked existing tools (after the `live_facts` fix) |
+| voice | STT + TTS | PASS | heard "Where is my invoice file?" |
+
+No approval prompt appeared and no T3/T4 tool ran in any run.
+
 ## Notes
 
 Add one line per finished step: date, commit, anything the next step should know.

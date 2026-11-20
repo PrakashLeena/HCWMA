@@ -206,7 +206,7 @@ def test_tools_outside_the_allowlist_are_denied(pc: Layout) -> None:
     ]
     assert "not on agent 'documents_study' allowlist" in records[0].reason
     assert (pc.docs / "study" / "notes.txt").read_text(encoding="utf-8") == NOTES
-    assert reply.status == "done"
+    assert reply.status == "failed"
 
 
 def test_protected_files_are_refused(pc: Layout) -> None:

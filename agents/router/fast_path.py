@@ -66,3 +66,45 @@ def fast_route(registry: AgentRegistry, message: str) -> RoutingDecision | None:
         confidence=FAST_CONFIDENCE,
         steps=[RouteStep(agent=chosen.id, goal=text[:MAX_GOAL_CHARS])],
     )
+
+
+# ---------- live facts: the Router never states them itself (owner decision 2026-11-20) ----
+
+_QUESTION = re.compile(
+    r"\?|^\W*(what|when|where|which|who|whose|how|is|are|was|were|do|does|did|has|have|can|"
+    r"could|any|show|tell|list|read|check|give|find)\b",
+    re.IGNORECASE,
+)
+CANNOT_CHECK = "I can't check that: none of my tools can look it up, and I won't guess. {hint}"
+
+
+def asks_live_fact(card: AgentCard, message: str) -> bool:
+    return any(_pattern(p).search(message) for p in card.live_facts)
+
+
+def live_fact_route(registry: AgentRegistry, message: str) -> RoutingDecision | None:
+    """Replacement for a model-Router *answer* that would state a live fact.
+
+    None: the message asks no live fact, so the Router's answer may stand. Otherwise: a
+    delegation to the one agent whose card lists that fact, or an honest "I can't check".
+    """
+    text = message.strip()
+    if not text or not _QUESTION.search(text):
+        return None
+    owners = [c for c in registry.workers() if asks_live_fact(c, text)]
+    if len(owners) == 1:
+        return RoutingDecision(
+            action="delegate",
+            confidence=FAST_CONFIDENCE,
+            steps=[RouteStep(agent=owners[0].id, goal=text[:MAX_GOAL_CHARS])],
+        )
+    if owners:
+        names = ", ".join(c.name for c in owners)
+        hint = f"It could be for {names}: please say which one to check."
+    elif asks_live_fact(registry.router, text):
+        hint = "HCWMA has no tool for this yet."
+    else:
+        return None
+    return RoutingDecision(
+        action="answer", confidence=FAST_CONFIDENCE, answer=CANNOT_CHECK.format(hint=hint)
+    )

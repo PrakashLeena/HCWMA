@@ -160,7 +160,7 @@ def test_tools_outside_the_allowlist_are_denied(tmp_path: Path, store: PlannerSt
     reply, s = _ask(tmp_path, model, "Remind me on Friday to pay the rent", catalog)
 
     assert _tool_calls(s) == [("send_message", "denied"), ("memory_write", "denied")]
-    assert reply.status == "done" and store.items() == []
+    assert reply.status == "failed" and store.items() == []
 
 
 # ---------- injection ----------

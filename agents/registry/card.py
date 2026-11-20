@@ -99,6 +99,16 @@ class AgentCard(BaseModel):
     # Off for agents whose goals must not be repeated into memory (the Librarian: a
     # "forget X" goal would otherwise store X again).
     record_outcomes: bool = True
+    # The agent's answers are about things it must look up (web, files, mail, documents...).
+    # True: an answer with no successful tool call is refused by the runtime, never shown as
+    # fact (owner decision 2026-11-20). A clarifying question is still allowed.
+    requires_tool: bool = False
+    # Live facts (regular expressions, case-insensitive) that only a tool can check: the
+    # time, a file, an email, a setting... (owner decision 2026-11-20). On a worker card:
+    # if the model Router tries to *answer* such a question itself, it is delegated to this
+    # agent instead. On the router card: facts no agent can check (weather, news): the Router
+    # says it cannot check them instead of answering.
+    live_facts: list[str] = Field(default_factory=list)
     system_prompt: str = Field(min_length=1)  # path relative to agents/
     limits: CardLimits = Field(default_factory=CardLimits)
 
@@ -111,8 +121,15 @@ class AgentCard(BaseModel):
                 raise ValueError("a router card must have permission_tier T0")
             if self.fast_route is not None:
                 raise ValueError("a router card cannot have fast_route")
+            if self.requires_tool:
+                raise ValueError("a router card has no tools, so it cannot require one")
         elif not self.handles:
             raise ValueError("a worker card needs at least one 'handles' entry for routing")
+        for pattern in self.live_facts:
+            try:
+                re.compile(pattern, re.IGNORECASE)
+            except re.error as exc:
+                raise ValueError(f"live_facts pattern does not compile: {pattern!r}") from exc
         if len(set(self.tools)) != len(self.tools):
             raise ValueError("duplicate tool in 'tools'")
         unknown = set(self.memory_scopes) - KNOWN_SCOPES

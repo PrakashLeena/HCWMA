@@ -49,3 +49,12 @@ limits: { max_steps: 8, timeout_s: 600 }
 # matches when the message also sounds like this agent's job.
 fast_route:
   keywords: [click, window, button, dialog, on my screen, on the screen, on screen, type, press]
+
+# Answers must come from a successful tool call; otherwise the runtime refuses the answer
+# instead of passing it on as fact (owner decision 2026-11-20).
+requires_tool: true
+
+# Live facts only this agent can check: a model-Router answer to such a question is sent here
+# instead (owner decision 2026-11-20).
+live_facts:
+  - '\b(open\s+windows?|windows?\s+(are\s+)?open|programs?\s+(are\s+)?(open|running))\b'
