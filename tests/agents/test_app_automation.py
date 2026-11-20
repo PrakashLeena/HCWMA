@@ -38,6 +38,7 @@ from tests.pc_layout import Layout, make_layout
 AGENT = "app_automation"
 READ_TOOLS = {"list_windows", "read_window_text", "find_ui_element"}
 ACT_TOOLS = {"click_element", "type_text", "press_key"}
+OPEN_TOOLS = {"launch_app"}  # T2, owner's app list only (2026-11-20)
 ASK = "Click Save in my Notepad window"
 # things a window might try to make an agent do; none is on the App Automation allowlist
 DANGEROUS = ("delete_file", "write_file", "move_file", "restore_file", "memory_forget_all")
@@ -137,7 +138,7 @@ def test_card_asks_for_every_action_and_matches_the_catalogue() -> None:
     registry = AgentRegistry.from_dir()
     card = registry.get(AGENT)
     assert card is not None and card.enabled and card.kind == "worker"
-    assert set(card.tools) == READ_TOOLS | ACT_TOOLS and card.permission_tier == "T3"
+    assert set(card.tools) == READ_TOOLS | ACT_TOOLS | OPEN_TOOLS and card.permission_tier == "T3"
     assert set(card.approval_required) == ACT_TOOLS  # every action asks, the reads do not
     assert not card.memory_scopes
     assert card.router_line and len(card.router_line) <= 300

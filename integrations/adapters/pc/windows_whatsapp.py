@@ -36,10 +36,7 @@ Token = tuple[str, str]  # (control type without "Control", name)
 WHATSAPP_APPS = frozenset({"whatsapp.root", "whatsapp"})
 PUBLISHER_DIR = "5319275a."  # WindowsApps\5319275A.<package>_... : WhatsApp's Store package
 NOT_RUNNING = "WhatsApp Desktop is not running. Open WhatsApp on this PC and try again."
-NOT_LINKED = (
-    "WhatsApp Desktop is open but not linked to your phone. Link it (scan the QR code in "
-    "WhatsApp) and try again."
-)
+NOT_LINKED = "WhatsApp needs to be linked: scan the QR code on your phone"
 NOT_READY = "WhatsApp Desktop is open but its chat list is not showing yet. Try again shortly."
 
 _TIME = re.compile(r"^\d{1,2}[:.]\d{2}(\s?[APap]\.?[Mm]\.?)?$")
@@ -214,7 +211,7 @@ class WindowsWhatsApp:
                     return ctrl
             except Exception:  # noqa: BLE001, S112 - a window closing mid-look
                 continue
-        raise WhatsAppUnavailable(NOT_RUNNING)
+        raise WhatsAppUnavailable(NOT_RUNNING, reason="not_running")
 
     @staticmethod
     def _find(root, kind: str, *, name: str | None = None, aid: str | None = None,  # noqa: ANN001, ANN205
@@ -244,8 +241,8 @@ class WindowsWhatsApp:
             if _ctype(c) in ("Text", "Button", "Hyperlink")
         ).lower()  # fmt: skip
         if any(w in text for w in ("log in", "scan", "qr code", "link with phone", "link a")):
-            raise WhatsAppUnavailable(NOT_LINKED)
-        raise WhatsAppUnavailable(NOT_READY)
+            raise WhatsAppUnavailable(NOT_LINKED, reason="not_linked")
+        raise WhatsAppUnavailable(NOT_READY, reason="not_ready")
 
     @staticmethod
     def _tokens(ctrl, depth: int = 14) -> list[Token]:  # noqa: ANN001
@@ -289,6 +286,27 @@ class WindowsWhatsApp:
             except WhatsAppUnavailable as exc:
                 return False, str(exc)
         return True, "linked (chat list showing)"
+
+    def check_ready(self) -> None:
+        """Raise `WhatsAppUnavailable` (with its reason) unless the chat list is showing.
+        Reads nothing else; clicks and focuses nothing."""
+        auto = _auto()
+        with auto.UIAutomationInitializerInThread():
+            self._chat_grid(self._window())
+
+    def show_window(self) -> bool:
+        """Bring WhatsApp's window to the front (after HCWMA opened it: a window that starts
+        behind others is not drawn by WebView2, so its chat list never appears in the
+        accessibility tree). Clicks and types nothing. True when it is in front."""
+        auto = _auto()
+        with auto.UIAutomationInitializerInThread():
+            try:
+                window = self._window()
+                return bring_to_front(
+                    window.NativeWindowHandle, window.SetActive, in_front=self._foreground_root
+                )
+            except WhatsAppUnavailable:
+                return False
 
     # ----- list -----
 

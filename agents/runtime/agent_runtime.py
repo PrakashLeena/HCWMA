@@ -58,7 +58,7 @@ UNGROUNDED = "ungrounded"
 # A wrapped exception message, e.g. "(OSError: <text from Windows or a web server>)", may
 # carry outside text. Only the part HCWMA's own code wrote is shown to the owner.
 _WRAPPED_EXCEPTION = re.compile(r"\s*\(\w+(?:Error|Exception):.*$", re.DOTALL)
-_EXCEPTION_PREFIX = re.compile(r"^\w+(?:Error|Exception|Refused):\s*")
+_EXCEPTION_PREFIX = re.compile(r"^\w+(?:Error|Exception|Refused|Unavailable|Failed):\s*")
 
 
 def _code_written(error: str) -> str:

@@ -24,3 +24,6 @@ def _isolated_hcwma_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     # (CLI code such as `python -m memory` and `python -m backend.reliability` uses the
     # shared logger, which used to always write there).
     monkeypatch.setenv("HCWMA_AUDIT_PATH", str(tmp_path / "audit" / "audit.jsonl"))
+    # App launching (2026-11-20): the real launcher never opens WhatsApp, Calculator or Notepad
+    # during tests (tests use a fake starter).
+    monkeypatch.setenv("HCWMA_DISABLE_APP_LAUNCH", "1")

@@ -262,3 +262,28 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   may not answer without one successful tool call. The runtime replaces such an answer with
   "I could not do that: <reason>" (tool not approved yet / tool failed / no tool used). Coding,
   Debugging and the Memory Librarian may answer from the request or recalled memory.
+
+## Auto-launch needed apps (decided 2026-11-20)
+
+- New tool `launch_app` (T2, no approval prompt, manifest approved by the owner): opens ONE
+  installed app from the owner's list in `configs/apps.yaml`. Starting list: WhatsApp,
+  Calculator, Notepad. Anything not on the list is refused. Used by App Automation.
+- Each list entry is pinned to its package + publisher (start of the AppUserModelID found with
+  `Get-StartApps`), so a look-alike shortcut is never started. Opened like a Start-menu click
+  (`explorer.exe shell:AppsFolder\<id>`). HCWMA never downloads or installs an app.
+- Off-limits apps can never be added, whatever the YAML says (dropped when the list is read):
+  web browsers, password managers, terminals / code editors / anything that runs commands,
+  system security and settings, banking and payment apps, app stores and installers, HCWMA.
+- `launch_app` opens only an app the owner named in their own request.
+- The WhatsApp tools open WhatsApp Desktop themselves when it is not running (or running with
+  no window), show "Opening WhatsApp…" in the chat, wait for the chat list, then
+  continue. On the QR / link screen they stop with "WhatsApp needs to be linked: scan the QR
+  code on your phone"; linking is never automated.
+- One launch at a time (lock shared by all tools). One attempt: a failed app is not tried again
+  for 60 s, and every failure gives one plain message (not installed / did not open in time).
+- Wait per app (`wait_s` in configs/apps.yaml): 30 s by default; WhatsApp 90 s, because on this
+  PC WhatsApp shows its loading splash for 30-60+ s after launch (measured 2026-11-20; slower
+  while Qwen is loaded).
+- A WhatsApp window that opens behind others is brought to the front once while it loads.
+- Opening WhatsApp does not change who may use it: App Automation still may not click or type
+  in it (`COMMUNICATION_ONLY_APPS`).
