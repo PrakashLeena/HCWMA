@@ -2,9 +2,33 @@
 
 ## Project Master Document — Local Agent Factory Edition
 
-**Version 1.1 | Updated: 16 November 2026 | Supersedes v1.0**
+**Version 1.2 | Updated: 20 November 2026 | Supersedes v1.1 (v1.2 = as built for HCWMA v1.0)**
 
 Architecture • Qwen • Local PC • Agent Factory • API / MCP • Self-Built Tools • Automation • Memory • Voice • Security • Roadmap
+
+---
+
+## Changes from v1.1 (v1.2 — as built for HCWMA v1.0)
+
+v1.2 records what was actually built. Where a later section still describes a v1.1 plan
+(roadmap rows, risks, references), this table wins. Marked inline with *(v1.2: …)*.
+
+| # | Area | v1.1 plan | v1.2 as built |
+|---|------|-----------|---------------|
+| D1 | Model and hardware | Quantized Qwen sized to the PC's GPU | Ollama `qwen3.5:4b` Q4_K_M, **CPU only** (i5-1135G7, 16 GB, Iris Xe), thinking off; models in `E:\ollama\models`; HCWMA starts `ollama serve` itself when it is down |
+| D2 | Routing | Router classifies every request with the model | Plus a **fast path**: card-defined rules route very clear requests with no model call; short replies continue a pending clarification; unmatched requests are not sent to the Tool Builder |
+| D3 | PC access | Files, apps, shell, screen | Files, Recycle Bin, disk usage, code workspace, window UI Automation, selected settings. **No shell or screen-capture tool** |
+| D4 | Tool Builder testing | "A sandbox" | **Windows Sandbox** (network off, VM destroyed), Qwen unloaded during the run; tools start **quarantined**; approval by content hash; any edit re-quarantines |
+| D5 | Email and messages | Official APIs first | **Gmail** via the official API (OAuth + PKCE, tokens in Credential Manager); **WhatsApp Desktop via UI Automation**; **Outlook blocked by university admin consent** (not built) |
+| D6 | System settings | T4, default deny | **System Settings agent**: status T1; reversible toggles (Wi-Fi/Bluetooth radio, volume, brightness, dark/light) **T3, approved every time**; everything else has no tool |
+| D7 | Browser / app automation | Playwright + accessibility APIs | No Playwright. Web = read-only httpx + HTML parser; desktop = Windows UI Automation on already-open windows; browsers and password fields refused |
+| D8 | Voice | Evaluate STT/TTS; push-to-talk first | **Push-to-talk only** (F9 or button, in the window). STT faster-whisper **small**, CPU int8, loaded only while talking (1340 MB free needed, else Qwen unloaded and reloaded). TTS **MMS** (English, Tamil), **espeak-ng** (Sinhala). Tamil/Sinhala experimental |
+| D9 | Approved folders | To be chosen | `~/Documents`, `~/Desktop`, `~/Downloads`, `E:/ML/project`, **`~/OneDrive/Desktop`, `~/OneDrive/Documents`**, plus `workspace/` |
+| D10 | Desktop shell | Tauri recommended | **PySide6** window + tray; per-install API token in Credential Manager instead of an owner account |
+| D11 | Memory | SQLite, Qdrant later | SQLite FTS5 in `%LOCALAPPDATA%\HCWMA`; file index has names/sizes/dates only; no RAG or Qdrant |
+| D12 | Reliability | — | Single instance, crash/sleep recovery (interrupted tasks never re-run), daily full backup (keep 7), health page, low-RAM/disk refusal, installer |
+| D14 | Grounded answers | — | Cards with `requires_tool` cannot answer without a successful tool call ("I could not do that: <reason>"); `live_facts` on the cards stop the Router stating the time, files, mail or settings itself |
+| D13 | Not built in v1.0 | — | Multi-device access, home devices, online calendar, Outlook, wake word, global hotkey, RAG |
 
 ---
 
@@ -72,7 +96,7 @@ The main design decision from v1.0 is kept: the Qwen model stays largely separat
 
 ### 2.1 Vision [CHANGED]
 
-- Build a private AI assistant that lives on the user's PC and can work with the whole machine: files, applications, the shell and the screen.
+- Build a private AI assistant that lives on the user's PC and can work with the machine: files, documents, code (in a workspace), open application windows and selected settings. *(v1.2: no general shell or screen-capture tool was built.)*
 - Organize it as a factory of specialist agents coordinated by a Router mini agent, so new skills are added by adding an agent, not by rewriting the system.
 - Support natural-language and voice commands, with a path toward English, Tamil, Sinhala and mixed-language usage.
 - Use an open-source Qwen model locally, with the ability to inspect its implementation and customize the surrounding system.
@@ -124,7 +148,7 @@ The main design decision from v1.0 is kept: the Qwen model stays largely separat
 - **Local-first:** keep data on the PC; use external services only when needed and authorized.
 - **New — One brain, many roles:** a single model instance serves every agent through a request queue.
 - **New — Bounded delegation:** every task has a step budget and a maximum delegation depth so agents cannot loop forever.
-- **New — Resource-aware:** the PC is also the user's working machine. HCWMA must be able to pause or unload the model when the user needs the GPU/RAM.
+- **New — Resource-aware:** the PC is also the user's working machine. HCWMA must be able to pause or unload the model when the user needs the RAM. *(v1.2: CPU only, no GPU; tray "Pause model"; voice unloads Qwen when RAM is short.)*
 
 ---
 
@@ -151,13 +175,13 @@ POLICY + APPROVAL LAYER     SHARED QWEN MODEL (one instance, queued)
 TOOL GATEWAY / MCP CLIENT   SHARED MEMORY + PC FILE INDEX
         ↓
 LOCAL MCP SERVER(S) + INTEGRATION REGISTRY
-   ├── PC access tools (files, processes, shell, screen)
+   ├── PC access tools (files, Recycle Bin, disk, code workspace, window UI Automation, settings)
    ├── Official API adapters
    ├── Custom API adapters (documented/authorized interfaces)
    ├── Self-built tools (generated by Tool Builder, owner-approved)
-   ├── Browser automation (Playwright)
+   ├── Web reading (httpx + HTML parser; no Playwright)
    ├── Desktop / accessibility automation
-   └── Home-device / network integrations
+   └── Home-device / network integrations (not built in v1.0)
         ↓
 THE PC, APPROVED APPLICATIONS, SERVICES AND DEVICES
 ```
@@ -173,7 +197,7 @@ THE PC, APPROVED APPLICATIONS, SERVICES AND DEVICES
 | Sub-agents | Carry out one kind of work each, using only their allowed tools. |
 | Tool Builder agent | Create missing API adapters / MCP tools, test them, submit them for approval. |
 | Memory service | Store and retrieve facts, summaries, documents, task context and the PC file index. |
-| Voice services | STT, TTS, activation logic. |
+| Voice services | Push-to-talk STT (faster-whisper small), TTS (MMS / espeak-ng). No wake word. |
 | MCP/tool gateway | Expose approved capabilities to agents through a standard tool interface. |
 | Application adapters | Translate tool requests into each application's supported operations. |
 | Policy / security service | Owner identity, per-agent permissions, approvals, secrets, audit and rate limits. |
@@ -187,8 +211,8 @@ Router loop:
 
 1. Receive the request and pull relevant memory.
 2. Classify intent and match it against capability cards in the agent registry.
-3. If one agent clearly fits, delegate. If several steps are needed, split into sub-tasks and delegate each in order.
-4. If nothing fits, ask the Tool Builder whether a new tool would solve it, or ask the user to clarify.
+3. If one agent clearly fits, delegate. *(v1.2: very clear requests are routed by card-defined fast-path rules with no model call.)* If several steps are needed, split into sub-tasks and delegate each in order.
+4. If nothing fits, ask the user to clarify or say it cannot do that yet. *(v1.2: the Router does not hand unmatched requests to the Tool Builder.)*
 5. Collect results, check the task is actually complete, reply to the user, write the outcome to memory.
 
 Router rules:
@@ -201,24 +225,24 @@ Router rules:
 
 | Agent | What it does | Example tools | Default tier (see 9.4) |
 |-------|--------------|---------------|------------------------|
-| File & System | Find, organize, recover and report on files; disk and process info | `search_files`, `list_recent_files`, `check_recycle_bin`, `restore_file`, `get_disk_usage` | T1 read; T3 for restore/move |
-| Coding | Write new code, scaffold projects, explain code | `read_file`, `write_file` (workspace), `run_in_sandbox`, `git_status` | T2 |
-| Debugging | Reproduce errors, read logs and stack traces, propose and test fixes | `run_tests`, `read_logs`, `run_in_sandbox`, `apply_patch` | T2; T3 outside workspace |
-| Image Editing | Resize, crop, convert, retouch, batch-process images | `image_info`, `resize_image`, `crop_image`, `convert_format`, `apply_filter` | T2 (writes copies) |
-| Web / Research | Search and read web pages, summarize, cite | `open_website`, `extract_page_information` | T1 + network |
-| App Automation | Operate browser and desktop apps through Playwright / accessibility APIs | `browser_click`, `browser_fill`, `ui_find_element`, `ui_invoke` | T3 |
-| Memory (Librarian) | Store, retrieve, summarize, forget; maintain the PC file index | `memory_search`, `memory_write`, `memory_delete`, `reindex_folder` | T1; memory writes |
-| Tool Builder | Generate, test and register new API adapters / MCP tools | `scaffold_tool`, `run_tool_tests`, `submit_for_approval` | T2 in `generated/` only |
-| Communication (daily-life) | Search, read and draft email/messages | `search_messages`, `read_message`, `draft_message`, `send_message` | Send needs approval |
-| Planner (daily-life) | Calendar, reminders, to-dos, deadlines | `list_events`, `create_event`, `set_reminder` | T2 |
-| Documents & Study (daily-life) | Notes, summaries, reports, assignment help | `read_document`, `summarize`, `create_document` | T2 |
+| File & System | Find, recover, move, delete files; Recycle Bin; disk usage | `search_files`, `list_recent_files`, `check_recycle_bin`, `get_disk_usage`, `restore_file`, `move_file`, `delete_file` | T0/T1 read; T3 restore/move; T4 delete (Recycle Bin); all three ask |
+| Coding | Write, run and explain Python in `workspace/code/` | `read_file`, `write_file`, `apply_patch`, `run_in_sandbox`, `run_tests` | T2, workspace only |
+| Debugging | Reproduce errors, read logs, propose and test fixes | `read_file`, `read_logs`, `run_tests`, `run_in_sandbox`, `apply_patch` | T2, workspace only |
+| Image Editing | Resize, crop, convert, filter copies | `image_info`, `resize_image`, `crop_image`, `convert_format`, `apply_filter` | T1 info; T2 writes copies to `workspace/images/` |
+| Web / Research | Read a public page by its link and summarize it (no search engine) | `open_website`, `extract_page_information` | T1 + network; manifests approved 2026-11-20 |
+| App Automation | Read and operate windows that are already open (Windows UI Automation) | `list_windows`, `read_window_text`, `find_ui_element`, `click_element`, `type_text`, `press_key` | T1 read; T3 click/type/key, each approved |
+| Memory (Librarian) | Store, retrieve, forget; reindex the PC file index | `memory_search`, `memory_write`, `memory_delete`, `memory_forget_all`, `reindex_folder` | T0/T1/T2; T3 delete; T4 forget all |
+| Tool Builder | Generate, test (Windows Sandbox, no network) and submit read-only tools | `find_existing_tools`, `scaffold_tool`, `run_tool_tests`, `submit_for_approval` | T2; new tools quarantined until the owner approves |
+| Communication (daily-life) | Gmail (official API) search, read, draft, send; WhatsApp Desktop (UI Automation) list, read, send | `search_messages`, `read_message`, `draft_message`, `send_message`, `whatsapp_list_chats`, `whatsapp_read_chat`, `whatsapp_send` | T1 read; T2 draft; T3 send, each approved. Outlook blocked (university admin consent) |
+| Planner (daily-life) | Reminders, to-dos, deadlines; tray notifications; local only | `planner_add`, `planner_list`, `planner_close` | T1 list; T2 add/close |
+| Documents & Study (daily-life) | Read and summarize documents, quizzes, flashcards, new Word files | `read_document`, `create_document`, `search_files` | T1 read; T2 create in `workspace/documents/` |
 | System Settings (owner decision 2026-11-19) | Reversible Windows toggles: Wi-Fi, Bluetooth, volume/mute, brightness, dark/light mode; status (incl. battery saver) | `get_settings_status` (T1), `set_radio`, `set_volume`, `set_brightness`, `set_theme` | T3 (approval every change) |
-| Home / Device (later) | Selected smart devices through supported interfaces | per device | Per device |
+| Home / Device (later) | Not built in v1.0 | — | — |
 
 Notes:
 
 - Tool names are HCWMA tool contracts, not guaranteed capabilities of any service. Each must be backed by a real supported action.
-- Image Editing in v1 means deterministic edits through libraries (Pillow, OpenCV, ImageMagick). Understanding image content depends on the chosen Qwen checkpoint being multimodal. Generative editing (inpainting, background replacement) needs a separate image model and is an expansion item.
+- Image Editing in v1 means deterministic edits through libraries (Pillow, OpenCV, ImageMagick). Understanding image content depends on the chosen Qwen checkpoint being multimodal. Generative editing (inpainting, background replacement) needs a separate image model and is an expansion item. *(v1.2: Pillow only; no OpenCV/ImageMagick, no retouch, no generative editing.)*
 - New agents are added by writing a capability card and a tool allowlist; no change to the Router code.
 
 ### 4.4 Agent capability card [NEW]
@@ -316,7 +340,7 @@ Keep a clean upstream copy and make HCWMA changes in a separate fork or branch. 
 
 ### 5.4 Model selection and runtime [CHANGED]
 
-Begin with a checkpoint that fits the PC's actual GPU/CPU memory and target latency. The prior discussion considered smaller Qwen 3.5 checkpoints (around 4B where an official compatible checkpoint is available) and a 9B-class option. Verify the exact current official checkpoint name, license, architecture support and hardware requirements before downloading. Do not assume every size is available in every Qwen generation.
+Begin with a checkpoint that fits the PC's actual GPU/CPU memory and target latency. The prior discussion considered smaller Qwen 3.5 checkpoints (around 4B where an official compatible checkpoint is available) and a 9B-class option. Verify the exact current official checkpoint name, license, architecture support and hardware requirements before downloading. Do not assume every size is available in every Qwen generation. *(v1.2 as built: Ollama `qwen3.5:4b`, Q4_K_M, CPU only on an i5-1135G7 / 16 GB / Iris Xe, thinking off, context 8192.)*
 
 Because the model now shares a PC with the user's normal work, favour a **quantized checkpoint** through a serving engine such as llama.cpp or Ollama for day-to-day running, when the exact architecture is supported. Keep Hugging Face Transformers + PyTorch for research and source inspection. Benchmark the chosen runtime with the selected checkpoint before committing.
 
@@ -326,7 +350,7 @@ Because the model now shares a PC with the user's normal work, favour a **quanti
 - An agent is: system prompt + capability card + tool allowlist + memory scopes. Switching agents means switching prompt and tools, not weights.
 - Agents run one at a time by default (sequential). Parallel agents only if benchmarking shows the PC can handle it.
 - The Router uses short prompts and low output limits so routing stays fast.
-- Optional later: a second, smaller model just for routing, if measurements justify it.
+- Optional later: a second, smaller model just for routing, if measurements justify it. *(v1.2: not built; a card-defined fast path routes clear requests with no model call instead.)*
 
 ---
 
@@ -444,11 +468,11 @@ Lifecycle:
 2. CHECK       Tool Builder searches the registry for an existing or similar tool.
 3. ROUTE       It applies the decision tree in 6.3 to pick a legitimate route.
 4. GENERATE    It writes manifest.yaml, adapter.py and tests into integrations/generated/<tool>/.
-5. TEST        Tests run in a sandbox: no secrets, no network unless the manifest declares it.
+5. TEST        Tests run in a sandbox: no secrets, no network unless the manifest declares it. (v1.2: Windows Sandbox, network off)
 6. QUARANTINE  Tool is registered with status "quarantined". No agent can call it yet.
 7. REVIEW      Owner sees a plain summary: what it does, what it touches, which permissions it asks for.
 8. APPROVE     On approval, status becomes "approved" and it joins the MCP catalogue.
-9. MAINTAIN    Versioned in Git; can be disabled or rolled back at any time.
+9. MAINTAIN    Approved by content hash; state in %LOCALAPPDATA%\HCWMA\generated_tools; any edit re-quarantines; can be disabled or rolled back.
 ```
 
 Manifest:
@@ -487,7 +511,7 @@ Hard rules:
 ```
 Microphone on the PC
    ↓
-Voice activation / push-to-talk
+Push-to-talk (hold F9 or the talk button in the window; no wake word in v1.0)
    ↓
 STT (speech-to-text)
    ↓
@@ -506,12 +530,12 @@ Speaker / headphones
 - Test English, Tamil, Sinhala, code-switching and transliterated forms separately.
 - Do not assume a speech model supports every language or accent equally well.
 - Voice identity checks, if used, are an additional security signal, not the only authentication factor for sensitive actions.
-- Start with push-to-talk or explicit activation; add wake-word behaviour after privacy and false-activation testing.
-- **New:** STT/TTS also use the PC's RAM/GPU. Budget for them alongside the Qwen model.
+- Start with push-to-talk or explicit activation; add wake-word behaviour after privacy and false-activation testing. *(v1.2: push-to-talk only.)*
+- **New:** STT/TTS also use the PC's RAM. *(v1.2: faster-whisper small, CPU int8, loaded only while talking; needs 1340 MB free, else Qwen is unloaded for the transcription and reloaded. TTS: MMS for English and Tamil, espeak-ng for Sinhala. English reliable; Tamil and Sinhala experimental.)*
 
 ### 7.2 Multi-device access [CHANGED — now optional, later]
 
-- v1.1 is single-PC first. The desktop app is the primary interface.
+- v1.0 is single-PC only (multi-device was not built). The desktop app is the primary interface.
 - All services bind to `127.0.0.1` by default.
 - Later, optionally, the PC can act as the host for a phone or second device:
   - LAN access only at first, turned on explicitly by the owner.
@@ -531,11 +555,11 @@ The model's context window is temporary working context, not a reliable long-ter
 | Conversation summaries | Compact history and active task continuity. | Router, all agents |
 | Profile / preferences | User-approved stable preferences and settings. | All agents |
 | Episodic memory | Important past events, decisions and outcomes. | All agents |
-| Knowledge base / RAG | Search personal documents and approved reference material. | All agents |
+| Knowledge base / RAG | Search personal documents and approved reference material. | All agents | *(v1.2: not built.)*
 | Structured state | Tasks, permissions, integration state and workflow status. | Router, policy layer |
 | **Agent knowledge cards** | **What each agent can do, its tools and limits.** | **Router** |
 | **Agent skill notes** | **Lessons an agent learned ("this project uses pnpm", "fix for error X").** | **The owning agent** |
-| **PC file index** | **Names, paths, types, sizes, dates (and optionally content) of files in approved folders.** | **File & System, others via it** |
+| **PC file index** | **Names, paths, types, sizes, dates (and optionally content) of files in approved folders.** | **File & System, others via it** | *(v1.2: names, sizes, dates only; no content, owner decision.)*
 | **Tool catalogue** | **Every tool, its manifest, status and usage stats.** | **Router, Tool Builder** |
 | **Task scratchpad** | **Working notes for the current task; cleared when it ends.** | **Active agent** |
 
@@ -545,7 +569,7 @@ Rules:
 - The Memory (Librarian) agent is the only agent that deletes or restructures long-term memory.
 - The PC file index covers only owner-approved folders and skips protected paths (9.4).
 
-Start with SQLite for configuration, structured records and the file index (SQLite FTS for text search). Add a vector database such as Qdrant when semantic retrieval volume and requirements justify it. Define retention, deletion, export, backup and consent rules before storing sensitive information.
+Start with SQLite for configuration, structured records and the file index (SQLite FTS for text search). Add a vector database such as Qdrant when semantic retrieval volume and requirements justify it. Define retention, deletion, export, backup and consent rules before storing sensitive information. *(v1.2: memory is SQLite FTS5 in `%LOCALAPPDATA%\HCWMA`; no Qdrant.)*
 
 ---
 
@@ -555,7 +579,7 @@ Giving an AI access to the whole PC raises the stakes compared with v1.0, so thi
 
 ### 9.1 Mandatory controls [CHANGED]
 
-- Owner account on the desktop app; local unlock before sensitive actions.
+- Access through a per-install API token kept in Windows Credential Manager and handed to the window in memory; no separate owner account or unlock in v1.0.
 - Role- and scope-based access control for every agent and integration.
 - OAuth or the application's supported authentication method; never collect passwords unnecessarily.
 - Store API keys, refresh tokens and browser session state in the OS credential store or an encrypted vault; never commit them to Git.
@@ -588,8 +612,8 @@ Playwright authentication state can contain cookies and headers that may imperso
 | **Search / read files in approved folders** | **Allowed.** |
 | **Create / edit files in the HCWMA workspace** | **Allowed.** |
 | **Modify, move or rename files outside the workspace** | **Require confirmation.** |
-| **Run shell commands** | **Allowlisted read-only commands allowed; anything else requires confirmation.** |
-| **Install or uninstall software; change system settings** | **Explicit confirmation; default deny.** |
+| **Run shell commands** | **Allowlisted read-only commands allowed; anything else requires confirmation.** | *(v1.2: no shell tool exists.)*
+| **Install or uninstall software; change system settings** | **Explicit confirmation; default deny.** | *(v1.2: only reversible toggles — radios, volume, brightness, theme — at T3, approved each time; no other settings tool.)*
 | **Activate a self-built tool** | **Owner approval of the manifest (6.6).** |
 | **Enable or disable an agent; change an agent's permissions** | **Owner-only.** |
 
@@ -622,18 +646,18 @@ No server is purchased for v1.1. HCWMA runs on the user's existing PC. The v1.0 
 
 | Area | Planning target on the local PC |
 |------|---------------------------------|
-| GPU | NVIDIA GPU with as much VRAM as available; 12–16 GB or more is a comfortable target. With less, use a smaller or more heavily quantized checkpoint, or CPU offload, and accept slower responses. Verify model/runtime support and real memory needs. |
+| GPU | NVIDIA GPU with as much VRAM as available; 12–16 GB or more is a comfortable target. With less, use a smaller or more heavily quantized checkpoint, or CPU offload, and accept slower responses. Verify model/runtime support and real memory needs. | *(v1.2: none used; CPU only.)*
 | RAM | 32 GB is a comfortable target because the model shares memory with the user's other apps. 16 GB is workable only with a small checkpoint. |
 | Storage | SSD space for model files, the file index, memory database and logs. Keep free-space headroom. |
 | Power (laptops) | Heavy inference drains battery and heats the machine. Provide a "plugged-in only" setting. |
-| Backup target | External drive or approved cloud location for memory and configuration backups. |
+| Backup target | External drive or approved cloud location for memory and configuration backups. | *(v1.2: `%LOCALAPPDATA%\HCWMA\backups`, daily, newest 7 kept.)*
 
 The earlier budget of LKR 500,000 is retained only as the ceiling for an optional future upgrade or dedicated server.
 
 ### 10.2 Operating system
 
 - HCWMA runs on the PC's existing desktop OS (assumed Windows; see A2).
-- Keep the code cross-platform: use `pathlib`, avoid hard-coded paths, isolate OS-specific code behind adapter interfaces (`adapters/pc/windows.py`, `linux.py`, `macos.py`).
+- Keep the code cross-platform: use `pathlib`, avoid hard-coded paths, isolate OS-specific code behind adapter interfaces (`adapters/pc/windows.py`, `linux.py`, `macos.py`). *(v1.2: only Windows adapters exist.)*
 - On Windows, WSL2 is an option for the model/runtime if a dependency needs Linux; the PC-access adapters must still run natively.
 - If a dedicated server is added later, the v1.0 guidance applies: evaluate Ubuntu Server 26.04 LTS first, with 24.04 LTS as fallback if a critical dependency is not yet compatible.
 
@@ -653,21 +677,21 @@ The earlier budget of LKR 500,000 is retained only as the ceiling for an optiona
 |-------|------------------------|-------|
 | Language | Python | Primary backend, agents, integrations and ML. |
 | Model development | PyTorch + Hugging Face Transformers | Best for inspecting and experimenting with model implementation. |
-| Model serving | **Quantized runtime (llama.cpp / Ollama) for daily use**; Transformers for research; evaluate vLLM if a dedicated GPU box is added | Choose on exact checkpoint support, GPU and latency. |
+| Model serving | **Ollama `qwen3.5:4b` Q4_K_M on CPU (as built)**; HCWMA starts `ollama serve` itself if it is down | Transformers kept for research only. |
 | Backend API | FastAPI **on localhost** | Authenticated local HCWMA services. |
-| **Desktop app shell** | **Web UI in a desktop wrapper (Tauri recommended; Electron or PySide as alternatives) + tray icon** | **Approval prompts, stop control, start with PC.** |
+| **Desktop app shell** | **PySide6 window (Qt WebEngine) + tray icon (as built)** | **Approval prompts, stop control, start with Windows.** |
 | Agent orchestration | A small custom Python **Router + agent runtime** | Keep policy and tool execution explicit; avoid heavy framework coupling. |
 | **Agent definitions** | **YAML capability cards + Markdown system prompts** | **Add an agent without touching Router code.** |
 | Tool protocol | Official MCP Python SDK | Check current SDK major version and migration notes before pinning. |
 | **PC access** | **`pathlib`, `psutil`, `watchdog`, `send2trash`; OS accessibility APIs for UI control** | **Wrapped as MCP tools under the tier policy.** |
-| **Code sandbox** | **Dedicated workspace folder + subprocess limits; containers where available** | **For Coding, Debugging and Tool Builder agents.** |
-| **Image tools** | **Pillow, OpenCV, ImageMagick** | **Deterministic edits for the Image Editing agent.** |
-| Browser automation | Playwright for Python | Only for permitted workflows; isolate browser sessions. |
+| **Code sandbox** | **Guarded runner in `workspace/code/` for Coding/Debugging; Windows Sandbox (no network) for Tool Builder tests** | **As built.** |
+| **Image tools** | **Pillow** | **Deterministic edits for the Image Editing agent.** |
+| Browser / app automation | Web: httpx + HTML parser (read-only). Desktop: Windows UI Automation (incl. WhatsApp Desktop). No Playwright. | Browsers and password fields are refused. |
 | Structured storage | SQLite (with FTS for the file index); PostgreSQL later if needed | One source of truth for application state. |
-| Vector retrieval | Qdrant when needed | Do not add before a real retrieval requirement exists. |
-| STT / TTS | Evaluate Whisper-family STT and suitable TTS engines | Benchmark Tamil/Sinhala/English on real samples. |
+| Vector retrieval | Qdrant when needed | Do not add before a real retrieval requirement exists. | *(v1.2: not added.)*
+| STT / TTS | faster-whisper small (CPU int8); MMS-TTS (en, ta) via sherpa-onnx; espeak-ng (si) | Chosen on the owner's own recordings (docs/voice_benchmarks_*.md). |
 | **Secrets** | **OS credential store via `keyring`** | **No secrets in files or Git.** |
-| Deployment | **Local installer / start script; background service with tray app** | Docker Compose remains an option for sub-services. |
+| Deployment | **`install.cmd`/`install.ps1`, one-click `start_hcwma.cmd`, tray app, Start with Windows shortcut (as built)** | Docker not used. |
 | Monitoring | Structured logs + basic health endpoints | Add dashboards after core services work. |
 
 Pin tested versions in a lockfile or requirements file. Do not install arbitrary latest versions into the working install without a test environment.

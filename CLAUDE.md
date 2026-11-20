@@ -112,6 +112,7 @@ python -m voice download             # Step 14: Whisper small (~484 MB) + MMS En
 python -m voice.bench.record_samples  # Step 14: record your 5-second benchmark clips (--lang en|ta|si) into workspace/voice_bench/
 python -m voice.bench.stt_bench       # Step 14: score Whisper tiny/base/small on those clips -> docs/voice_benchmarks_stt.md (--models medium --allow-large asks first)
 python -m voice.bench.tts_bench       # Step 14: Windows voices vs MMS vs espeak-ng per language -> docs/voice_benchmarks_tts.md
+python scripts/smoke_test.py          # v1.0 check THROUGH the running desktop app: one safe request per agent + offline voice, pass/fail table (~15 min; --only a,b; any approval prompt is denied, fails if a T3/T4 tool ran)
 ```
 
 Keep this section current when commands change.

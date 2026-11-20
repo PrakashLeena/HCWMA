@@ -160,7 +160,8 @@ The owner approved the four manifests (`find_existing_tools` T0, `scaffold_tool`
 - Gmail tool manifests (`search_messages`, `read_message`, `draft_message`, `send_message`)
   approved by the owner; `send_message` asks every time. A recipient must be an address the owner
   typed or the owner's own address.
-- Outlook: a later session, separate adapter.
+- Outlook: a later session, separate adapter. **Update 2026-11-20 (owner):** blocked — the
+  university Microsoft account requires admin consent for the app, so Outlook is not in v1.0.
 
 ## WhatsApp / Communication agent (Step 15, decided 2026-11-19)
 
@@ -250,3 +251,14 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   for the transcription (same model-busy lock as the sandbox) and reloaded before the Router call; the
   extra time is shown in the chat. Still not enough: the top 5 apps by RAM are named so the owner can
   close some. HCWMA never closes, kills or trims any process.
+
+## Web tools and grounded answers (decided 2026-11-20)
+
+- Web/Research tool manifests `open_website` and `extract_page_information` approved by the owner
+  (they had stayed `quarantined` since Step 12, so the agent could not read pages and invented
+  answers). Every other tool manifest was already approved; checked 2026-11-20.
+- Agents whose card says `requires_tool: true` (web_research, file_system, communication,
+  documents_study, image_editing, planner, system_settings, app_automation, echo, tool_builder)
+  may not answer without one successful tool call. The runtime replaces such an answer with
+  "I could not do that: <reason>" (tool not approved yet / tool failed / no tool used). Coding,
+  Debugging and the Memory Librarian may answer from the request or recalled memory.

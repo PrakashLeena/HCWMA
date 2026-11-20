@@ -43,4 +43,17 @@ limits: { max_steps: 6, timeout_s: 420 }
 # straight here without a Router model call; `keywords` stop other agents' fast
 # matches when the message also sounds like this agent's job.
 fast_route:
-  keywords: [photo, photos, image, images, picture, pictures, screenshot, screenshots, resize, crop, png, jpg, jpeg]
+  patterns:
+    # size / dimensions / pixels / resolution of a picture, photo, image or screenshot
+    - '\b(size|dimensions?|pixels?|resolution|how\s+(big|large|wide|tall))\b.*\b(pictures?|photos?|images?|screenshots?|\S+\.(png|jpe?g|gif|bmp|webp))\b'
+    - '\b(pictures?|photos?|images?|screenshots?|\S+\.(png|jpe?g|gif|bmp|webp))\b.*\b(size|dimensions?|pixels?|resolution)\b'
+  keywords: [photo, photos, image, images, picture, pictures, screenshot, screenshots, resize, crop, png, jpg, jpeg, pixels, dimensions, resolution]
+
+# Answers must come from a successful tool call; otherwise the runtime refuses the answer
+# instead of passing it on as fact (owner decision 2026-11-20).
+requires_tool: true
+
+# Live facts only this agent can check: a model-Router answer to such a question is sent here
+# instead (owner decision 2026-11-20).
+live_facts:
+  - '\b\S+\.(png|jpe?g|gif|bmp|webp|tiff?)\b'

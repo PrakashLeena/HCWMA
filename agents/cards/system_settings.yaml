@@ -69,3 +69,12 @@ fast_route:
   # No keywords: a request that only MENTIONS a switch (a WhatsApp text, a script, a reminder)
   # belongs to the agent whose pattern matches it; a real mixed request matches two patterns.
   keywords: []
+
+# Answers must come from a successful tool call; otherwise the runtime refuses the answer
+# instead of passing it on as fact (owner decision 2026-11-20).
+requires_tool: true
+
+# Live facts only this agent can check: a model-Router answer to such a question is sent here
+# instead (owner decision 2026-11-20).
+live_facts:
+  - '\b(wi-?fi|bluetooth|battery|volume|brightness|dark\s+mode|light\s+mode|battery\s+saver)\b'

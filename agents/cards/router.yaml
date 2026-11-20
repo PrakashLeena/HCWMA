@@ -15,3 +15,9 @@ approval_required: []
 memory_scopes: [profile, summaries, task]
 system_prompt: prompts/router.md
 limits: { max_steps: 1, timeout_s: 60 }
+
+# Live facts NO agent can check: if the model Router tries to answer one, it says it cannot
+# check it instead (owner decision 2026-11-20).
+live_facts:
+  - '\b(weather|forecast|temperature\s+outside|news|headlines|stock|share\s+price|exchange\s+rate|bitcoin|score)\b'
+  - '\b(ram|cpu|memory)\s+(usage|use|load)\b'

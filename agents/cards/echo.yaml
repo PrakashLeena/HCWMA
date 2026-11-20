@@ -26,6 +26,14 @@ limits: { max_steps: 4, timeout_s: 120 }
 # matches when the message also sounds like this agent's job.
 fast_route:
   patterns:
-    - '^\W*what\s+time\s+is\s+it(\s+(right\s+)?now)?\W*$'
+    # "what time is it", "... right now", "... on this PC / on my laptop", "... please" (not "in Tokyo")
+    - '^\W*what(''s|\s+is)?\s+(the\s+)?time(\s+is\s+it)?(\s+(right\s+)?now)?(\s+(on|in)\s+(this|my|the)\s+(pc|computer|laptop|machine|system))?(\s+(right\s+)?now)?(\s+please)?\W*$'
     - '^\W*what(''s|\s+is)\s+today''s\s+date\b'
   keywords: [echo, repeat back]
+
+# Live facts only this agent can check: a model-Router answer to such a question is sent here
+# instead (owner decision 2026-11-20).
+live_facts:
+  - '\btime\b'
+  - '\b(date|day)\b.*\b(today|now|it)\b'
+  - '\btoday''?s\s+date\b'

@@ -42,6 +42,12 @@ def test_every_fast_routed_case_goes_to_its_expected_agent() -> None:
         ("forget my old address", "memory_librarian"),
         ("What time is it?", "echo"),
         ("what is today's date", "echo"),
+        # owner request 2026-11-20: trailing words, and picture dimensions
+        ("What time is it on this PC?", "echo"),
+        ("what's the time right now on my laptop please", "echo"),
+        ("What size is the picture workspace/smoke/photo.png?", "image_editing"),
+        ("what are the dimensions of holiday.jpg", "image_editing"),
+        ("how many pixels is my screenshot", "image_editing"),
     ],
 )
 def test_clear_requests_take_the_fast_path(message: str, agent: str) -> None:

@@ -2,6 +2,30 @@
 
 One section per agent. Updated whenever an agent is added or changed (`add-agent` skill).
 
+## Final state for v1.0 (2026-11-20)
+
+- 13 agents plus the Router: System Settings, Planner, Documents & Study, Image Editing, Coding,
+  Debugging, Memory Librarian, File & System, Echo (test), Communication (Gmail + WhatsApp),
+  Web/Research, App Automation, Tool Builder. Voice (push-to-talk) works with all of them.
+- Every request runs on one local model on the CPU: expect 40 s – 3 min.
+- **Known failures and open items (one list): [docs/BACKLOG.md](BACKLOG.md).** The most important:
+  Ollama's memory growth can block requests (backlog item 1); Debugging answers inline-code
+  questions poorly (item 2); requests are slow (item 5); App Automation
+  cannot open programs (item 16); Outlook is blocked by university admin consent (item 17);
+  Tamil voice is experimental and Sinhala voice is not measured (items 12–13).
+- v1.0 smoke test: `python scripts/smoke_test.py` (one safe request per agent; results in
+  `docs/PROGRESS.md`).
+
+## Voice (push-to-talk) — since Step 14
+
+- Hold **F9** (or the talk button) in the HCWMA window, speak, release. What it heard appears in
+  the chat; the request goes through the Router like typed text; the reply is spoken.
+- English works well (Whisper small, ~12% character errors on the owner's clips). Tamil (~44%)
+  and Sinhala (not measured) are experimental. Speech: MMS voices for English and Tamil,
+  espeak-ng for Sinhala.
+- Cannot: wake word, hotkey outside the window, approving anything by voice (approvals are
+  clicks only). The microphone is open only while the key is held; audio is not saved.
+
 ## System Settings (`system_settings`) — since Step 15
 
 Reads and changes a few everyday Windows switches on this PC (owner decision 2026-11-19).
@@ -244,7 +268,7 @@ Looks for files and reports on disk space. It only looks; it changes nothing.
 
 A test agent. Repeats text back and tells the current date and time on this PC.
 
-## Communication (`communication`) — since Step 15 (Gmail only)
+## Communication (`communication`) — since Step 15 (Gmail; WhatsApp Desktop added the same day)
 
 Works with your Gmail through Google's official Gmail API. You sign in once in your own browser
 (`python -m integrations.adapters.official_api.gmail_login login`); HCWMA keeps only a refresh
@@ -273,8 +297,9 @@ token in the Windows credential store.
 **Cannot do (yet)**
 
 - Reply to someone unless you type their address in the request.
-- Delete, archive or label mail; attachments (only their names are shown); Outlook and WhatsApp
-  (later, as separate adapters).
+- Delete, archive or label mail; attachments (only their names are shown).
+- Outlook: blocked by the university's admin consent requirement (not built). WhatsApp works
+  through WhatsApp Desktop (list, read, send after approval); see backlog item 19 for its limits.
 
 ## Web/Research (`web_research`) — since Step 12
 
@@ -309,13 +334,14 @@ from it, with the page address as the source.
 - Search the web: there is no search engine tool, so it needs an address (or a well-known site
   you name). A search tool needs an owner decision about which service may see your questions.
 - Run JavaScript, so pages that build their content in the browser may come back nearly empty
-  (Playwright arrives with App Automation; the browser download was not approved yet).
+  (no Playwright: browser automation was not approved).
 - Log in, click, fill in forms or download files (App Automation, which always asks first).
 - Read PDFs or pages behind a login or paywall.
 - Known limit: the address is checked and then fetched by a second lookup, so a hostile DNS
   server could in theory answer differently the second time (DNS rebinding). Closing this needs
-  a pinned-address transport, planned with Playwright.
-- The tools ship as `quarantined`: they run only after the owner approves the manifests.
+  a pinned-address transport (backlog item 4).
+- The tool manifests were approved by the owner on 2026-11-20 (they had stayed quarantined since
+  Step 12). An answer without a successful page read is refused, never shown as fact.
 
 ## App Automation (`app_automation`) — since Step 12
 

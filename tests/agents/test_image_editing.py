@@ -175,7 +175,7 @@ def test_a_request_with_a_missing_file_gets_an_honest_failed_call(pc: Layout) ->
     ]
     reply, s = _ask(pc, ScriptedModel(router=_to_agent(), agent=lambda _m, _k: script.pop(0)))
 
-    assert reply.status == "done" and _tool_calls(s) == [("resize_image", "tool_error")]
+    assert reply.status == "failed" and _tool_calls(s) == [("resize_image", "tool_error")]
     assert "there is no file" in _tool_turns(s)[0].content
     assert not (pc.workspace / "images").exists() or not list((pc.workspace / "images").iterdir())
 
@@ -194,7 +194,7 @@ def test_files_outside_the_approved_folders_are_refused_and_nothing_is_written(p
     ]
     reply, s = _ask(pc, ScriptedModel(router=_to_agent(), agent=lambda _m, _k: script.pop(0)))
 
-    assert reply.status == "done"
+    assert reply.status == "failed"
     assert _tool_calls(s) == [("resize_image", "tool_error")] * 2 + [("image_info", "tool_error")]
     assert "not inside an approved folder" in _tool_turns(s)[0].content
     assert "protected path" in _tool_turns(s)[1].content
@@ -225,7 +225,7 @@ def test_tools_outside_the_allowlist_are_denied(pc: Layout) -> None:
         ("write_file", "denied"),
     ]
     assert "not on agent 'image_editing' allowlist" in records[0].reason
-    assert (pc.docs / "holiday" / "beach.jpg").exists() and reply.status == "done"
+    assert (pc.docs / "holiday" / "beach.jpg").exists() and reply.status == "failed"
 
 
 def test_quarantined_image_tools_cannot_be_called(pc: Layout) -> None:

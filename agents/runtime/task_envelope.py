@@ -37,6 +37,9 @@ class ToolCallRecord(BaseModel):
     tool: str
     ok: bool
     error_code: str | None = None
+    # The tool's own error message (written by HCWMA code, not by the model), so a refused
+    # answer can still say what went wrong.
+    error: str | None = None
 
 
 class TaskResult(BaseModel):

@@ -370,4 +370,4 @@ def test_instructions_inside_a_tool_result_do_not_change_the_agent(tmp_path: Pat
     assert pc.state.wifi is True and pc.state.bluetooth is True
     (turn,) = seen_tool_turns
     assert turn.startswith("<tool_output") and injected in turn
-    assert reply.status == "done" and injected not in reply.reply
+    assert reply.status == "failed" and injected not in reply.reply

@@ -40,3 +40,7 @@ limits: { max_steps: 6, timeout_s: 420 }
 # matches when the message also sounds like this agent's job.
 fast_route:
   keywords: [web, website, internet, online, url, http, https, download, downloaded, webpage]
+
+# Answers must come from a successful tool call; otherwise the runtime refuses the answer
+# instead of passing it on as fact (owner decision 2026-11-20).
+requires_tool: true

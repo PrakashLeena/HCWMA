@@ -21,8 +21,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from agents.router.classifier import Classifier, RouteStep, RoutingDecision
-from agents.router.fast_path import fast_route
-from agents.runtime.agent_runtime import OWNER_DENIED, AgentRuntime
+from agents.router.fast_path import fast_route, live_fact_route
+from agents.runtime.agent_runtime import OWNER_DENIED, UNGROUNDED, AgentRuntime
 from agents.runtime.stop import INTERRUPTED, STOPPED_BY_OWNER, StopControl
 from agents.runtime.task_envelope import (
     TaskContext,
@@ -218,6 +218,14 @@ class Router:
                 decision = await self._classifier.classify(
                     conversation, self._recall(conversation), task_id=task_id
                 )
+                if decision.action == "answer":
+                    # The Router has no tools: it must not state a live fact (the time, a
+                    # file, an email, a setting). Send it to the agent that can check, or
+                    # say it cannot be checked (rules from the cards, fast_path.py).
+                    checked = live_fact_route(self._runtime.registry, conversation[-1].content)
+                    if checked is not None:
+                        log.info("router answer replaced: live fact (%s)", checked.action)
+                        decision = checked
 
         if decision.action == "clarify":
             self._remember(
@@ -295,8 +303,8 @@ def _compose(envelopes: list[TaskEnvelope]) -> str:
             parts.append(result.summary)
         elif result.status == "needs_approval":
             parts.append(f"Nothing was changed, because it was not approved: {result.summary}")
-        elif result.stopped_by == OWNER_DENIED:
-            parts.append(result.summary)
+        elif result.stopped_by in (OWNER_DENIED, UNGROUNDED):
+            parts.append(result.summary)  # already says plainly what happened
         else:
             parts.append(f"The {env.to_agent} agent could not finish: {result.summary}")
     return "\n\n".join(parts)

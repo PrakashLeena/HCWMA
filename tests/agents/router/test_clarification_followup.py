@@ -85,7 +85,9 @@ def test_an_answer_to_an_agents_question_goes_back_to_that_agent_without_routing
     replies, s = _run(tmp_path, model, [asked_by_agent, "unread ones from Sam"])
 
     assert replies[0].status == "needs_clarification" and replies[0].agents == ["communication"]
-    assert replies[1].agents == ["communication"] and replies[1].status == "done"
+    assert (
+        replies[1].agents == ["communication"] and replies[1].status == "failed"
+    )  # no tool call: refused
     assert len(_router_messages(s)) == 1  # the second turn did not ask the model Router at all
     assert "unread ones from Sam" in seen_goals[-1] and "Which Gmail search" in seen_goals[-1]
 

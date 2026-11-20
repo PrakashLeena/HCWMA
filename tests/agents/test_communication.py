@@ -505,7 +505,7 @@ def test_an_expired_login_gives_the_please_log_in_message_not_a_crash(pc: Layout
     )
     assert _records(s) == [("search_messages", "tool_error")]
     assert "please log in to Gmail again" in _tool_results(s)[0]["error"]
-    assert reply.status == "done" and "please log in to Gmail again" in reply.reply
+    assert reply.status == "failed" and "please log in to Gmail again" in reply.reply
 
 
 def test_secrets_and_bodies_stay_out_of_the_audit_log(pc: Layout) -> None:

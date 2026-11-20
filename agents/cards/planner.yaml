@@ -50,3 +50,12 @@ fast_route:
     - '\b(show|list|what''?s|what\s+is|what\s+are|read)\b.{0,30}\b(my\s+)?(reminders|to\s*-?\s*dos?|todo\s+list|deadlines|agenda|calendar|planner)\b'
     - '\b(my|the)\s+\w+(\s+\w+)?\s+deadline\s+is\b'
   keywords: [remind, reminder, reminders, to-do, todo, to-dos, todos, deadline, deadlines, calendar, agenda, planner]
+
+# Answers must come from a successful tool call; otherwise the runtime refuses the answer
+# instead of passing it on as fact (owner decision 2026-11-20).
+requires_tool: true
+
+# Live facts only this agent can check: a model-Router answer to such a question is sent here
+# instead (owner decision 2026-11-20).
+live_facts:
+  - '\b(reminders?|deadlines?|to-?dos?|planned|my\s+plans?)\b'

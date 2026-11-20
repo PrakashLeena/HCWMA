@@ -13,6 +13,7 @@ cases:
   - { message: "Please repeat back: the quick brown fox", expect: echo }
   - { message: "What time is it right now?", expect: echo }
   - { message: "what's today's date on this PC?", expect: echo }
+  - { message: "What time is it on this PC?", expect: echo }
 
   # --- file_system ---
   - { message: "I'm missing one of my project files, it was called annek-proposal", expect: file_system }
@@ -81,6 +82,8 @@ cases:
   - { message: "The website returns error 500, look up what that means", expect: web_research, must_not: debugging }
 
   # --- image_editing ---
+  - { message: "What size is the picture workspace/smoke_test/photo.png?", expect: image_editing }
+  - { message: "what are the dimensions of holiday.jpg in pixels?", expect: image_editing }
   - { message: "Resize all photos in my holiday folder to 1080 pixels wide", expect: image_editing }
   - { message: "Convert this PNG to JPG and crop it to a square", expect: image_editing }
   # step 12
