@@ -4,12 +4,14 @@ plus one per model call with its timings only.
 Records hold a short argument summary only: secret-looking keys are redacted, strings are
 truncated and collections are reduced to their length, so file contents and secrets do not
 end up in the log. Default location `security/audit/logs/audit.jsonl` is gitignored and is a
-protected path (no agent tool can read or change it).
+protected path (no agent tool can read or change it). `HCWMA_AUDIT_PATH` moves it: the test
+suite sets it per test (tests/conftest.py) so tests never write the owner's real audit log.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from datetime import datetime, timedelta, timezone
@@ -21,6 +23,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AUDIT_PATH = REPO_ROOT / "security" / "audit" / "logs" / "audit.jsonl"
+AUDIT_PATH_ENV = "HCWMA_AUDIT_PATH"
+
+
+def resolve_audit_path() -> Path:
+    """The audit log in use: `HCWMA_AUDIT_PATH` when set (tests), else the default."""
+    override = os.environ.get(AUDIT_PATH_ENV)
+    return Path(override) if override else DEFAULT_AUDIT_PATH
 
 _SECRET_KEY = re.compile(r"pass|secret|token|key|credential|auth|cookie|session", re.IGNORECASE)
 _MAX_STR = 80
@@ -86,8 +95,8 @@ class AuditRecord(BaseModel):
 
 
 class AuditLogger:
-    def __init__(self, path: Path = DEFAULT_AUDIT_PATH) -> None:
-        self.path = path
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or resolve_audit_path()
         self._lock = threading.Lock()
 
     def write(self, record: AuditRecord) -> None:
@@ -304,6 +313,12 @@ class AuditLogger:
             return [AuditRecord.model_validate(json.loads(line)) for line in f if line.strip()]
 
 
-@lru_cache(maxsize=1)
 def get_audit_logger() -> AuditLogger:
-    return AuditLogger()
+    """One shared logger per audit file. Keyed by path, so a test that moved the log through
+    `HCWMA_AUDIT_PATH` never gets a logger cached for the real file."""
+    return _logger_for(resolve_audit_path())
+
+
+@lru_cache(maxsize=8)
+def _logger_for(path: Path) -> AuditLogger:
+    return AuditLogger(path)

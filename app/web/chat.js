@@ -177,6 +177,17 @@ async function send(text, voice) {
   addMessage(voice ? "user voice" : "user", text, voice ? voice.meta : undefined);
   const pending = addMessage("assistant pending", "HCWMA is working…");
   sendButton.disabled = true;
+  // While this request waits, ask whether HCWMA is starting Ollama, and say so.
+  const watch = setInterval(async () => {
+    try {
+      const r = await fetch("/model/state", { headers: authHeaders() });
+      if (!r.ok) return;
+      const state = (await r.json()).state;
+      pending.textContent = state === "starting"
+        ? "Starting the local model… (this can take up to a minute)"
+        : "HCWMA is working…";
+    } catch { /* the request itself reports a lost backend */ }
+  }, 1000);
   try {
     const response = await fetch("/chat", {
       method: "POST",
@@ -216,6 +227,7 @@ async function send(text, voice) {
     history.pop();
     addMessage("error", "Could not reach the backend. Is it still running?");
   } finally {
+    clearInterval(watch);
     sendButton.disabled = false;
     chatInput.focus();
   }
@@ -290,13 +302,16 @@ async function voicePost(path, body) {
 async function startTalk() {
   if (held || opening || listening || sendButton.disabled || talkButton.disabled) return;
   held = true;
-  talkButton.classList.add("listening");
-  talkButton.textContent = "Listening… release to send";
+  // The microphone takes a moment to open: say "speak now" only once it really listens,
+  // so the first words are not lost.
+  talkButton.textContent = "Opening microphone…";
   voiceState.textContent = "";
   opening = voicePost("/voice/start", { language: voiceLang.value });
   try {
     await opening;
     listening = true;
+    talkButton.classList.add("listening");
+    talkButton.textContent = "Listening — speak now, release to send";
   } catch (err) {
     resetTalk("");
     addMessage("error", "Voice: " + err.message);
@@ -312,6 +327,7 @@ async function finishTalk() {
   if (opening || !listening) return; // startTalk() calls back once the microphone is open
   listening = false;
   talkButton.classList.remove("listening");
+  talkButton.classList.remove("listening");
   talkButton.textContent = "Hold to talk (F9)";
   voiceState.textContent = "Working out what you said…";
   talkButton.disabled = true;
@@ -325,8 +341,13 @@ async function finishTalk() {
     const name = voiceLang.options[voiceLang.selectedIndex].text.replace(" (experimental)", "");
     send(heard.text, {
       language: heard.language,
-      meta: "heard (" + name + ") · " + heard.audio_seconds + " s of speech · " +
-        heard.transcribe_seconds + " s to transcribe",
+      meta: "heard (" + name + ") · " + heard.audio_seconds + " s recorded · level " +
+        Math.round(heard.peak * 100) + "%" + (heard.peak < 0.03 ? " (very quiet)" : "") +
+        " · " + heard.transcribe_seconds + " s to transcribe" +
+        (heard.qwen_unloaded ? " · model unloaded to make room: +" +
+          (heard.qwen_unload_s + heard.qwen_reload_s).toFixed(1) + " s (unload " +
+          heard.qwen_unload_s + " s, reload " + heard.qwen_reload_s + " s)" : "") +
+        (heard.debug_file ? " · debug copy " + heard.debug_file : ""),
     });
   } catch (err) {
     resetTalk("");

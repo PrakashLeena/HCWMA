@@ -1,7 +1,8 @@
 """Shared test setup.
 
-Tests must never touch the owner's real memory database or backups (build step 10): every
-test gets its own empty HCWMA data folder through `HCWMA_DATA_DIR`. Child processes started
+Tests must never touch the owner's real memory database or backups (build step 10) or the
+real audit log: every test gets its own empty HCWMA data folder through `HCWMA_DATA_DIR` and
+its own audit file through `HCWMA_AUDIT_PATH`. Child processes started
 by a test (the stdio MCP server) inherit it.
 """
 
@@ -19,3 +20,7 @@ def _isolated_hcwma_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("HCWMA_GENERATED_DIR", str(tmp_path / "generated"))
     # Gmail (step 15): tests never read or change the owner's real credential store.
     monkeypatch.setenv("HCWMA_DISABLE_KEYRING", "1")
+    # Audit log: tests never append to the owner's real security/audit/logs/audit.jsonl
+    # (CLI code such as `python -m memory` and `python -m backend.reliability` uses the
+    # shared logger, which used to always write there).
+    monkeypatch.setenv("HCWMA_AUDIT_PATH", str(tmp_path / "audit" / "audit.jsonl"))

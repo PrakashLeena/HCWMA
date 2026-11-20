@@ -20,11 +20,19 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import psutil
 from pydantic import BaseModel
 
 from voice.activation.push_to_talk import PushToTalkRecorder, StreamFactory, sounddevice_stream
 from voice.config import DEBUG_AUDIO_DIR, LANGUAGE_NAMES, VoiceConfig
+from voice.memory_budget import (
+    QwenRelease,
+    close_apps_message,
+    qwen_loaded_mb,
+    top_apps_by_ram,
+)
+from voice.memory_budget import (
+    free_ram_mb as free_ram_mb_default,
+)
 from voice.stt.whisper_stt import SAMPLE_RATE, SpeechToText
 from voice.tts.speech import Speaker
 
@@ -35,9 +43,14 @@ class VoiceRefused(Exception):
 
 class Transcript(BaseModel):
     text: str
-    language: str
+    language: str  # the language picked in the app, passed to Whisper (no auto-detect)
     audio_seconds: float
     transcribe_seconds: float
+    peak: float  # loudest sample, 0..1: below about 0.03 the microphone barely heard you
+    debug_file: str = ""  # only when debug_save_audio is on
+    qwen_unloaded: bool = False  # Qwen was unloaded to make room for Whisper, then reloaded
+    qwen_unload_s: float = 0.0
+    qwen_reload_s: float = 0.0
 
 
 class VoiceStatus(BaseModel):
@@ -61,6 +74,9 @@ class VoiceService:
         speaker: Speaker | None = None,
         stream_factory: StreamFactory = sounddevice_stream,
         free_ram_mb: Callable[[], float] | None = None,
+        qwen_mb: Callable[[], float] = qwen_loaded_mb,
+        release_factory: Callable[[], QwenRelease] = QwenRelease,
+        top_apps: Callable[[], list[tuple[str, int]]] = top_apps_by_ram,
         debug_dir: Path = DEBUG_AUDIO_DIR,
     ) -> None:
         self.config = config
@@ -68,7 +84,11 @@ class VoiceService:
         self.stt = stt or SpeechToText(config.stt_model, models, config.max_transcribe_seconds)
         self.speaker = speaker or Speaker(models, config.speak_max_chars)
         self.recorder = PushToTalkRecorder(config.max_record_seconds, stream_factory)
-        self._free_ram_mb = free_ram_mb or (lambda: psutil.virtual_memory().available / 2**20)
+        self._free_ram_mb = free_ram_mb or free_ram_mb_default
+        self._qwen_mb = qwen_mb
+        self._release_factory = release_factory
+        self._top_apps = top_apps
+        self._release: QwenRelease | None = None
         self.debug_dir = debug_dir
         self.language = "en"
         self._lock = threading.Lock()
@@ -95,7 +115,7 @@ class VoiceService:
 
     # ---- push-to-talk ----
 
-    def start(self, language: str, min_free_ram_mb: int = 0) -> None:
+    def start(self, language: str) -> None:
         if language not in LANGUAGE_NAMES:
             raise VoiceRefused(f"unknown language {language!r}")
         if not self.stt.available():
@@ -103,38 +123,66 @@ class VoiceService:
         with self._lock:
             if self.recorder.recording:
                 return
-            need = min_free_ram_mb + self.config.stt_ram_mb
-            if not self.stt.loaded and self._free_ram_mb() < need:
-                raise VoiceRefused(
-                    f"not enough free RAM to load the speech model (needs about {need} MB free)"
-                )
+            release = self._plan_memory()
             self.speaker.quiet()
             self.language = language
             self.recorder.start()
-            self.stt.load_in_background()  # loads while the owner talks
+            self._release = release
+            if release is not None:
+                release.start()  # Qwen unloads while the owner talks
+            # Whisper loads while the owner talks (after Qwen is out, when it had to go)
+            self.stt.load_in_background(before=release.wait_unloaded if release else None)
             self._timer = threading.Timer(self.config.max_record_seconds, self.recorder.close)
             self._timer.daemon = True
             self._timer.start()
+
+    def _plan_memory(self) -> QwenRelease | None:
+        """None when Whisper fits; a QwenRelease when unloading Qwen makes it fit; else refuse.
+        Never closes, kills or trims any other process."""
+        need = self.config.stt_ram_mb
+        free = self._free_ram_mb()
+        if self.stt.loaded or free >= need:
+            return None
+        qwen = self._qwen_mb()
+        if qwen > 0 and free + qwen >= need:
+            return self._release_factory()
+        raise VoiceRefused(close_apps_message(need, free, self._top_apps()))
+
+    def _finish_release(self) -> QwenRelease | None:
+        release, self._release = self._release, None
+        if release is not None:
+            release.finish()  # Qwen reloads now, before the transcript goes to the Router
+        return release
 
     def stop(self) -> Transcript:
         """Close the microphone, transcribe in memory, drop the audio and the model."""
         with self._lock:
             self._cancel_timer()
             audio = self.recorder.stop()
+        debug_file, release = "", None
         try:
             if self.config.debug_save_audio and audio.size:
-                self._save_debug(audio)
+                debug_file = self._save_debug(audio).name
             t0 = time.perf_counter()
             text = self.stt.transcribe(audio, self.language) if audio.size else ""
-            return Transcript(
-                text=text,
-                language=self.language,
-                audio_seconds=round(audio.size / SAMPLE_RATE, 2),
-                transcribe_seconds=round(time.perf_counter() - t0, 2),
-            )
+            transcribe_s = time.perf_counter() - t0
+            peak = float(np.abs(audio).max()) if audio.size else 0.0
+            seconds = audio.size / SAMPLE_RATE
         finally:
             audio.fill(0)  # the recording is not kept anywhere
-            self.stt.unload()
+            self.stt.unload()  # Whisper out before Qwen comes back
+            release = self._finish_release()  # Qwen reloads before the Router call
+        return Transcript(
+            text=text,
+            language=self.language,
+            audio_seconds=round(seconds, 2),
+            transcribe_seconds=round(transcribe_s, 2),
+            peak=round(peak, 3),
+            debug_file=debug_file,
+            qwen_unloaded=release is not None,
+            qwen_unload_s=round(release.unload_s, 2) if release else 0.0,
+            qwen_reload_s=round(release.reload_s, 2) if release else 0.0,
+        )
 
     def cancel(self) -> None:
         """Close the microphone and throw away what it heard (Stop everything, window closed)."""
@@ -143,6 +191,7 @@ class VoiceService:
             audio = self.recorder.stop()
         audio.fill(0)
         self.stt.unload()
+        self._finish_release()
         self.speaker.quiet()
 
     def _cancel_timer(self) -> None:

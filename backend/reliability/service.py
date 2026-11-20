@@ -39,6 +39,7 @@ from backend.reliability.resources import (
 from backend.reliability.settings import AppSettings, SettingsStore
 from backend.reliability.sleep_watch import watch_for_sleep
 from memory.config import REPO_ROOT, resolve_data_dir
+from model.serving.ollama_launcher import OllamaLauncher
 from security.audit.audit_logger import AuditLogger, get_audit_logger
 
 log = logging.getLogger(__name__)
@@ -64,7 +65,9 @@ class ReliabilityService:
         snapshot: Callable[[], ResourceSnapshot] | None = None,
         autostart_enabled: Callable[[], bool | None] | None = None,
         auto_backup: bool = True,
+        ollama: OllamaLauncher | None = None,
     ) -> None:
+        self.ollama = ollama
         self.data_dir = data_dir or resolve_data_dir()
         self.audit = audit or get_audit_logger()
         self.journal = TaskJournal(journal_path(self.data_dir), audit=self.audit)
@@ -155,8 +158,14 @@ class ReliabilityService:
         try:
             status = self.model.status()
         except Exception:  # noqa: BLE001 - Ollama not running
+            launched = self.ollama.health_value() if self.ollama is not None else ""
+            starting = self.ollama is not None and self.ollama.state == "starting"
             return [
-                HealthItem(name="Ollama", ok=False, value="not running (start Ollama)"),
+                HealthItem(
+                    name="Ollama",
+                    ok=None if starting else False,
+                    value=launched or "not running (start Ollama)",
+                ),
                 HealthItem(name="Model loaded", ok=None, value="unknown: Ollama is not running"),
             ]
         if status["loaded"]:
@@ -169,7 +178,11 @@ class ReliabilityService:
             loaded = HealthItem(
                 name="Model loaded", ok=None, value="no (loads on the next request)"
             )
-        return [HealthItem(name="Ollama", ok=True, value=f"running ({status['version']})"), loaded]
+        started = " — started by HCWMA" if self.ollama and self.ollama.started_by_hcwma else ""
+        return [
+            HealthItem(name="Ollama", ok=True, value=f"running ({status['version']}){started}"),
+            loaded,
+        ]
 
     def health(self) -> HealthReport:
         settings = self.settings.load()

@@ -10,6 +10,7 @@ from __future__ import annotations
 import gc
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -37,16 +38,21 @@ class SpeechToText:
     def loaded(self) -> bool:
         return self._model is not None
 
-    def load_in_background(self) -> None:
+    def load_in_background(self, before: Callable[[], None] | None = None) -> None:
+        """Load in a thread. `before` runs first in that thread (e.g. wait for Qwen to unload)."""
         with self._lock:
             if self._model is not None or (self._loader and self._loader.is_alive()):
                 return
             self._error = None
-            self._loader = threading.Thread(target=self._load, name="whisper-load", daemon=True)
+            self._loader = threading.Thread(
+                target=self._load, args=(before,), name="whisper-load", daemon=True
+            )
             self._loader.start()
 
-    def _load(self) -> None:
+    def _load(self, before: Callable[[], None] | None = None) -> None:
         try:
+            if before is not None:
+                before()
             from faster_whisper import WhisperModel
 
             model = WhisperModel(str(self.model_dir), device="cpu", compute_type="int8")

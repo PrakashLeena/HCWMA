@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "model.yaml"
@@ -45,6 +45,9 @@ class ModelConfig(BaseModel):
     keep_alive: str = "30m"
     request_timeout_s: float = 600.0
     research_checkpoint_dir: str | None = None
+    # Owner decision 2026-11-20: start the installed Ollama when it is down (ollama_launcher).
+    ollama_models_dir: str | None = None  # passed to `ollama serve` as OLLAMA_MODELS
+    ollama_start_timeout_s: float = Field(default=60.0, gt=0, le=300)
 
     @field_validator("max_parallel_requests")
     @classmethod

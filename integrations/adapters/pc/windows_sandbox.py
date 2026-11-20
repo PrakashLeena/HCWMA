@@ -176,7 +176,9 @@ def stage_tool_folder(tool_dir: Path, staging: Path) -> None:
 
 
 @contextmanager
-def model_released(backend: Any | None = None, queue: Any | None = None) -> Iterator[bool]:
+def model_released(
+    backend: Any | None = None, queue: Any | None = None, reason: str = "testing a tool"
+) -> Iterator[bool]:
     """Unload Qwen and hold the model queue for the block; reload afterwards.
 
     Yields True when the model was loaded before (and will be reloaded). Raises
@@ -196,7 +198,7 @@ def model_released(backend: Any | None = None, queue: Any | None = None) -> Iter
         was_loaded = False
     # The tool server cannot hold the backend's queue, so this file lock does: the backend's
     # ModelQueue refuses new inference until it is released (after the model is reloaded).
-    with model_lock.hold("testing a tool"), queue.exclusive():
+    with model_lock.hold(reason), queue.exclusive():
         if was_loaded:
             backend.unload()
             deadline = time.monotonic() + 30

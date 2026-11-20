@@ -17,6 +17,7 @@ from backend.auth.token import get_or_create_token
 from backend.config import BackendConfig, load_backend_config
 from backend.reliability.instance_lock import InstanceLock
 from backend.reliability.service import ReliabilityService
+from model.serving.ollama_launcher import get_launcher
 from voice.config import load_voice_config
 from voice.service import VoiceService
 
@@ -26,7 +27,8 @@ def build_app(config: BackendConfig, token: str) -> FastAPI:
     memory service + its daily clean-up and backup job, and step 18's reliability service
     (task journal, crash/sleep recovery, daily full backup, health, resource guard), and
     step 14's push-to-talk voice service."""
-    reliability = ReliabilityService()
+    launcher = get_launcher()  # starts Ollama when it is down (owner decision 2026-11-20)
+    reliability = ReliabilityService(ollama=launcher)
     return create_app(
         handler_factory=lambda: open_router(
             max_tokens=config.chat_max_tokens,
@@ -38,6 +40,7 @@ def build_app(config: BackendConfig, token: str) -> FastAPI:
         config=config,
         reliability=reliability,
         voice=VoiceService(load_voice_config()),
+        ollama=launcher,
     )
 
 

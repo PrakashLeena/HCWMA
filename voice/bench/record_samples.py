@@ -17,6 +17,7 @@ import wave
 import numpy as np
 import sounddevice as sd
 
+from voice.activation.push_to_talk import CAPTURE
 from voice.bench.common import (
     BENCH_DIR,
     CLIP_SECONDS,
@@ -29,7 +30,7 @@ from voice.bench.common import (
 
 
 def record_clip(seconds: float = CLIP_SECONDS) -> np.ndarray:
-    audio = sd.rec(int(seconds * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype="int16")
+    audio = sd.rec(int(seconds * SAMPLE_RATE), **CAPTURE)  # same settings as the app
     sd.wait()
     return audio[:, 0]
 

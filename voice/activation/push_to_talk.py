@@ -27,14 +27,34 @@ class InputStream(Protocol):
 
 StreamFactory = Callable[[Callable[..., None]], InputStream]
 
+# One set of capture settings for the app AND the benchmark recorder
+# (voice/bench/record_samples.py), so app audio matches the clips Whisper was scored on:
+# the default input device, 16 kHz, mono, 16-bit integers, no gain applied.
+CAPTURE: dict[str, Any] = {"samplerate": SAMPLE_RATE, "channels": 1, "dtype": "int16"}
+
+
+def input_device_name() -> str:
+    import sounddevice as sd
+
+    try:
+        return str(sd.query_devices(kind="input")["name"])
+    except Exception:
+        return "no microphone found"
+
 
 def sounddevice_stream(callback: Callable[..., None]) -> InputStream:
     import sounddevice as sd
 
-    stream: InputStream = sd.InputStream(
-        samplerate=SAMPLE_RATE, channels=1, dtype="float32", callback=callback
-    )
+    stream: InputStream = sd.InputStream(callback=callback, **CAPTURE)
     return stream
+
+
+def to_float(data: Any) -> np.ndarray:
+    """int16 samples (as captured) -> float32 in [-1, 1], the way Whisper reads them."""
+    arr = np.asarray(data)
+    if arr.dtype == np.int16:
+        return arr.reshape(-1).astype(np.float32) / 32768.0
+    return arr.reshape(-1).astype(np.float32)
 
 
 class PushToTalkRecorder:
@@ -62,7 +82,7 @@ class PushToTalkRecorder:
             room = self.max_samples - self._count
             if room <= 0:
                 return
-            chunk = np.asarray(data, dtype=np.float32).reshape(-1)[:room].copy()
+            chunk = to_float(data)[:room].copy()
             self._chunks.append(chunk)
             self._count += len(chunk)
 
