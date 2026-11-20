@@ -19,6 +19,12 @@ think: false                  # Qwen thinking mode off: keeps routing and tool c
 keep_alive: 30m               # how long Ollama keeps the model loaded after the last request
 request_timeout_s: 600
 
+# Owner decision 2026-11-20: when Ollama is down, HCWMA starts the installed `ollama serve`
+# itself (hidden, OLLAMA_HOST=127.0.0.1:11434) with this models folder, and waits up to
+# ollama_start_timeout_s for it to answer. Nothing is ever downloaded or installed.
+ollama_models_dir: E:/ollama/models
+ollama_start_timeout_s: 60
+
 # One model instance, one request at a time (model_queue.py).
 max_parallel_requests: 1
 

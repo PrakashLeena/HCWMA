@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -51,6 +52,8 @@ from integrations.adapters.local_data.planner_store import PlannerStore
 from integrations.adapters.local_data.when_parser import describe
 from integrations.generated_tools.review import ReviewRefused, ReviewService
 from model.serving import Message
+from model.serving.ollama_launcher import OllamaLauncher
+from voice.memory_budget import top_apps_by_ram
 from voice.service import Transcript, VoiceRefused, VoiceService, VoiceStatus
 
 logger = logging.getLogger("hcwma.backend")
@@ -98,6 +101,7 @@ def create_app(
     clock: Callable[[], datetime] | None = None,
     reliability: ReliabilityService | None = None,
     voice: VoiceService | None = None,
+    ollama: OllamaLauncher | None = None,
 ) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
@@ -108,6 +112,10 @@ def create_app(
             # Step 18: before any new request, whatever a crash left running is marked
             # interrupted (never re-run) and its approval prompts are cancelled.
             reliability.recover()
+        if ollama is not None:
+            # Owner decision 2026-11-20: start Ollama at HCWMA launch if it is down. In the
+            # background, so the window opens at once; a chat meanwhile waits on the same lock.
+            threading.Thread(target=ollama.ensure_running, name="ollama-start", daemon=True).start()
         async with handler_factory() as handler:
             app.state.handler = handler
             if reliability is None:
@@ -158,6 +166,13 @@ def create_app(
             refused = reliability.refusal()
             if refused is not None:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=refused)
+        if ollama is not None:
+            # Ollama down: start it (once, under a lock) and wait up to 60 s, then go on.
+            started = await run_in_threadpool(ollama.ensure_running)
+            if not started.ok:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=started.message()
+                )
         try:
             check_free()  # a sandbox tool test holds the model (build step 13)
             reply = await http.app.state.handler.handle(conversation)
@@ -324,6 +339,11 @@ def create_app(
             "model_paused": service.model.paused,
         }
 
+    @app.get("/model/state", dependencies=[Depends(require_token)])
+    def model_state() -> dict[str, str]:
+        """The chat page asks this while a request waits: "starting" = Ollama is being started."""
+        return {"state": ollama.state if ollama is not None else "unknown"}
+
     @app.post("/model/pause", dependencies=[Depends(require_token)])
     def pause_model() -> dict[str, bool]:
         rel().pause_model()
@@ -379,14 +399,15 @@ def create_app(
     @app.post("/voice/start", dependencies=[Depends(require_token)])
     def voice_start(body: VoiceStart) -> VoiceStatus:
         service = vs()
-        min_ram = 0
         if reliability is not None:
             refused = reliability.refusal()  # the request will run Qwen: same rules as /chat
             if refused is not None:
+                if "low on resources" in refused:  # name the apps the owner could close
+                    apps = ", ".join(f"{name} {mb} MB" for name, mb in top_apps_by_ram())
+                    refused += f" Close some of these to free RAM: {apps}."
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=refused)
-            min_ram = reliability.current_settings().min_free_ram_mb
         try:
-            service.start(body.language, min_free_ram_mb=min_ram)
+            service.start(body.language)
         except VoiceRefused as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
         return service.status()

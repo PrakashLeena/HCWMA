@@ -54,7 +54,9 @@ class FakeStt:
     def available(self) -> bool:
         return self._available
 
-    def load_in_background(self) -> None:
+    def load_in_background(self, before: Callable[[], None] | None = None) -> None:
+        if before is not None:
+            before()
         self.loads += 1
         self.loaded = True
 
@@ -65,6 +67,25 @@ class FakeStt:
     def unload(self) -> None:
         self.unloads += 1
         self.loaded = False
+
+
+class FakeRelease:
+    """Stands in for QwenRelease: records the order of events."""
+
+    log: list[str] = []
+
+    def __init__(self) -> None:
+        self.unload_s = 1.5
+        self.reload_s = 4.0
+
+    def start(self) -> None:
+        FakeRelease.log.append("qwen unload")
+
+    def wait_unloaded(self, timeout: float = 60) -> None:
+        FakeRelease.log.append("qwen out")
+
+    def finish(self, timeout: float = 120) -> None:
+        FakeRelease.log.append("qwen reload")
 
 
 class FakeSpeaker(Speaker):
@@ -92,6 +113,9 @@ def make_service(
     mic: FakeMic | None = None,
     stt: Any = None,
     free_ram_mb: float = 8000,
+    qwen_mb: float = 0.0,
+    release_factory: Any = None,
+    top_apps: Any = None,
     **config: Any,
 ) -> tuple[VoiceService, FakeMic, Any]:
     mic = mic or FakeMic()
@@ -103,6 +127,9 @@ def make_service(
         speaker=FakeSpeaker(tmp_path / "models"),
         stream_factory=mic.factory,
         free_ram_mb=lambda: free_ram_mb,
+        qwen_mb=lambda: qwen_mb,
+        release_factory=release_factory or (lambda: FakeRelease()),
+        top_apps=top_apps or (lambda: [("chrome", 2100), ("Code", 900)]),
         debug_dir=tmp_path / "voice_debug",
     )
     return service, mic, stt

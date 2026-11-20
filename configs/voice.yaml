@@ -8,7 +8,8 @@ stt_model: small              # faster-whisper checkpoint (tiny | base | small)
 models_dir: workspace/voice_models   # relative to the repo; gitignored
 max_record_seconds: 30        # the microphone closes by itself after this
 max_transcribe_seconds: 40    # a runaway (hallucinating) transcription is cut off here
-stt_ram_mb: 1100              # free RAM needed on top of the app's minimum to load Whisper
+stt_ram_mb: 1340              # free RAM needed to load Whisper small: measured peak 1038 MB + 300 MB margin.
+                              # Less free: Qwen is unloaded for the transcription and reloaded after.
 speak_max_chars: 1200         # longer replies are cut before speaking
 
 # Debug only. When true, each push-to-talk recording is ALSO saved as a .wav in

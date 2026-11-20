@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from security.audit.audit_logger import DEFAULT_AUDIT_PATH
+from security.audit.audit_logger import resolve_audit_path
 
 
 @dataclass
@@ -58,7 +58,8 @@ def _secs(record: dict[str, Any]) -> float:
     return float(record.get("duration_ms") or 0.0) / 1000
 
 
-def load_records(path: Path = DEFAULT_AUDIT_PATH) -> list[dict[str, Any]]:
+def load_records(path: Path | None = None) -> list[dict[str, Any]]:
+    path = path or resolve_audit_path()
     if not path.exists():
         return []
     records = []
@@ -194,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("task_id", nargs="?", help="Router or agent task id (default: latest)")
     parser.add_argument("--total", type=float, help="the total you measured, in seconds")
-    parser.add_argument("--log", type=Path, default=DEFAULT_AUDIT_PATH, help=argparse.SUPPRESS)
+    parser.add_argument("--log", type=Path, default=None, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     records = load_records(args.log)
     root = root_of(records, args.task_id) if args.task_id else latest_root(records)

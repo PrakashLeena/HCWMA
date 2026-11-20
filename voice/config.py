@@ -23,7 +23,7 @@ class VoiceConfig(BaseModel):
     models_dir: Path = Path("workspace/voice_models")
     max_record_seconds: float = Field(default=30, gt=0, le=120)
     max_transcribe_seconds: float = Field(default=40, gt=0, le=300)
-    stt_ram_mb: int = Field(default=1100, ge=0)
+    stt_ram_mb: int = Field(default=1340, ge=0)  # 1038 MB measured peak + 300 MB margin
     speak_max_chars: int = Field(default=1200, ge=50, le=10_000)
     debug_save_audio: bool = False
 

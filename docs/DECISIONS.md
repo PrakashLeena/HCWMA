@@ -233,3 +233,20 @@ Design choices made by Claude Code, **owner to confirm or change**:
 Found on 2026-11-19: drive C: (where `%LOCALAPPDATA%\HCWMA` lives) has **4.9 GB free**, below
 the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner to act; the
 "Free SSD ~546 GB" above is out of date).
+
+## Local model runtime (decided 2026-11-20)
+
+- If Ollama is not running when HCWMA needs the model (nothing answers on 127.0.0.1:11434),
+  HCWMA starts the installed `ollama.exe serve` itself: hidden, detached, OLLAMA_HOST=127.0.0.1:11434
+  (never 0.0.0.0), OLLAMA_MODELS from `ollama_models_dir` in configs/model.yaml (E:/ollama/models).
+- ollama.exe is found on PATH or in the standard install folders; HCWMA never downloads or installs it.
+- One start attempt at a time (lock); requests wait up to 60 s (`ollama_start_timeout_s`) while the
+  chat shows "Starting the local model…". A failure gives one message with the reason and what to do,
+  and is not retried for 60 s (no loop). Also started at HCWMA launch; shown on the Health page.
+
+## Voice RAM (decided 2026-11-20)
+
+- Whisper small needs 1340 MB free (measured peak 1038 MB + 300 MB margin). Less free: Qwen is unloaded
+  for the transcription (same model-busy lock as the sandbox) and reloaded before the Router call; the
+  extra time is shown in the chat. Still not enough: the top 5 apps by RAM are named so the owner can
+  close some. HCWMA never closes, kills or trims any process.
