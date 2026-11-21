@@ -12,7 +12,12 @@ from integrations.adapters.desktop.whatsapp_tools import (
     WhatsAppRefused,
     WhatsAppUnavailable,
 )
-from integrations.adapters.pc.windows_whatsapp import NOT_LINKED, NOT_RUNNING, is_self_name
+from integrations.adapters.pc.windows_whatsapp import (
+    NOT_LINKED,
+    NOT_READY,
+    NOT_RUNNING,
+    is_self_name,
+)
 
 SELF_NAME = "@owner (You)"
 
@@ -20,17 +25,31 @@ SELF_NAME = "@owner (You)"
 @dataclass
 class FakeWhatsApp:
     chats: dict[str, list[ChatMessage]] = field(default_factory=dict)
-    state: str = "ok"  # ok | not_running | not_linked
     header_override: str | None = None  # the chat that really opens (to simulate a wrong one)
     open: str = ""
     opened: list[str] = field(default_factory=list)
     sent: list[tuple[str, str]] = field(default_factory=list)
 
+    state: str = "ok"  # ok | not_running | not_linked | loading
+    checks: int = 0
+
     def _check(self) -> None:
         if self.state == "not_running":
-            raise WhatsAppUnavailable(NOT_RUNNING)
+            raise WhatsAppUnavailable(NOT_RUNNING, reason="not_running")
         if self.state == "not_linked":
-            raise WhatsAppUnavailable(NOT_LINKED)
+            raise WhatsAppUnavailable(NOT_LINKED, reason="not_linked")
+        if self.state == "loading":
+            raise WhatsAppUnavailable(NOT_READY, reason="not_ready")
+
+    shown: int = 0
+
+    def show_window(self) -> bool:
+        self.shown += 1
+        return self.state != "not_running"
+
+    def check_ready(self) -> None:
+        self.checks += 1
+        self._check()
 
     def list_chats(self, limit: int) -> list[ChatRow]:
         self._check()

@@ -341,8 +341,14 @@ def create_app(
 
     @app.get("/model/state", dependencies=[Depends(require_token)])
     def model_state() -> dict[str, str]:
-        """The chat page asks this while a request waits: "starting" = Ollama is being started."""
-        return {"state": ollama.state if ollama is not None else "unknown"}
+        """The chat page asks this while a request waits: "starting" = Ollama is being started;
+        `activity` = a fixed line from HCWMA's code such as "Opening WhatsApp…" (or "")."""
+        from integrations import activity
+
+        return {
+            "state": ollama.state if ollama is not None else "unknown",
+            "activity": activity.current(),
+        }
 
     @app.post("/model/pause", dependencies=[Depends(require_token)])
     def pause_model() -> dict[str, bool]:

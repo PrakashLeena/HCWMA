@@ -13,6 +13,7 @@ import anyio
 import pytest
 
 from integrations.adapters.browser.web_tools import WebToolDeps, web_tool_specs
+from integrations.adapters.desktop.app_launch import Allowlist, AppLauncher, launch_tool_spec
 from integrations.adapters.desktop.ui_interface import UiGuard
 from integrations.adapters.desktop.ui_tools import UiToolDeps, ui_tool_specs
 from integrations.adapters.desktop.whatsapp_tools import WhatsAppToolDeps, whatsapp_tool_specs
@@ -96,6 +97,7 @@ def _catalog(pc: Layout) -> CapabilityCatalog:
         *planner_tool_specs(PlannerDeps(PlannerStore(pc.tmp / "planner.sqlite3")), "approved"),
         *document_tool_specs(DocumentToolDeps(pc.policy, pc.index), status="approved"),
         *settings_tool_specs(SettingsDeps(UnsupportedSettings()), status="approved"),
+        launch_tool_spec(AppLauncher(None, Allowlist({})), status="approved"),  # type: ignore[arg-type]
     ):
         catalog.register(spec)
     return catalog

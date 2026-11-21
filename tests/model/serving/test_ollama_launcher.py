@@ -202,7 +202,7 @@ def test_chat_starts_ollama_then_continues(router: FakeRouter) -> None:
     for c in _client(router, ol):
         r = c.post("/chat", json={"messages": [{"role": "user", "content": "hi"}]}, headers=AUTH)
         assert r.status_code == 200 and router.calls
-        assert c.get("/model/state", headers=AUTH).json() == {"state": "up"}
+        assert c.get("/model/state", headers=AUTH).json()["state"] == "up"
     assert len(world.starts) == 1  # launch and chat shared the one start
 
 
@@ -213,7 +213,7 @@ def test_chat_gets_one_clear_message_when_ollama_cannot_start(router: FakeRouter
         r = c.post("/chat", json={"messages": [{"role": "user", "content": "hi"}]}, headers=AUTH)
         assert r.status_code == 503
         assert "could not be started" in r.json()["detail"] and router.calls == []
-        assert c.get("/model/state", headers=AUTH).json() == {"state": "failed"}
+        assert c.get("/model/state", headers=AUTH).json()["state"] == "failed"
 
 
 def test_health_page_shows_the_start(tmp_path: Path) -> None:
