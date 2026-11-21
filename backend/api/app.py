@@ -34,6 +34,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from agents.router.router import RouterReply
 from agents.runtime.model_lock import BUSY_MESSAGE, ModelBusy, check_free
 from agents.runtime.model_queue import PAUSED_MESSAGE, ModelPaused
+from backend.api.apps_routes import add_app_routes
+from backend.apps_service import AppsService
 from backend.auth.token import token_matches
 from backend.config import BackendConfig
 from backend.reliability.health import HealthReport
@@ -102,6 +104,7 @@ def create_app(
     reliability: ReliabilityService | None = None,
     voice: VoiceService | None = None,
     ollama: OllamaLauncher | None = None,
+    apps: AppsService | None = None,
 ) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
@@ -116,6 +119,10 @@ def create_app(
             # Owner decision 2026-11-20: start Ollama at HCWMA launch if it is down. In the
             # background, so the window opens at once; a chat meanwhile waits on the same lock.
             threading.Thread(target=ollama.ensure_running, name="ollama-start", daemon=True).start()
+        if apps is not None:
+            # 2026-11-21: app inventory at start (background) and daily; adapters of an
+            # existing install stay on.
+            apps.start()
         async with handler_factory() as handler:
             app.state.handler = handler
             if reliability is None:
@@ -219,7 +226,7 @@ def create_app(
     @app.post("/approvals/{approval_id}", dependencies=[Depends(require_token)])
     async def decide(approval_id: str, body: ApprovalDecision, http: Request) -> DecisionResponse:
         service = getattr(http.app.state.handler, "approvals", None)
-        if service is None or not service.decide(approval_id, body.decision == "approve"):
+        if service is None or not service.decide(approval_id, body.decision):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="that approval is no longer waiting (answered, expired or stopped)",
@@ -449,6 +456,8 @@ def create_app(
     @app.get("/tools", include_in_schema=False)
     def tools_page() -> FileResponse:
         return FileResponse(WEB_DIR / "tools.html", media_type="text/html")
+
+    add_app_routes(app, require_token, apps, reliability, WEB_DIR)
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:

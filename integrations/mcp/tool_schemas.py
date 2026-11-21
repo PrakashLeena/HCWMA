@@ -136,6 +136,13 @@ class ToolSpec:
     # model; used so an action's target must come from the owner's own words, not from text
     # the agent read. A tool with a precheck always gets the caller context.
     precheck: Callable[[Any, CallerContext | None], str | None] | None = None
+    # Per-call owner question (2026-11-21, launch_app): given the validated arguments, True
+    # when THIS call needs the owner's approval even though the tier alone would not. Code
+    # only; an error counts as True (fail closed).
+    ask_owner: Callable[[Any], bool] | None = None
+    # When set, the approval card also offers "Always allow"; the gateway calls this with the
+    # validated arguments after the owner clicked it (and the approval was consumed).
+    remember: Callable[[Any], None] | None = None
 
     @property
     def name(self) -> str:

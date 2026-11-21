@@ -24,6 +24,7 @@ from typing import Any
 import mcp_types as types
 from pydantic import ValidationError
 
+from integrations.apps.adapters import adapter_refusal
 from integrations.mcp.client import McpToolClient
 from integrations.mcp.tool_schemas import CALLER_KEY, CallerContext, ToolResult, ToolSpec
 from integrations.registry.capability_catalog import CapabilityCatalog
@@ -59,6 +60,9 @@ class PolicyLayer:
             if spec is None:
                 continue
             # "needs_approval" tools are visible: the agent may propose them, the owner decides.
+            # Tools of an adapter the owner turned off are not offered at all (2026-11-21).
+            if adapter_refusal(spec.name) is not None:
+                continue
             if self._permissions.check(agent, spec.manifest).outcome != "denied":
                 visible.append(tool)
         return visible
@@ -99,6 +103,9 @@ class PolicyLayer:
         decision = self._permissions.check(agent, spec.manifest)
         if decision.outcome == "denied":
             return finish(ToolResult.failure("denied", decision.reason))
+        off = adapter_refusal(spec.name)
+        if off is not None:
+            return finish(ToolResult.failure("denied", off))
 
         try:
             args = spec.input_model.model_validate(arguments)
@@ -118,7 +125,14 @@ class PolicyLayer:
                 return finish(ToolResult.failure("denied", refusal))
 
         reason = decision.reason
-        if decision.outcome == "needs_approval":
+        ask = decision.outcome == "needs_approval"
+        if not ask and spec.ask_owner is not None:
+            try:
+                ask = bool(spec.ask_owner(args))
+            except Exception:  # noqa: BLE001 - fail closed: ask the owner
+                log.warning("ask_owner() failed for tool %s", spec.name)
+                ask = True
+        if ask:
             # The only way past this point is the owner's one-time approval of exactly this
             # task, agent, tool and arguments. Nothing a caller passes in can stand in for it.
             if self._approvals is None:
@@ -131,6 +145,7 @@ class PolicyLayer:
                     tier=spec.manifest.permission_tier,
                     arguments=arguments,
                     summary=_describe(spec, args),
+                    can_remember=spec.remember is not None,
                 )
             waited = answer.waited_s
             if answer.outcome == "denied":
@@ -152,6 +167,12 @@ class PolicyLayer:
                     ToolResult.failure("needs_approval", f"the approval for '{tool}' is not valid")
                 )
             reason = f"owner approved ({answer.approval_id[:8]})"
+            if answer.remember and spec.remember is not None:
+                try:
+                    spec.remember(args)
+                    reason = f"owner chose Always allow ({answer.approval_id[:8]})"
+                except Exception:  # noqa: BLE001 - this call is still approved once
+                    log.warning("remember() failed for tool %s", spec.name)
 
         sent = arguments
         if spec.caller_context:

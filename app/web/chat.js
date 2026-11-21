@@ -81,7 +81,8 @@ function buildApprovalCard(item) {
   card.dataset.id = item.id;
   card.setAttribute("role", "alertdialog");
   const title = document.createElement("h2");
-  title.textContent = "HCWMA needs your approval";
+  // Opening an app (2026-11-21): Allow once / Always allow / Deny. Only these clicks decide.
+  title.textContent = item.can_remember ? "HCWMA wants to open an app" : "HCWMA needs your approval";
   const what = document.createElement("p");
   what.className = "what";
   what.textContent = item.summary; // text only, never HTML
@@ -95,10 +96,19 @@ function buildApprovalCard(item) {
   deny.textContent = "Deny";
   const approve = document.createElement("button");
   approve.type = "button";
-  approve.textContent = "Approve once";
+  approve.textContent = item.can_remember ? "Allow once" : "Approve once";
   deny.addEventListener("click", () => decide(item.id, "deny", card));
   approve.addEventListener("click", () => decide(item.id, "approve", card));
   row.append(deny, approve);
+  if (item.can_remember) {
+    const always = document.createElement("button");
+    always.type = "button";
+    always.className = "quiet";
+    always.textContent = "Always allow";
+    always.title = "Open this app without asking from now on (opening only; revoke on the Apps page)";
+    always.addEventListener("click", () => decide(item.id, "always", card));
+    row.append(always);
+  }
   card.append(title, what, who, row);
   return card;
 }
@@ -241,6 +251,7 @@ tokenForm.addEventListener("submit", (event) => {
   tokenInput.value = "";
   showLocked(false);
   initVoice();
+  checkSetup();
 });
 
 chatForm.addEventListener("submit", (event) => {
@@ -401,7 +412,51 @@ document.addEventListener("keyup", (event) => {
 });
 window.addEventListener("blur", () => { if (held) finishTalk(); });
 
+// ---- 2026-11-21: first-run wizard and adapter offers ----
+const offersEl = el("offers");
+
+async function checkSetup() {
+  if (!memoryToken) return;
+  try {
+    const r = await fetch("/setup/state", { headers: authHeaders() });
+    if (r.ok && !(await r.json()).done) { window.location.href = "/setup"; return; }
+    const apps = await fetch("/apps/state", { headers: authHeaders() });
+    if (apps.ok) renderOffers((await apps.json()).offers);
+  } catch { /* the health line shows a lost backend */ }
+}
+
+function renderOffers(offers) {
+  offersEl.replaceChildren();
+  for (const offer of offers) {
+    const row = document.createElement("div");
+    row.className = "row offer";
+    const text = document.createElement("span");
+    text.textContent = offer.text; // text only, never HTML
+    const yes = document.createElement("button");
+    yes.type = "button";
+    yes.textContent = "Enable";
+    const no = document.createElement("button");
+    no.type = "button";
+    no.className = "quiet";
+    no.textContent = "Not now";
+    const answer = async (on) => {
+      yes.disabled = no.disabled = true;
+      await fetch("/adapters/" + encodeURIComponent(offer.adapter), {
+        method: "POST", headers: authHeaders(), body: JSON.stringify({ on, source: "offer" }),
+      });
+      row.remove();
+      offersEl.hidden = offersEl.children.length === 0;
+    };
+    yes.addEventListener("click", () => answer(true));
+    no.addEventListener("click", () => answer(false));
+    row.append(text, yes, no);
+    offersEl.appendChild(row);
+  }
+  offersEl.hidden = offers.length === 0;
+}
+
 showLocked(!memoryToken);
 if (memoryToken) initVoice();
 checkHealth();
+checkSetup();
 setInterval(pollApprovals, 1000);

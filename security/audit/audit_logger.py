@@ -83,6 +83,7 @@ class AuditRecord(BaseModel):
         "model_call",
         "recovery",
         "reliability",
+        "app_access",
     ]
     task_id: str
     parent_task_id: str | None = None
@@ -203,6 +204,30 @@ class AuditLogger:
             task_id="-",
             agent="owner",
             tool=action,
+            outcome=outcome,
+            reason=reason[:300],
+        )
+        self.write(record)
+        return record
+
+    def app_access(
+        self,
+        *,
+        action: str,
+        app: str,
+        outcome: str,
+        agent: str = "owner",
+        task_id: str = "-",
+        reason: str = "",
+    ) -> AuditRecord:
+        """Which apps HCWMA may open, and the adapters it may use (2026-11-21): allow once,
+        always allow, deny, revoke, adapter on/off, app scans. Names and ids only."""
+        record = AuditRecord(
+            event="app_access",
+            task_id=task_id,
+            agent=agent,
+            tool=action,
+            args={"app": app[:120]},
             outcome=outcome,
             reason=reason[:300],
         )

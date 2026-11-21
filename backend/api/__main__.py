@@ -13,6 +13,7 @@ from fastapi import FastAPI
 
 from agents.router.factory import open_router
 from backend.api.app import create_app
+from backend.apps_service import AppsService, default_scanner
 from backend.auth.token import get_or_create_token
 from backend.config import BackendConfig, load_backend_config
 from backend.reliability.instance_lock import InstanceLock
@@ -41,6 +42,7 @@ def build_app(config: BackendConfig, token: str) -> FastAPI:
         reliability=reliability,
         voice=VoiceService(load_voice_config()),
         ollama=launcher,
+        apps=AppsService(default_scanner()),  # app inventory + adapters + setup (2026-11-21)
     )
 
 

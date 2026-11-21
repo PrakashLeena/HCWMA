@@ -8,6 +8,7 @@ here is called.
 
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import subprocess
@@ -118,3 +119,28 @@ class WindowsAppStarter:
             if name in processes:
                 return True
         return False
+
+    def start_exe(self, exe: str) -> None:
+        """A desktop app known only by its program path: started like a double-click on it,
+        with no arguments. The path comes from this PC's app catalog and is checked against
+        the block list before this is called."""
+        _check_enabled()
+        os.startfile(exe)  # noqa: S606 - no arguments; path checked by app_launch
+
+    def window_titles(self) -> dict[int, str]:
+        """Visible top-level windows with a title: handle -> title. Reads only."""
+        user32 = ctypes.windll.user32
+        out: dict[int, str] = {}
+        proc_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+        def each(handle: int, _param: int) -> bool:
+            if user32.IsWindowVisible(handle) and not user32.GetWindow(handle, 4):  # no owner
+                length = user32.GetWindowTextLengthW(handle)
+                if length:
+                    buffer = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(handle, buffer, length + 1)
+                    out[int(handle)] = buffer.value
+            return True
+
+        user32.EnumWindows(proc_type(each), 0)
+        return out

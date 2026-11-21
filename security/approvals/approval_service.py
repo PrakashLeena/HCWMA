@@ -13,7 +13,9 @@ What makes an approval safe:
   hash of the arguments. `consume()` checks all of them again right before the tool runs.
 - **Single use.** A consumed approval is gone; a second call needs a new prompt.
 - **Short-lived.** Nobody answering within the timeout counts as "not approved".
-- **No "always allow".** There is no way to remember an approval.
+- **"Always allow" only where a tool offers it** (2026-11-21: opening an app). The card shows
+  the third button only when the tool has a `remember` rule; the owner's click is the only way
+  to pick it, and what is remembered is decided by that tool's code, never by the model.
 
 Every request and its outcome is written to the audit log.
 """
@@ -40,6 +42,7 @@ DEFAULT_APPROVAL_TIMEOUT_S = 300.0
 # really sent, never a cut-off version of it.
 MAX_SUMMARY_CHARS = 6500
 ApprovalOutcome = Literal["approved", "denied", "expired", "cancelled"]
+Decision = Literal["approve", "deny", "always"]
 _State = Literal["pending", "approved", "denied", "expired", "cancelled", "used"]
 
 
@@ -60,6 +63,7 @@ class PendingApproval(BaseModel):
     summary: str
     arguments: dict[str, Any]
     expires_in_s: int
+    can_remember: bool = False  # the card offers "Always allow"
 
 
 @dataclass
@@ -73,6 +77,8 @@ class _Request:
     arguments: dict[str, Any]
     digest: str
     expires_at: float
+    can_remember: bool = False
+    remember: bool = False
     state: _State = "pending"
     answered: anyio.Event = field(default_factory=anyio.Event)
 
@@ -82,6 +88,7 @@ class ApprovalAnswer:
     approval_id: str
     outcome: ApprovalOutcome
     waited_s: float
+    remember: bool = False  # the owner clicked "Always allow"
 
 
 class ApprovalJournal(Protocol):
@@ -120,6 +127,7 @@ class ApprovalService:
         tier: PermissionTier,
         arguments: dict[str, Any],
         summary: str,
+        can_remember: bool = False,
     ) -> ApprovalAnswer:
         """Show the prompt and wait for the owner. Never raises on "no"; returns the outcome."""
         req = _Request(
@@ -132,6 +140,7 @@ class ApprovalService:
             arguments=arguments,
             digest=action_hash(tool, arguments),
             expires_at=time.monotonic() + self._timeout_s,
+            can_remember=can_remember,
         )
         with self._lock:
             self._requests[req.id] = req
@@ -152,7 +161,8 @@ class ApprovalService:
         if outcome != "approved":
             with self._lock:
                 self._requests.pop(req.id, None)
-        return ApprovalAnswer(req.id, outcome, time.monotonic() - start)
+        remember = outcome == "approved" and req.remember
+        return ApprovalAnswer(req.id, outcome, time.monotonic() - start, remember=remember)
 
     def consume(
         self, approval_id: str, *, task_id: str, agent: str, tool: str, arguments: dict[str, Any]
@@ -189,20 +199,30 @@ class ApprovalService:
                 summary=r.summary,
                 arguments=r.arguments,
                 expires_in_s=max(0, int(r.expires_at - now)),
+                can_remember=r.can_remember,
             )
             for r in sorted(waiting, key=lambda r: r.expires_at)
             if r.expires_at > now
         ]
 
-    def decide(self, approval_id: str, approve: bool) -> bool:
-        """The owner's answer. False if there is no such pending prompt (unknown, answered,
-        expired or cancelled) — an answer can never be changed or replayed."""
+    def decide(self, approval_id: str, approve: bool | Decision) -> bool:
+        """The owner's answer: approve (once), deny, or "always" where the card offers it.
+        False if there is no such pending prompt (unknown, answered, expired or cancelled), or
+        "always" on a card that does not offer it — an answer can never be changed or
+        replayed."""
+        if isinstance(approve, str):
+            decision: Decision = approve
+        else:
+            decision = "approve" if approve else "deny"
         with self._lock:
             req = self._requests.get(approval_id)
             if req is None or req.state != "pending" or time.monotonic() > req.expires_at:
                 return False
-            req.state = "approved" if approve else "denied"
-        self._log(req, req.state)
+            if decision == "always" and not req.can_remember:
+                return False
+            req.state = "denied" if decision == "deny" else "approved"
+            req.remember = decision == "always"
+        self._log(req, "approved_always" if req.remember else req.state)
         req.answered.set()
         return True
 

@@ -21,6 +21,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from pydantic import ValidationError
 
+from integrations.apps.adapters import adapter_refusal
 from integrations.mcp.tool_schemas import CALLER_KEY, CallerContext, ToolResult
 from integrations.registry.capability_catalog import CapabilityCatalog, default_catalog
 
@@ -40,6 +41,9 @@ async def execute(catalog: CapabilityCatalog, name: str, arguments: dict[str, An
     spec = catalog.get(name)
     if spec is None or spec.manifest.status != "approved":
         return ToolResult.failure("unknown_tool", f"no approved tool named '{name}'")
+    off = adapter_refusal(name)  # defence in depth: the gateway checked this already
+    if off is not None:
+        return ToolResult.failure("denied", off)
     arguments = dict(arguments)
     raw_caller = arguments.pop(CALLER_KEY, None)
     caller: CallerContext | None = None

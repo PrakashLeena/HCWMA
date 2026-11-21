@@ -172,7 +172,7 @@ def test_bad_decisions_and_unknown_ids_are_rejected(client: TestClient) -> None:
         client.post("/approvals/nope", json={"decision": "approve"}, headers=AUTH).status_code
         == 404
     )
-    for body in ({"decision": "always"}, {}, {"decision": "approve", "remember": True}):
+    for body in ({"decision": "forever"}, {}, {"decision": "approve", "remember": True}):
         assert client.post("/approvals/nope", json=body, headers=AUTH).status_code == 422
 
 

@@ -287,3 +287,45 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
 - A WhatsApp window that opens behind others is brought to the front once while it loads.
 - Opening WhatsApp does not change who may use it: App Automation still may not click or type
   in it (`COMMUNICATION_ONLY_APPS`).
+
+## App inventory, launch permission, adapters, first-run wizard (decided 2026-11-21)
+
+- **App inventory.** HCWMA scans the installed apps at first run, at every start (in the
+  background) and once a day, and on the owner's "Scan again". Read-only sources: `Get-StartApps`
+  (AppUserModelIDs of Store and desktop apps), `Get-AppxPackage` (publisher, package family),
+  Start Menu shortcuts (target program) and the installed-programs registry keys. Saved per PC
+  as `%LOCALAPPDATA%\HCWMA\app_catalog.json` (never in Git). Registry entries that point at
+  installers, updaters or runtimes are left out.
+- **Launch permission.** `launch_app` (T2) can open any catalog app the owner named. If the app
+  is not yet allowed, the desktop app shows a card "HCWMA wants to open <app>" with **Allow once
+  / Always allow / Deny**. Only an owner click answers it (never voice, never an agent; the
+  `/approvals` route needs the per-install token, and "always" is refused on any card that does
+  not offer it). "Always allow" is saved per app in `%LOCALAPPDATA%\HCWMA\app_permissions.json`
+  and can be revoked on the Apps page (`/apps`). It covers opening only: clicks, typing and sends
+  inside an app still need per-action approval. Every decision is audited (`approval` and
+  `app_access` records).
+- **Hard block in code** (`integrations/apps/blocklist.py`): browsers, password managers and
+  authenticators, banking / payment / crypto apps, terminals and anything that runs commands
+  (code editors, Python, Git Bash…), system and security tools (Settings, Control Panel,
+  Registry Editor, programs in the Windows folder…), remote-control tools, app stores and
+  installers, and HCWMA itself. They never show a card; "Always allow" and `apps.yaml` cannot
+  unblock them (checked again at launch, since the catalog file is data).
+- **`configs/apps.yaml` becomes owner overrides**: an entry opens without a card and is pinned to
+  its package + publisher. Shipped with WhatsApp only (used by the WhatsApp adapter); Calculator
+  and Notepad moved to the normal catalog + card flow.
+- **Adapters.** Each bundled adapter declares the app it serves (package family / program name /
+  publisher): WhatsApp (WhatsApp Desktop) and Gmail (an API, no app). After a scan HCWMA offers
+  "WhatsApp found: enable the WhatsApp adapter?". An adapter that is off has its tools refused
+  and hidden by the gateway. On/off is per PC in `%LOCALAPPDATA%\HCWMA\adapters.json`. A new
+  install starts with every adapter off; an install that already had data keeps both adapters on
+  (written once at the first start of this version, audited) so the update breaks nothing.
+- **No downloaded adapters.** HCWMA never downloads adapters or any other code from the
+  internet. Signed adapter packs only, later. Apps without an adapter are used through App
+  Automation, which asks before every click and keystroke.
+- **First-run wizard** (`/setup`, shown once until finished or skipped; reopen from the Apps
+  page): PC check (RAM, disk, Ollama, model), app scan and "may open without asking" selection,
+  adapters (on/off; Gmail login status and how to sign in; WhatsApp linking hint), and approved
+  folders: the real Desktop / Documents / Downloads are read from the "User Shell Folders"
+  registry key (detects OneDrive redirection); only those detected folders can be added to
+  `approved_folders`, on an owner click, and take effect after a restart.
+- The four per-PC files are protected paths for agent tools (`configs/permissions.yaml`).

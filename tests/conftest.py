@@ -8,6 +8,7 @@ by a test (the stdio MCP server) inherit it.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -27,3 +28,19 @@ def _isolated_hcwma_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     # App launching (2026-11-20): the real launcher never opens WhatsApp, Calculator or Notepad
     # during tests (tests use a fake starter).
     monkeypatch.setenv("HCWMA_DISABLE_APP_LAUNCH", "1")
+    # Adapters (2026-11-21): a new install starts with every adapter off. Tests of the
+    # WhatsApp / Gmail tools expect them on, as on an install that already used them; tests
+    # of the on/off rule write their own state.
+    data = tmp_path / "hcwma-data"
+    data.mkdir(parents=True, exist_ok=True)
+    (data / "adapters.json").write_text(
+        json.dumps(
+            {
+                "adapters": {
+                    a: {"on": True, "since": "test", "source": "test"}
+                    for a in ("whatsapp", "gmail")
+                }
+            }
+        ),
+        encoding="utf-8",
+    )

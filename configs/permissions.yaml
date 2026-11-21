@@ -63,6 +63,12 @@ protected_paths:
   # approval state, saved versions and run folder of Tool Builder tools (build step 13):
   # only the owner's review service changes these, never an agent tool
   - ~/AppData/Local/HCWMA/generated_tools
+  # per-PC app inventory, "Always allow" apps, adapter on/off and setup state (2026-11-21):
+  # only the owner's Apps page / wizard changes these, never an agent tool
+  - ~/AppData/Local/HCWMA/app_catalog.json
+  - ~/AppData/Local/HCWMA/app_permissions.json
+  - ~/AppData/Local/HCWMA/adapters.json
+  - ~/AppData/Local/HCWMA/setup.json
 
 # Extra off-limits folders chosen by the owner. Owner decision 2026-11-16: none.
 blocked_folders: []
