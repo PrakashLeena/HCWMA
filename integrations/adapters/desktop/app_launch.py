@@ -39,7 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from integrations import activity
 from integrations.apps.access import allow_always, is_always_allowed
-from integrations.apps.blocklist import blocked_reason
+from integrations.apps.blocklist import RegisteredBrowser, blocked_reason, browser_match
 from integrations.apps.catalog import Catalog, CatalogApp, load_catalog, norm
 from integrations.mcp.tool_schemas import (
     CallerContext,
@@ -199,6 +199,12 @@ def _title_matches(name: str, title: str) -> bool:
     return any(f" {norm(n)} " in have for n in {name, short} if norm(n))
 
 
+def _registered_browsers() -> list[RegisteredBrowser]:
+    from integrations.adapters.pc.windows_inventory import registered_browsers
+
+    return registered_browsers()
+
+
 class AppLauncher:
     def __init__(
         self,
@@ -210,8 +216,10 @@ class AppLauncher:
         cooldown_s: float = FAILED_COOLDOWN_S,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
+        browsers: Callable[[], list[RegisteredBrowser]] | None = None,
     ) -> None:
         self._starter = starter
+        self._browsers = browsers or _registered_browsers
         self._list = allowlist if allowlist is not None else load_allowlist()
         self._catalog = catalog
         self._wait = wait_s
@@ -259,7 +267,9 @@ class AppLauncher:
         catalog = self._catalog()
         entry = self._list.find(name)
         if entry is not None:
-            return self._from_override(entry, catalog)
+            target = self._from_override(entry, catalog)
+            self._not_a_browser(target)
+            return target
         found = catalog.find(name)
         if not found:
             from_list = self._list.rejected.get(norm(name).replace(" ", "_"))
@@ -281,7 +291,17 @@ class AppLauncher:
                                 windows_dir=_windows_dir())  # fmt: skip
         if reason:  # the catalog file is data: check again
             raise LaunchRefused(f"HCWMA never opens {app.name}: {reason}")
-        return self._from_catalog(app)
+        target = self._from_catalog(app)
+        self._not_a_browser(target)
+        return target
+
+    def _not_a_browser(self, target: LaunchTarget) -> None:
+        """Windows' own browser registration, read now (not from the catalog file)."""
+        browsers = self._browsers()
+        for name in target.names():
+            reason = browser_match(browsers, name=name, app_id=target.app_id, exe=target.exe)
+            if reason:
+                raise LaunchRefused(f"HCWMA never opens {target.name}: {reason}")
 
     # ----- running? -----
 

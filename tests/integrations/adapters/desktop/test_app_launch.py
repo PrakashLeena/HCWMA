@@ -32,6 +32,7 @@ from integrations.adapters.desktop.whatsapp_tools import (
 from integrations.adapters.pc.windows_apps import parse_start_apps, pick_app_id
 from integrations.adapters.pc.windows_whatsapp import NOT_LINKED
 from integrations.apps.access import allow_always, is_always_allowed
+from integrations.apps.blocklist import RegisteredBrowser
 from integrations.apps.catalog import (
     Catalog,
     InstalledProgram,
@@ -176,12 +177,21 @@ class Clock:
 
 
 def _launcher(
-    starter: FakeStarter, clock: Clock | None = None, catalog: Catalog | None = None
+    starter: FakeStarter,
+    clock: Clock | None = None,
+    catalog: Catalog | None = None,
+    browsers: list[RegisteredBrowser] | None = None,
 ) -> AppLauncher:
     clock = clock or Clock()
     cat = catalog if catalog is not None else fake_catalog()
     return AppLauncher(
-        starter, load_allowlist(), catalog=lambda: cat, wait_s=30, clock=clock, sleep=clock.sleep
+        starter,
+        load_allowlist(),
+        catalog=lambda: cat,
+        wait_s=30,
+        clock=clock,
+        sleep=clock.sleep,
+        browsers=lambda: list(browsers or []),
     )
 
 
@@ -350,7 +360,7 @@ def test_one_launch_at_a_time() -> None:
 
     starter = FakeStarter(on_start=slow)
     cat = fake_catalog()
-    launcher = AppLauncher(starter, load_allowlist(), catalog=lambda: cat)
+    launcher = AppLauncher(starter, load_allowlist(), catalog=lambda: cat, browsers=list)
     worker = threading.Thread(target=launcher.ensure_running, args=("Calculator",))
     worker.start()
     assert inside.wait(5)

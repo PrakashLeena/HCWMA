@@ -22,7 +22,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from integrations.apps.blocklist import blocked_reason
+from integrations.apps.blocklist import RegisteredBrowser, blocked_reason, browser_match
 
 CATALOG_FILE = "app_catalog.json"
 SCAN_EVERY_S = 24 * 3600
@@ -67,6 +67,7 @@ class RawScan(BaseModel):
     packages: list[StorePackage] = Field(default_factory=list)
     shortcuts: list[Shortcut] = Field(default_factory=list)
     programs: list[InstalledProgram] = Field(default_factory=list)
+    browsers: list[RegisteredBrowser] = Field(default_factory=list)  # Windows' web browsers
 
 
 class AppScanner(Protocol):
@@ -192,7 +193,7 @@ def build_catalog(raw: RawScan, *, windows_dir: str = "", now: float | None = No
             app_id=app.app_id or app.package_family,
             exe=app.exe,
             windows_dir=windows_dir,
-        )
+        ) or browser_match(raw.browsers, name=app.name, app_id=app.app_id, exe=app.exe)
         if app.id not in apps:
             apps[app.id] = app
             if app.exe:

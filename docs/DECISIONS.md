@@ -329,3 +329,16 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   registry key (detects OneDrive redirection); only those detected folders can be added to
   `approved_folders`, on an owner click, and take effect after a restart.
 - The four per-PC files are protected paths for agent tools (`configs/permissions.yaml`).
+- **Block-list gaps closed (2026-11-21, owner).** The owner's "Always allow" choices stay as
+  they are; these categories are hard-blocked anyway and never open, even if allowed:
+  - **Browsers**: any program Windows has registered as a web browser (`Clients\StartMenuInternet`,
+    `RegisteredApplications` entries handling http/https, the http/https default), matched by
+    program, AppUserModelID or name, read from the registry at every scan and again at launch;
+    plus Comet and other browser names.
+  - **Code runners**: IDEs and editors that run code (Antigravity, NetBeans, Dev-C++, VS Code,
+    JetBrains IDEs, Python, Node.js, Git Bash…) and VMs / emulators (VirtualBox, VMware,
+    BlueStacks…).
+  - **System / security / network**: Windows Backup, Check For Updates, Malwarebytes and
+    antivirus, VPN clients (Cloudflare One / WARP and others), PowerToys, and Ollama.
+  On the owner's PC this blocked 14 previously allowed entries; every other allowed app is
+  unchanged.
