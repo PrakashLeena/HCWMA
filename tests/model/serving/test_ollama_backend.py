@@ -146,3 +146,10 @@ def test_non_local_endpoint_refused() -> None:
     )
     with pytest.raises(ValueError, match="non-local"):
         OllamaBackend(tampered, opener=FakeOpener([]))
+
+
+def test_load_uses_the_same_num_ctx_as_every_request() -> None:
+    # Backlog item 1: a load with another context size would make the next request reload.
+    backend, opener = _backend([{"done": True}])
+    backend.load()
+    assert opener.payload()["options"] == {"num_ctx": 8192}

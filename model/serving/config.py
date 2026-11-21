@@ -48,6 +48,12 @@ class ModelConfig(BaseModel):
     # Owner decision 2026-11-20: start the installed Ollama when it is down (ollama_launcher).
     ollama_models_dir: str | None = None  # passed to `ollama serve` as OLLAMA_MODELS
     ollama_start_timeout_s: float = Field(default=60.0, gt=0, le=300)
+    # Backlog item 1 (2026-11-21): bounded model RAM (see configs/model.yaml).
+    ollama_num_parallel: int = Field(default=1, ge=1, le=4)
+    prompt_cache_mb: int = Field(default=512, ge=0, le=8192)  # 0 = no prompt cache
+    context_checkpoints: int = Field(default=4, ge=0, le=32)
+    idle_unload_ram_mb: int = Field(default=5300, ge=0)  # private MB; 0 = guard off
+    idle_unload_after_s: float = Field(default=300.0, gt=0)
 
     @field_validator("max_parallel_requests")
     @classmethod

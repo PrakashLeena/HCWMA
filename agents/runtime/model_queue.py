@@ -7,6 +7,7 @@ Every inference call in HCWMA goes through `ModelQueue.generate`. Requests beyon
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from functools import lru_cache
@@ -38,6 +39,10 @@ class ModelQueue:
         # Set by the owner's "Pause model" (step 18): no new inference starts (which would
         # load Qwen again) until "Resume model".
         self.paused = False
+        # For the idle RAM guard (backlog item 1): calls running now, and when the last ended.
+        self._lock = threading.Lock()
+        self._running = 0
+        self._last_done = time.monotonic()
 
     def generate(
         self,
@@ -55,9 +60,29 @@ class ModelQueue:
             check_free()  # it may have started while this request waited its turn
             if self.paused:
                 raise ModelPaused
-            return self._generate(messages, tools=tools, max_tokens=max_tokens, **kwargs)
+            with self._lock:
+                self._running += 1
+            try:
+                return self._generate(messages, tools=tools, max_tokens=max_tokens, **kwargs)
+            finally:
+                with self._lock:
+                    self._running -= 1
+                    self._last_done = time.monotonic()
         finally:
             self._slots.release()
+
+    @property
+    def busy(self) -> bool:
+        """A model call is running now."""
+        with self._lock:
+            return self._running > 0
+
+    def idle_seconds(self) -> float:
+        """Seconds since the last model call ended; 0 while one is running."""
+        with self._lock:
+            if self._running:
+                return 0.0
+            return time.monotonic() - self._last_done
 
     @contextmanager
     def exclusive(self) -> Iterator[None]:
