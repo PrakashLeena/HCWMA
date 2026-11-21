@@ -342,3 +342,12 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
     antivirus, VPN clients (Cloudflare One / WARP and others), PowerToys, and Ollama.
   On the owner's PC this blocked 14 previously allowed entries; every other allowed app is
   unchanged.
+  - **Borderline apps, owner's choice**: ChatGPT / OpenAI Codex (coding agent), GitHub Copilot,
+    CoD RconTool (remote console; its "Server Status" program in the same folder too), About
+    Java / Configure Java (system config), MySQL Workbench and MongoDB Compass (can change
+    databases). Microsoft Copilot and Gemini stay openable.
+- **"Open <app>" is answered by code (2026-11-21, owner).** When `launch_app` succeeds and the
+  owner's whole request was to open that app ("open Paint", "please launch Paint for me"), the
+  answer is "Opened Paint." built by code: no second model call, no `list_windows`. When the
+  request also asks for something inside the app, `launch_app` waits up to 15 s for the app's
+  window (`window_ready` in its result) and the model goes on with the next step.

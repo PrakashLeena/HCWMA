@@ -56,6 +56,7 @@ LAUNCH_TOOL_STATUS: ToolStatus = "approved"
 WAIT_S = 30.0
 MAX_WAIT_S = 90.0
 FAILED_COOLDOWN_S = 60.0
+WINDOW_WAIT_S = 15.0  # more to do inside the app: wait this long for its window
 
 
 def _windows_dir() -> str:
@@ -394,6 +395,18 @@ class AppLauncher:
                     )
                 self._sleep(0.5)
 
+    def wait_for_window(self, target: LaunchTarget, wait_s: float = WINDOW_WAIT_S) -> bool:
+        """Wait (up to `wait_s`) until a window titled like the app is visible, so the next
+        step (read, find, click) sees it. False when none appeared in time."""
+        deadline = self._clock() + wait_s
+        while True:
+            titles = self._starter.window_titles().values()
+            if any(_title_matches(target.name, t) for t in titles):
+                return True
+            if self._clock() >= deadline:
+                return False
+            self._sleep(0.5)
+
     def _up(self, target: LaunchTarget, before: set[int]) -> bool:
         if target.processes:
             return self._starter.is_running(frozenset(target.processes))
@@ -421,6 +434,38 @@ class LaunchOutput(BaseModel):
     opened: bool
     already_running: bool
     note: str
+    open_only: bool = False  # the owner only asked to open it: code answers, the task ends
+    window_ready: bool | None = None  # more to do: its window appeared (None: not checked)
+
+
+_OPEN_VERBS = r"(?:open|launch|start|run|bring up|fire up|open up|pull up)"
+_POLITE = (
+    r"(?:(?:hey |hi |ok |okay )?(?:hcwma )?(?:please |pls |kindly )?"
+    r"(?:can|could|would|will) you (?:please )?|please |pls |kindly |go and |just )*"
+)
+
+
+def open_only(owner_words: str, names: list[str]) -> bool:
+    """The owner's whole request is "open <app>" (with polite words around it), nothing to do
+    inside the app afterwards."""
+    said = norm(owner_words)
+    alts = "|".join(sorted({re.escape(norm(n)) for n in names if norm(n)}, key=len, reverse=True))
+    if not said or not alts:
+        return False
+    pattern = (
+        rf"^{_POLITE}{_OPEN_VERBS} (?:the |my |up )?(?:{alts})"
+        r"(?: app| application| program)?(?: for me)?(?: now)?(?: please| pls)?"
+        r"(?: thanks| thank you)?$"
+    )
+    return re.fullmatch(pattern, said) is not None
+
+
+def launch_answer(out: LaunchOutput) -> str | None:
+    """The owner-facing answer for an open-only request, built by code (no second model
+    call); None hands the result back to the model for the rest of the request."""
+    if not out.open_only:
+        return None
+    return f"Opened {out.app}." if out.opened else f"{out.app} was already open."
 
 
 def named_by_owner(app: str, target: LaunchTarget, owner_words: str) -> bool:
@@ -482,8 +527,19 @@ def _launch(launcher: AppLauncher, args: LaunchInput, caller: CallerContext) -> 
         raise LaunchRefused(f"you did not ask to open {target.name}")
     result = launcher.ensure_running(target)
     note = f"{result.app} is open now." if result.launched else f"{result.app} was already open."
+    only = open_only(caller.owner_words, [args.app, *target.names()])
+    ready: bool | None = None
+    if not only:  # more to do inside the app: its window must be there for the next step
+        ready = launcher.wait_for_window(target)
+        if not ready:
+            note += f" Its window did not appear within {int(WINDOW_WAIT_S)} s."
     return LaunchOutput(
-        app=result.app, opened=result.launched, already_running=not result.launched, note=note
+        app=result.app,
+        opened=result.launched,
+        already_running=not result.launched,
+        note=note,
+        open_only=only,
+        window_ready=ready,
     )
 
 
@@ -491,7 +547,7 @@ def launch_tool_spec(launcher: AppLauncher, status: ToolStatus = "quarantined") 
     return ToolSpec(
         manifest=ToolManifest(
             name="launch_app",
-            version="0.2.0",
+            version="0.3.0",
             created_by="developer",
             status=status,
             route="desktop",
@@ -508,6 +564,7 @@ def launch_tool_spec(launcher: AppLauncher, status: ToolStatus = "quarantined") 
         input_model=LaunchInput,
         output_model=LaunchOutput,
         handler=lambda a, c: _launch(launcher, a, c),
+        answer=launch_answer,
         describe=_describe(launcher),
         caller_context=True,
         precheck=_precheck(launcher),

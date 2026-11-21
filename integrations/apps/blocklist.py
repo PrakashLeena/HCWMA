@@ -41,6 +41,10 @@ _EXTRA_WORDS = frozenset(
         "datagrip", "rustrover", "eclipse", "codeblocks", "geany", "thonny", "spyder", "rstudio",
         "matlab", "nodejs", "npm", "deno", "pip", "ruby", "perl", "php", "gitbash",
         "kiro", "trae", "zed",
+        # coding agents and database clients (owner decision 2026-11-21)
+        "chatgpt", "openai", "codex", "githubcopilot", "mongodb", "javacpl",
+        # remote consoles
+        "rcon", "rcontool",
         # virtual machines and emulators
         "virtualbox", "vbox", "vmware", "qemu", "hyperv", "vmconnect", "bluestacks", "ldplayer",
         "noxplayer", "memu", "genymotion", "emulator", "sandbox", "parallels",
@@ -81,13 +85,14 @@ OFF_LIMITS_PHRASES = (
     "file explorer", "visual studio", "android studio", "command prompt", "app installer",
     "epic games", "gog galaxy", "dev-c++", "git bash", "node.js", "hyper-v", "anti-malware",
     "anti-virus", "windows backup", "check for updates", "1.1.1.1", "android emulator",
+    "about java", "configure java", "mysql workbench", "mongodb compass", "github copilot",
 )  # fmt: skip
 # Parts of a Store package family / AppUserModelID that mark one.
 OFF_LIMITS_ID_PARTS = (
     "windowsstore", "windowsterminal", "powershell", "immersivecontrolpanel", "securityhealth",
     "sechealthui", "desktopappinstaller", "microsoftedge", "windows.defender", "msedge",
     "windows.explorer", "quickassist", "remotedesktop", "windowsbackup", "powertoys",
-    "electron.app.antigravity",
+    "electron.app.antigravity", "openai.", "githubcopilot", "javacpl",
 )  # fmt: skip
 
 _REASON = "off-limits for HCWMA (browsers, passwords, banking, terminals, system tools, app stores)"

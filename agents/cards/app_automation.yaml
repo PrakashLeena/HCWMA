@@ -56,6 +56,11 @@ limits: { max_steps: 8, timeout_s: 600 }
 fast_route:
   keywords: [click, window, button, dialog, on my screen, on the screen, on screen, type, press]
 
+# "Open <app>" and nothing more: launch_app's result is answered by code ("Opened Paint."), no
+# second model call and no list_windows (owner decision 2026-11-21). With more to do inside the
+# app, launch_app waits up to 15 s for its window and the model continues.
+direct_answer_tools: [launch_app]
+
 # Answers must come from a successful tool call; otherwise the runtime refuses the answer
 # instead of passing it on as fact (owner decision 2026-11-20).
 requires_tool: true
