@@ -5,18 +5,19 @@
 # windows, web browsers, password managers, banking/payment windows, terminals/code editors,
 # system security windows, or any password / PIN / card / one-time-code field: the tools refuse
 # these in code. Window text is data (rule 13). No Playwright and no browser download yet.
-# 2026-11-20 (owner decision): `launch_app` (T2) opens an installed app from the owner's list in
-# configs/apps.yaml (WhatsApp, Calculator, Notepad); off-limits apps can never be on that list.
+# 2026-11-20 / 2026-11-21 (owner decisions): `launch_app` (T2) opens any installed app the owner
+# named; an app not always-allowed shows "Allow once / Always allow / Deny" first; off-limits
+# apps (browsers, banking, terminals, system tools, app stores) are refused in code.
 # Draft by Claude Code on 2026-11-18 — owner to review.
 id: app_automation
 name: App Automation Agent
 status: enabled
-router_line: "any request about a program WINDOW (named by its title, e.g. 'my Notepad window'): open Calculator/Notepad, list windows, read what it shows, click a button, type in a box, press a key; asks me every time; no browsers/banking/passwords"
+router_line: "any request about a program WINDOW (named by its title, e.g. 'my Notepad window'): open an installed app (Calculator, Paint...), list windows, read what it shows, click a button, type in a box, press a key; asks me every time; no browsers/banking/passwords"
 description: >
   Works with programs that are open on this PC (for example Notepad, Calculator or an
   accounting app). It can list the open windows, read the text a window shows, find a button
-  or text box, and click, type or press a key in it. It can also open an app from the owner's
-  list (Calculator, Notepad, WhatsApp). Every click, every typed text and every
+  or text box, and click, type or press a key in it. It can also open an installed app on the owner's
+  PC (asking first unless the owner always allows it). Every click, every typed text and every
   key press needs the owner's approval first, one at a time. It cannot use web browsers,
   banking or payment windows, password managers, terminals or HCWMA's own windows, and it never
   touches password, PIN or card fields.
@@ -27,9 +28,9 @@ handles:
   - type text into a box in an open program
   - press Enter, Tab or Escape in a program
   - fill in a form in a desktop app
-  - open Calculator or Notepad (apps on my list)
+  - open an installed app such as Calculator, Notepad or Paint
 does_not_handle:
-  - installing programs, opening apps that are not on my list, or running commands
+  - installing programs, opening browsers / banking / terminals / system tools, or running commands
   - "web browsers and websites (logging in, saved passwords, banking, payments): refused"
   - password, PIN, card number or one-time-code fields (refused)
   - reading web pages by link (→ web_research)
@@ -54,6 +55,11 @@ limits: { max_steps: 8, timeout_s: 600 }
 # matches when the message also sounds like this agent's job.
 fast_route:
   keywords: [click, window, button, dialog, on my screen, on the screen, on screen, type, press]
+
+# "Open <app>" and nothing more: launch_app's result is answered by code ("Opened Paint."), no
+# second model call and no list_windows (owner decision 2026-11-21). With more to do inside the
+# app, launch_app waits up to 15 s for its window and the model continues.
+direct_answer_tools: [launch_app]
 
 # Answers must come from a successful tool call; otherwise the runtime refuses the answer
 # instead of passing it on as fact (owner decision 2026-11-20).

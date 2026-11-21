@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HCWMA — setup</title>
+  <link rel="stylesheet" href="/static/chat.css">
+  <link rel="stylesheet" href="/static/health.css">
+  <link rel="stylesheet" href="/static/apps.css">
+</head>
+<body>
+  <header>
+    <h1>Set up HCWMA</h1>
+    <span id="status" class="status">loading…</span>
+    <button id="skip" type="button" class="link">Skip for now</button>
+  </header>
+  <main class="health">
+    <div class="steps" id="steps">
+      <span data-step="0">1. This PC</span>
+      <span data-step="1">2. Apps</span>
+      <span data-step="2">3. Adapters</span>
+      <span data-step="3">4. Folders</span>
+    </div>
+
+    <section data-step="0">
+      <h2>Is this PC ready?</h2>
+      <p class="muted">RAM, disk, Ollama and the local model. Nothing leaves this PC.</p>
+      <table id="pc"><tbody></tbody></table>
+    </section>
+
+    <section data-step="1" hidden>
+      <h2>Which apps may HCWMA open without asking?</h2>
+      <p class="muted">Tick the apps HCWMA may open whenever you ask. Any other app shows
+        "Allow once / Always allow / Deny" first. This is about opening only: clicks, typing and
+        sends inside an app always ask you. Blocked apps (browsers, passwords, banking,
+        terminals, system tools, app stores) are not listed.</p>
+      <div class="row filter">
+        <input id="filter" type="search" placeholder="Filter by name" autocomplete="off">
+        <button id="scan" type="button" class="quiet">Scan again</button>
+      </div>
+      <table id="apps"><tbody></tbody></table>
+    </section>
+
+    <section data-step="2" hidden>
+      <h2>Adapters</h2>
+      <p class="muted">An adapter lets an agent use one app or service through its own careful
+        tools. They ship with HCWMA; nothing is downloaded. Turn on only the ones you want.</p>
+      <table id="adapters"><tbody></tbody></table>
+    </section>
+
+    <section data-step="3" hidden>
+      <h2>Folders HCWMA may read</h2>
+      <p class="muted">Where Windows really keeps your folders (OneDrive may move Desktop and
+        Documents). Added folders are used after HCWMA restarts.</p>
+      <table id="folders"><tbody></tbody></table>
+    </section>
+
+    <div class="nav">
+      <button id="back" type="button" class="quiet">Back</button>
+      <button id="next" type="button">Next</button>
+    </div>
+  </main>
+  <script src="/static/setup.js"></script>
+</body>
+</html>

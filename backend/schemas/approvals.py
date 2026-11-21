@@ -19,12 +19,13 @@ class PendingApprovals(BaseModel):
 class ApprovalDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    decision: Literal["approve", "deny"]
+    # "always": only on a card that offers "Always allow" (opening an app, 2026-11-21).
+    decision: Literal["approve", "deny", "always"]
 
 
 class DecisionResponse(BaseModel):
     id: str
-    decision: Literal["approve", "deny"]
+    decision: Literal["approve", "deny", "always"]
 
 
 class ToolApproveRequest(BaseModel):

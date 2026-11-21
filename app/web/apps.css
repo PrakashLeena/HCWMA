@@ -1,0 +1,14 @@
+.health .filter { display: flex; gap: 12px; align-items: center; margin: 6px 0 10px; }
+.health .filter input[type="search"] { flex: 1; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--panel); color: inherit; }
+.health td.act { width: 1%; white-space: nowrap; text-align: right; }
+.health td.small { color: var(--muted); font-size: 13px; }
+.health .blocked td { color: var(--muted); }
+.health .steps { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+.health .steps span { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 13px; }
+.health .steps span.on { border-color: currentColor; font-weight: 600; }
+.health section[hidden] { display: none; }
+.health .nav { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+#offers .offer { display: flex; gap: 10px; align-items: center; }
+#offers .offer span { flex: 1; }

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HCWMA — apps</title>
+  <link rel="stylesheet" href="/static/chat.css">
+  <link rel="stylesheet" href="/static/health.css">
+  <link rel="stylesheet" href="/static/apps.css">
+</head>
+<body>
+  <header>
+    <h1>Apps</h1>
+    <span id="status" class="status">loading…</span>
+    <button id="scan" type="button" class="link">Scan again</button>
+    <a class="link" href="/setup">Setup wizard</a>
+    <a class="link" href="/">Back to chat</a>
+  </header>
+  <main class="health">
+    <p class="muted">HCWMA asks before it opens an app ("Allow once / Always allow / Deny").
+      "Always allow" covers opening only: clicks, typing and sends inside an app still ask you
+      every time. Browsers, password managers, banking and payment apps, terminals, system
+      tools and app stores are never opened.</p>
+
+    <h2>Apps HCWMA may open without asking</h2>
+    <table id="allowed"><tbody></tbody></table>
+    <p id="listed" class="muted"></p>
+
+    <h2>Adapters</h2>
+    <p class="muted">Adapters ship with HCWMA; nothing is ever downloaded. Apps without an
+      adapter are used through App Automation, which asks before every click and keystroke.</p>
+    <table id="adapters"><tbody></tbody></table>
+
+    <h2>Apps found on this PC</h2>
+    <div class="row filter">
+      <input id="filter" type="search" placeholder="Filter by name" autocomplete="off">
+      <label><input id="show-blocked" type="checkbox"> show blocked apps</label>
+    </div>
+    <table id="apps"><tbody></tbody></table>
+  </main>
+  <script src="/static/apps.js"></script>
+</body>
+</html>

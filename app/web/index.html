@@ -12,6 +12,7 @@
     <span id="status" class="status">checking…</span>
     <a class="link" href="/status" title="Ollama, model, RAM, disk, Gmail, WhatsApp, backups">Health</a>
     <a class="link" href="/tools" title="Review tools written by the Tool Builder">Tools</a>
+    <a class="link" href="/apps" title="Apps HCWMA may open, adapters, app scan">Apps</a>
     <button id="forget" type="button" class="link" hidden>Forget token</button>
     <button id="stop" type="button" class="danger" hidden
             title="Halt every agent and withdraw every approval prompt">Stop everything</button>
@@ -20,6 +21,8 @@
   <main id="messages" aria-live="polite"></main>
 
   <section id="approvals" class="panel" aria-live="assertive" hidden></section>
+
+  <section id="offers" class="panel" hidden></section>
 
   <form id="token-form" class="panel" hidden>
     <label for="token-input">API token</label>

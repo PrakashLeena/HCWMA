@@ -78,6 +78,7 @@ python -m model.serving.chat    # chat with the model in the terminal
 python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU)
 python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Health, Stop everything, Pause model, plugged-in-only, Start with Windows, Back up now, Quit); approval prompts appear in the window; push-to-talk: hold the talk button or F9; only one HCWMA may run (lock in the data folder)
 python -m backend.api           # backend + chat page only, in a browser, on http://127.0.0.1:8765/ (chat goes through the Router; also scans and watches the PC file index)
+# Apps page: http://127.0.0.1:8765/apps (Always allow / revoke, adapters on/off, scan again); first-run wizard: /setup (shown until finished or skipped)
 python -m backend.auth.token    # print the per-install API token (--rotate for a new one)
 python -m integrations.mcp.smoke  # Step 6 check: MCP discovery, allowed + refused call, audit records
 python -m agents.router.demo       # Step 7 check: Router -> echo -> back, clarifying question, loop stopped (needs Ollama)

@@ -1,17 +1,24 @@
-# Apps HCWMA may open (launch_app tool, T2; owner decision 2026-11-20, docs/DECISIONS.md).
-# Only installed apps are opened, by their Start-menu entry; nothing is downloaded or installed.
-# The owner can add apps here. Off-limits apps are dropped when this list is read, whatever
-# is written here: web browsers, password managers, terminals / code editors / anything that
-# runs commands, system security and settings, banking and payment apps, app stores and
-# installers, and HCWMA itself (integrations/adapters/desktop/app_launch.py).
+# The owner's app overrides (launch_app; owner decisions 2026-11-20 and 2026-11-21,
+# docs/DECISIONS.md).
+#
+# Since 2026-11-21 HCWMA can open ANY app found on this PC (the app catalog, scanned at start
+# and daily); an app the owner has not allowed shows "Allow once / Always allow / Deny" first,
+# and "Always allow" choices are kept per PC in %LOCALAPPDATA%\HCWMA, not here.
+#
+# An entry here is the owner's own override: it opens WITHOUT a card, it is pinned to its
+# package + publisher (a look-alike shortcut is never started), and it can set how to recognise
+# a running copy and how long to wait. Off-limits apps are dropped when this list is read,
+# whatever is written here: web browsers, password managers, banking and payment apps,
+# terminals / code editors / anything that runs commands, system tools, app stores and
+# installers, and HCWMA itself (integrations/apps/blocklist.py).
 #
 #   id             short name used in code
-#   name, aliases  what the owner may call it ("open Calculator")
-#   app_id_prefix  start of the AppUserModelID (Get-StartApps): package name + publisher id,
-#                  so only the genuine app is opened, never a look-alike shortcut
+#   name, aliases  what the owner may call it ("open WhatsApp")
+#   app_id_prefix  start of the AppUserModelID (Get-StartApps): package name + publisher id
 #   processes      process names of a running copy (without .exe)
 #   wait_s         how long to wait after opening it (default 30, at most 90); one attempt only
 apps:
+  # Used by the WhatsApp adapter to open WhatsApp Desktop when it is closed.
   - id: whatsapp
     name: WhatsApp
     aliases: [whatsapp desktop, whats app]
@@ -19,13 +26,3 @@ apps:
     processes: [whatsapp.root, whatsapp]
     # Measured 2026-11-20 on this PC: WhatsApp shows its loading splash for 30-60+ s after launch.
     wait_s: 90
-  - id: calculator
-    name: Calculator
-    aliases: [calc]
-    app_id_prefix: Microsoft.WindowsCalculator_8wekyb3d8bbwe
-    processes: [calculatorapp, calculator]
-  - id: notepad
-    name: Notepad
-    aliases: []
-    app_id_prefix: Microsoft.WindowsNotepad_8wekyb3d8bbwe
-    processes: [notepad]
