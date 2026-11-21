@@ -5,7 +5,12 @@
 checkpoint: Qwen3.5-4B
 fallback_checkpoint: Qwen3.5-2B
 runtime: ollama
-ollama_model: qwen3.5:4b      # confirmed on ollama.com/library/qwen3.5 (Q4_K_M)
+# 2026-11-21 (docs/DECISIONS.md, docs/text_model.md): the daily model is a text-only tag made from
+# qwen3.5:4b's own weights layer (same file, Q4_K_M, same renderer/parser), without the vision
+# projector: ~1 GB less RAM, same speed, same routing score. Made by
+# `python -m model.serving.text_model`. qwen3.5:4b stays installed; to switch back, use:
+# ollama_model: qwen3.5:4b
+ollama_model: qwen3.5-text:4b
 quantization: Q4_K_M
 device: cpu                   # Intel Iris Xe, no NVIDIA GPU
 

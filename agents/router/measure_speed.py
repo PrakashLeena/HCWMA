@@ -25,7 +25,7 @@ REQUESTS = [
     "my function returns None instead of the sum",
 ]
 OLLAMA = "http://127.0.0.1:11434/api/chat"
-MODEL = "qwen3.5:4b"
+MODEL = load_model_config().ollama_model
 CONTEXT_LENGTH = load_model_config().context_length
 
 

@@ -69,7 +69,7 @@ def test_generate_request_is_local_and_well_formed() -> None:
     req = opener.requests[0]
     assert req.full_url == "http://127.0.0.1:11434/api/chat"
     body = opener.payload()
-    assert body["model"] == "qwen3.5:4b"
+    assert body["model"] == "qwen3.5-text:4b"
     assert body["messages"] == [{"role": "user", "content": "hi"}]
     assert body["options"]["num_predict"] == 42
     assert body["options"]["num_ctx"] == 8192
@@ -135,7 +135,7 @@ def test_unload_sends_keep_alive_zero() -> None:
     backend, opener = _backend([{"done": True}])
     backend.unload()
     assert opener.requests[0].full_url.endswith("/api/generate")
-    assert opener.payload() == {"model": "qwen3.5:4b", "keep_alive": 0}
+    assert opener.payload() == {"model": "qwen3.5-text:4b", "keep_alive": 0}
 
 
 def test_non_local_endpoint_refused() -> None:

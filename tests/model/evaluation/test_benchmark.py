@@ -107,7 +107,7 @@ def test_run_once_and_report(monkeypatch: Any) -> None:
         {"cpu": "test cpu", "ram": "16 GB"},
         today=date(2026, 11, 16),
     )
-    assert "qwen3.5:4b" in report
+    assert "qwen3.5-text:4b" in report
     assert "| Tool-call / JSON validity | 9/9 |" in report
     assert "| Valid JSON per run | 3/3, 3/3, 3/3 |" in report
     assert "| Load time (s) | 1.50 (1.50–1.50) |" in report

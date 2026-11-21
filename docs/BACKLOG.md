@@ -21,8 +21,8 @@ Fixed for v1.0 (2026-11-20), kept here for the record:
    right after loading (all weights private because Ollama loads without mmap, +0.9 GB vision projector),
    +~0.5 GB saved prompt states, then flat at ~5.5 GB over 20 requests. Fixes: bounded prompt cache /
    checkpoints and one slot on the Ollama HCWMA starts, `num_ctx` on the load call too, and an idle RAM
-   guard that unloads the model after 5 idle minutes above 5.3 GB private. Open: a text-only model tag
-   without the vision projector would save ~0.9 GB (owner decision).
+   guard that unloads the model after 5 idle minutes above 5.3 GB private. Text-only daily model
+   (2026-11-21, `docs/text_model.md`): another ~1.0 GB less.
 2. **Debugging agent with inline code**: for "print(1/0) crashes, what is wrong?" it searched
    `workspace/code/` instead of explaining, answered about an unrelated file twice and once used
    all 10 steps (smoke test 2026-11-20). Quality issue, not tuned for v1.0.

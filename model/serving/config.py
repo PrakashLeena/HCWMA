@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -66,4 +67,8 @@ class ModelConfig(BaseModel):
 def load_model_config(path: Path | None = None) -> ModelConfig:
     with (path or DEFAULT_CONFIG_PATH).open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
+    # A/B runs (eval, benchmark) can try another installed tag without editing the file.
+    override = os.environ.get("HCWMA_OLLAMA_MODEL")
+    if override:
+        data["ollama_model"] = override
     return ModelConfig.model_validate(data)
