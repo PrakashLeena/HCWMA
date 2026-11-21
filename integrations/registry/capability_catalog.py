@@ -47,6 +47,7 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     """The hand-written tools shipped with HCWMA, plus (step 13) the tools the Tool Builder
     wrote. Generated tools are quarantined until the owner approves their exact files."""
     from integrations.adapters.browser.web_tools import default_web_tool_specs
+    from integrations.adapters.desktop.app_launch import default_launch_tool_specs
     from integrations.adapters.desktop.ui_tools import default_ui_tool_specs
     from integrations.adapters.desktop.whatsapp_tools import default_whatsapp_tool_specs
     from integrations.adapters.local_data.memory_tools import default_memory_tool_specs
@@ -76,6 +77,8 @@ def default_catalog(include_generated: bool = True) -> CapabilityCatalog:
     for spec in default_web_tool_specs():  # step 12: read-only web pages (quarantined)
         catalog.register(spec)
     for spec in default_ui_tool_specs():  # step 12: desktop apps, T3 actions (quarantined)
+        catalog.register(spec)
+    for spec in default_launch_tool_specs():  # 2026-11-20: open an app on the owner's list
         catalog.register(spec)
     for spec in default_tool_builder_specs():  # step 13: the Tool Builder's own tools
         catalog.register(spec)

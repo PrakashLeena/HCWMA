@@ -29,6 +29,7 @@ VALID_ARGS: dict[str, dict[str, Any]] = {
     "click_element": {"element_id": "1~Button~Save~0"},
     "find_ui_element": {"window_id": "1", "name_contains": "Save"},
     "list_windows": {},
+    "launch_app": {"app": "Calculator"},
     "press_key": {"window_id": "1", "key": "enter"},
     "read_window_text": {"window_id": "1"},
     "type_text": {"element_id": "1~Edit~Box~0", "text": "hi"},

@@ -18,6 +18,7 @@ import pytest
 from agents.registry.agent_registry import AgentRegistry
 from agents.router.fast_path import fast_route
 from agents.router.router import RouterReply
+from integrations.adapters.desktop.app_launch import AppLauncher, load_allowlist
 from integrations.adapters.desktop.whatsapp_tools import (
     ChatMessage,
     WhatsAppToolDeps,
@@ -28,6 +29,7 @@ from model.serving import GenerateResult, Message, ToolCall
 from security.approvals.approval_service import PendingApproval
 from tests.agents.harness import ScriptedModel, Stack, answer_next_prompt, route, stack
 from tests.integrations.adapters.desktop.fake_whatsapp import SELF_NAME, FakeWhatsApp, sample
+from tests.integrations.adapters.desktop.test_app_launch import WA_ID, FakeStarter
 from tests.pc_layout import Layout, make_layout
 
 AGENT = "communication"
@@ -39,9 +41,12 @@ def pc(tmp_path: Path) -> Layout:
     return make_layout(tmp_path)
 
 
-def _catalog(wa: FakeWhatsApp, status: str = "approved") -> CapabilityCatalog:
+def _catalog(
+    wa: FakeWhatsApp, status: str = "approved", launcher: AppLauncher | None = None
+) -> CapabilityCatalog:
     catalog = CapabilityCatalog()
-    for spec in whatsapp_tool_specs(WhatsAppToolDeps(wa), status=status):  # type: ignore[arg-type]
+    deps = WhatsAppToolDeps(wa, launcher=launcher)
+    for spec in whatsapp_tool_specs(deps, status=status):  # type: ignore[arg-type]
         catalog.register(spec)
     return catalog
 
@@ -59,6 +64,7 @@ def _ask(
     owner: bool | None = None,
     seen: list[PendingApproval] | None = None,
     status: str = "approved",
+    launcher: AppLauncher | None = None,
 ) -> tuple[RouterReply, Stack]:
     model = ScriptedModel(
         router=route(steps=[{"agent": AGENT, "goal": text}]),
@@ -67,7 +73,7 @@ def _ask(
 
     async def go() -> tuple[RouterReply, Stack]:
         async with stack(
-            pc.tmp / "run", model, catalog=_catalog(wa, status), approval_timeout_s=3
+            pc.tmp / "run", model, catalog=_catalog(wa, status, launcher), approval_timeout_s=3
         ) as s:
             assert s.approvals is not None
             async with anyio.create_task_group() as tg:
@@ -197,6 +203,36 @@ def test_whatsapp_not_running_is_reported_not_crashed(pc: Layout) -> None:
     assert reply.status == "failed" and _records(s) == [("whatsapp_list_chats", "tool_error")]
     tool_turn = next(m for m in s.model.agent_calls()[-1].messages if m.role == "tool")
     assert "not running" in tool_turn.content
+
+
+def test_closed_whatsapp_is_opened_and_the_chats_are_listed(pc: Layout) -> None:
+    wa = sample()
+    wa.state = "not_running"
+
+    def opens(_id: str) -> None:
+        starter.running.add("whatsapp.root")
+        wa.state = "ok"
+
+    starter = FakeStarter(on_start=opens)
+    launcher = AppLauncher(starter, load_allowlist(), sleep=lambda _s: None)
+    script = [_call("whatsapp_list_chats"), GenerateResult(text="Your chats: Sam, Family.")]
+    reply, s = _ask(pc, script, wa, "List my WhatsApp chats", launcher=launcher)
+    assert starter.started == [WA_ID]
+    assert reply.status != "failed" and _records(s) == [("whatsapp_list_chats", "ok")]
+    tool_turn = next(m for m in s.model.agent_calls()[-1].messages if m.role == "tool")
+    assert "HCWMA opened WhatsApp Desktop" in tool_turn.content
+
+
+def test_whatsapp_on_the_qr_screen_tells_the_owner_to_link_it(pc: Layout) -> None:
+    wa = sample()
+    wa.state = "not_linked"
+    starter = FakeStarter(running={"whatsapp.root"})
+    launcher = AppLauncher(starter, load_allowlist(), sleep=lambda _s: None)
+    script = [_call("whatsapp_list_chats"), GenerateResult(text="Here are your chats.")]
+    reply, s = _ask(pc, script, wa, "List my WhatsApp chats", launcher=launcher)
+    assert starter.started == [] and wa.opened == []
+    assert reply.status == "failed"
+    assert "WhatsApp needs to be linked: scan the QR code on your phone" in reply.reply
 
 
 # ---------- injection: a chat must not make the agent send ----------

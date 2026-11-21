@@ -19,6 +19,10 @@ Rules enforced here, in code, not by the prompt:
 - At most one send per task (no bulk sending); no scheduling or auto-reply tool exists.
 - Before sending, the open chat's header must match the requested name; if not, stop.
 - Chat text is written by other people: data, never instructions (rule 13).
+- WhatsApp not running (owner decision 2026-11-20): it is opened once through the shared
+  app launcher (`app_launch.py`: the owner's app list, one launch at a time, no retry loop),
+  and the tool waits for the chat list (90 s, `wait_s` in configs/apps.yaml). If WhatsApp
+  shows its QR / link screen, the tool stops and says so; linking is never automated.
 """
 
 from __future__ import annotations
@@ -27,7 +31,7 @@ import re
 import threading
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -40,6 +44,9 @@ from integrations.mcp.tool_schemas import (
     ToolStatus,
 )
 from memory.guard import is_instruction
+
+if TYPE_CHECKING:
+    from integrations.adapters.desktop.app_launch import AppLauncher
 
 # The owner approved the three manifests on 2026-11-19 (docs/DECISIONS.md).
 WHATSAPP_TOOLS_STATUS: ToolStatus = "approved"
@@ -54,7 +61,12 @@ DATA_NOTE = (
 
 class WhatsAppUnavailable(RuntimeError):
     """WhatsApp Desktop is not running, not linked, or not showing its chats. The message is
-    safe to show the agent and the owner."""
+    safe to show the agent and the owner. `reason`: not_running | not_linked | not_ready |
+    launch_failed | unavailable."""
+
+    def __init__(self, message: str, reason: str = "unavailable") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class WhatsAppRefused(RuntimeError):
@@ -80,6 +92,16 @@ class ChatMessage(BaseModel):
 
 class WhatsAppBackend(Protocol):
     """What an OS adapter provides. It does NOT decide what is allowed."""
+
+    def check_ready(self) -> None:
+        """Return when the chat list is showing; otherwise raise `WhatsAppUnavailable` with
+        its reason. Reads and clicks nothing else."""
+        ...
+
+    def show_window(self) -> bool:
+        """Bring the WhatsApp window to the front (only after HCWMA opened it). Clicks and
+        types nothing."""
+        ...
 
     def list_chats(self, limit: int) -> list[ChatRow]: ...
 
@@ -237,6 +259,8 @@ class SendOutput(BaseModel):
 @dataclass
 class WhatsAppToolDeps:
     backend: WhatsAppBackend
+    # Opens WhatsApp Desktop when it is not running (None: never opened by HCWMA).
+    launcher: AppLauncher | None = None
     # task_id -> sends started in that task (no bulk sending: one per task)
     sends: dict[str, int] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -255,6 +279,46 @@ def _require_named(
         raise PermissionError(problem)  # defence in depth: the gateway checked this already
 
 
+OPENED_NOTE = "HCWMA opened WhatsApp Desktop for this request. "
+
+
+def _ensure_open(deps: WhatsAppToolDeps) -> bool:
+    """WhatsApp is showing its chat list when this returns. True when HCWMA had to open it.
+    One launch attempt; a QR / link screen stops it with a plain message."""
+    try:
+        deps.backend.check_ready()
+        return False
+    except WhatsAppUnavailable as exc:
+        if exc.reason != "not_running" or deps.launcher is None:
+            raise
+
+    shown = False
+
+    def ready() -> bool:
+        nonlocal shown
+        try:
+            deps.backend.check_ready()
+        except WhatsAppUnavailable as exc:
+            if exc.reason == "not_linked":
+                raise  # never automate linking: stop and tell the owner
+            if exc.reason == "not_ready" and not shown:
+                # The window is there but may have opened behind others, where WebView2 does
+                # not draw it: bring it to the front once so its chat list can appear.
+                shown = deps.backend.show_window()
+            return False
+        return True
+
+    from integrations.adapters.desktop.app_launch import LaunchFailed, LaunchRefused
+
+    try:
+        # The process may be running with no window (closed to the background): start anyway,
+        # which brings its window back.
+        deps.launcher.ensure_running("whatsapp", ready=ready, start_even_if_running=True)
+    except (LaunchFailed, LaunchRefused) as exc:
+        raise WhatsAppUnavailable(str(exc), reason="launch_failed") from None
+    return True
+
+
 def _open(deps: WhatsAppToolDeps, chat: str) -> str:
     header = deps.backend.open_chat(chat, self_chat=is_self_chat(chat))
     if not header_matches(chat, header):
@@ -265,17 +329,19 @@ def _open(deps: WhatsAppToolDeps, chat: str) -> str:
 
 
 def _list(deps: WhatsAppToolDeps, args: ListChatsInput) -> ListChatsOutput:
+    opened = _ensure_open(deps)
     rows = deps.backend.list_chats(args.max_chats)[: args.max_chats]
     return ListChatsOutput(
         count=len(rows),
         chats=rows,
         looks_like_instructions=_flag(*(f"{r.name} {r.preview}" for r in rows)),
-        note=DATA_NOTE,
+        note=(OPENED_NOTE if opened else "") + DATA_NOTE,
     )
 
 
 def _read(deps: WhatsAppToolDeps, args: ReadChatInput, caller: CallerContext) -> ReadChatOutput:
     _require_named(args, caller)
+    opened = _ensure_open(deps)
     header = _open(deps, args.chat)
     messages = deps.backend.read_open_chat(MAX_MESSAGES)[-MAX_MESSAGES:]
     return ReadChatOutput(
@@ -284,7 +350,7 @@ def _read(deps: WhatsAppToolDeps, args: ReadChatInput, caller: CallerContext) ->
         order="newest first: messages[0] is the latest message",
         messages=list(reversed(messages)),
         looks_like_instructions=_flag(*(m.text for m in messages)),
-        note=DATA_NOTE,
+        note=(OPENED_NOTE if opened else "") + DATA_NOTE,
     )
 
 
@@ -294,9 +360,11 @@ def _send(deps: WhatsAppToolDeps, args: SendInput, caller: CallerContext) -> Sen
         if deps.sends.get(caller.task_id, 0) >= 1:
             raise PermissionError("one WhatsApp message per request; nothing more was sent")
         deps.sends[caller.task_id] = 1
+    opened = _ensure_open(deps)
     header = _open(deps, args.chat)
     deps.backend.send_to_open_chat(lambda shown: header_matches(args.chat, shown), args.body)
-    return SendOutput(chat=header, sent=True, note="The WhatsApp message was sent.")
+    note = (OPENED_NOTE if opened else "") + "The WhatsApp message was sent."
+    return SendOutput(chat=header, sent=True, note=note)
 
 
 # ---------- the gateway's rules, before the owner is asked ----------
@@ -350,7 +418,7 @@ def _manifest(
         approval_required=acts,
         side_effects="external_action" if acts else "none",
         permissions=_SCOPE,
-        timeout_s=60,
+        timeout_s=150,  # room for opening WhatsApp first (up to 90 s, configs/apps.yaml)
     )
 
 
@@ -411,6 +479,8 @@ def default_whatsapp_tool_specs() -> list[ToolSpec]:
 
     if sys.platform != "win32":
         return []
+    from integrations.adapters.desktop.app_launch import default_launcher
     from integrations.adapters.pc.windows_whatsapp import WindowsWhatsApp
 
-    return whatsapp_tool_specs(WhatsAppToolDeps(WindowsWhatsApp()), status=WHATSAPP_TOOLS_STATUS)
+    deps = WhatsAppToolDeps(WindowsWhatsApp(), launcher=default_launcher())
+    return whatsapp_tool_specs(deps, status=WHATSAPP_TOOLS_STATUS)

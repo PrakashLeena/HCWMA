@@ -182,10 +182,10 @@ async function send(text, voice) {
     try {
       const r = await fetch("/model/state", { headers: authHeaders() });
       if (!r.ok) return;
-      const state = (await r.json()).state;
-      pending.textContent = state === "starting"
+      const body = await r.json();
+      pending.textContent = body.state === "starting"
         ? "Starting the local model… (this can take up to a minute)"
-        : "HCWMA is working…";
+        : (body.activity || "HCWMA is working…"); // e.g. "Opening WhatsApp…" (fixed text)
     } catch { /* the request itself reports a lost backend */ }
   }, 1000);
   try {
