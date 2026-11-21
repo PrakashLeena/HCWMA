@@ -25,6 +25,22 @@ request_timeout_s: 600
 ollama_models_dir: E:/ollama/models
 ollama_start_timeout_s: 60
 
+# Backlog item 1 (2026-11-21, docs/DECISIONS.md, numbers in docs/ram_soak.md): keep the model's
+# RAM bounded on a 16 GB PC. Measured: llama-server is ~5.0 GB private right after loading
+# (Ollama loads with --load-mode none, so all weights are private, plus ~0.9 GB for the vision
+# projector), +~0.5 GB for saved prompt states and context checkpoints, then flat (~5.5 GB).
+# num_ctx is fixed (context_length) and Ollama already ran one slot (-np 1).
+# Set on the `ollama serve` HCWMA starts itself (an Ollama started by its own tray app keeps
+# its defaults; the idle RAM guard below covers that case too):
+ollama_num_parallel: 1        # OLLAMA_NUM_PARALLEL: one slot, one KV cache (explicit, not auto)
+prompt_cache_mb: 512          # LLAMA_ARG_CACHE_RAM: saved prompt states (default 8192 MiB)
+context_checkpoints: 4        # LLAMA_ARG_CTX_CHECKPOINTS: per slot, ~50 MiB each (default 32)
+# Idle RAM guard: when no model call ran for idle_unload_after_s and the model process holds
+# more than idle_unload_ram_mb of private memory, HCWMA unloads it (Pause without pausing);
+# the next request loads it again (~9 s). 0 turns the guard off.
+idle_unload_ram_mb: 5300
+idle_unload_after_s: 300
+
 # One model instance, one request at a time (model_queue.py).
 max_parallel_requests: 1
 

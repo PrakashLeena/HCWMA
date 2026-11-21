@@ -76,6 +76,7 @@ ruff check . && ruff format .   # lint + format
 ollama pull qwen3.5:4b          # local model (needs Ollama on 127.0.0.1:11434; HCWMA starts the installed `ollama serve` itself when it is down)
 python -m model.serving.chat    # chat with the model in the terminal
 python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU)
+python -m model.evaluation.ram_soak --runs 20 --label now   # RAM of Ollama's llama-server after each of 20 requests (~3 min on CPU; --out FILE appends the table)
 python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Health, Stop everything, Pause model, plugged-in-only, Start with Windows, Back up now, Quit); approval prompts appear in the window; push-to-talk: hold the talk button or F9; only one HCWMA may run (lock in the data folder)
 python -m backend.api           # backend + chat page only, in a browser, on http://127.0.0.1:8765/ (chat goes through the Router; also scans and watches the PC file index)
 # Apps page: http://127.0.0.1:8765/apps (Always allow / revoke, adapters on/off, scan again); first-run wizard: /setup (shown until finished or skipped)

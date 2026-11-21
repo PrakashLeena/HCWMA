@@ -15,7 +15,7 @@ from agents.router.classifier import Classifier
 from agents.router.eval_routing import _NoGateway, outcome
 from agents.runtime.agent_runtime import AgentRuntime
 from agents.runtime.model_queue import get_model_queue
-from model.serving import Message
+from model.serving import Message, load_model_config
 from security.audit.audit_logger import get_audit_logger
 from security.permissions.permission_manager import load_permissions_config
 
@@ -26,6 +26,7 @@ REQUESTS = [
 ]
 OLLAMA = "http://127.0.0.1:11434/api/chat"
 MODEL = "qwen3.5:4b"
+CONTEXT_LENGTH = load_model_config().context_length
 
 
 def prompt_tokens(system: str, user: str) -> int:
@@ -34,7 +35,8 @@ def prompt_tokens(system: str, user: str) -> int:
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "stream": False,
         "think": False,
-        "options": {"num_predict": 1, "temperature": 0},
+        # Same num_ctx as HCWMA's requests: a different one would reload the model.
+        "options": {"num_predict": 1, "temperature": 0, "num_ctx": CONTEXT_LENGTH},
     }
     r = httpx.post(OLLAMA, json=body, timeout=600)
     return int(r.json()["prompt_eval_count"])

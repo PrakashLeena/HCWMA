@@ -351,3 +351,22 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   answer is "Opened Paint." built by code: no second model call, no `list_windows`. When the
   request also asks for something inside the app, `launch_app` waits up to 15 s for the app's
   window (`window_ready` in its result) and the model goes on with the next step.
+
+## Model RAM (backlog item 1, decided 2026-11-21)
+
+- Measured (`docs/ram_soak.md`): llama-server holds ~5.0 GB private right after loading Qwen and
+  ~5.5 GB after a few different prompts, then stays flat; working set ~3.7-4.2 GB. Not `num_ctx`
+  (already fixed at 8192 on every chat request) and not parallel slots (Ollama already ran `-np 1`).
+- The `ollama serve` HCWMA starts itself gets `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_MAX_LOADED_MODELS=1`,
+  `LLAMA_ARG_CACHE_RAM=512` (prompt cache, default 8192 MiB) and `LLAMA_ARG_CTX_CHECKPOINTS=4`
+  (default 32 x ~50 MiB). An Ollama started by its own tray app keeps Ollama's defaults.
+- The warm-up load (`OllamaBackend.load`) and `measure_speed` send the same `num_ctx` as every request,
+  so no request reloads the model at a different context size.
+- Idle RAM guard (`backend/reliability/model_control.py` `RamGuard`, checked every 30 s by the backend):
+  no model call for 5 minutes (`idle_unload_after_s`) and llama-server above 5300 MB private
+  (`idle_unload_ram_mb`) -> the model is unloaded (audit record `unload_model`); it is not paused, the
+  next request reloads it (~9 s). Never during a model call; does nothing while the owner has paused it.
+  Works with either Ollama. The Health page shows the process RAM next to "Model loaded".
+- Not done (owner decision): a text-only Ollama tag without the vision projector (~0.9 GB less);
+  HCWMA does not send images to Qwen today.
+

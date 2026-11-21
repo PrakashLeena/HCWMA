@@ -118,7 +118,12 @@ class OllamaBackend:
         start = time.perf_counter()
         for _ in self._post_lines(
             "/api/generate",
-            {"model": self.config.ollama_model, "keep_alive": self.config.keep_alive},
+            {
+                "model": self.config.ollama_model,
+                "keep_alive": self.config.keep_alive,
+                # Same num_ctx as every chat request, so the next request never reloads.
+                "options": {"num_ctx": self.config.context_length},
+            },
         ):
             pass
         return time.perf_counter() - start
