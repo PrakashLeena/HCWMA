@@ -5,6 +5,8 @@ Owner decision 2026-11-20 (docs/DECISIONS.md):
 - The installed `ollama.exe serve` is started hidden and detached, with OLLAMA_HOST set to
   127.0.0.1:<port> (never 0.0.0.0, architecture rule 8) and OLLAMA_MODELS set from
   `ollama_models_dir` in configs/model.yaml.
+- Backlog item 1 (2026-11-21): it also gets OLLAMA_NUM_PARALLEL=1, OLLAMA_MAX_LOADED_MODELS=1
+  and llama-server's prompt-cache / context-checkpoint limits, so its RAM stays bounded.
 - ollama.exe is looked up on PATH, then in the standard install folders. Nothing is ever
   downloaded or installed.
 - One start attempt at a time (a lock); other requests wait for that attempt. Health is
@@ -127,6 +129,11 @@ class OllamaLauncher:
         env["OLLAMA_HOST"] = f"{self.config.endpoint.host}:{self.config.endpoint.port}"
         if self.config.ollama_models_dir:
             env["OLLAMA_MODELS"] = self.config.ollama_models_dir
+        # Backlog item 1: bounded RAM. Ollama passes LLAMA_ARG_* on to llama-server.
+        env["OLLAMA_NUM_PARALLEL"] = str(self.config.ollama_num_parallel)
+        env["OLLAMA_MAX_LOADED_MODELS"] = "1"
+        env["LLAMA_ARG_CACHE_RAM"] = str(self.config.prompt_cache_mb)
+        env["LLAMA_ARG_CTX_CHECKPOINTS"] = str(self.config.context_checkpoints)
         return env
 
     def ensure_running(self) -> LaunchResult:

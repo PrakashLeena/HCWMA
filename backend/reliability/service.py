@@ -29,7 +29,7 @@ from backend.reliability.health import (
     whatsapp_probe,
 )
 from backend.reliability.journal import RecoveryReport, TaskJournal, journal_path
-from backend.reliability.model_control import ModelControl, OllamaModelControl
+from backend.reliability.model_control import ModelControl, OllamaModelControl, RamGuard
 from backend.reliability.resources import (
     ResourceSnapshot,
     heavy_task_refusal,
@@ -45,6 +45,7 @@ from security.audit.audit_logger import AuditLogger, get_audit_logger
 log = logging.getLogger(__name__)
 
 BACKUP_CHECK_S = 3600.0
+RAM_GUARD_CHECK_S = 30.0
 
 
 class Interruptible(Protocol):
@@ -66,8 +67,10 @@ class ReliabilityService:
         autostart_enabled: Callable[[], bool | None] | None = None,
         auto_backup: bool = True,
         ollama: OllamaLauncher | None = None,
+        ram_guard: RamGuard | None = None,
     ) -> None:
         self.ollama = ollama
+        self._ram_guard = ram_guard
         self.data_dir = data_dir or resolve_data_dir()
         self.audit = audit or get_audit_logger()
         self.journal = TaskJournal(journal_path(self.data_dir), audit=self.audit)
@@ -112,7 +115,24 @@ class ReliabilityService:
                     log.exception("daily backup failed")
                 await anyio.sleep(BACKUP_CHECK_S)
 
+        async def ram_guard_loop() -> None:
+            while True:
+                await anyio.sleep(RAM_GUARD_CHECK_S)
+                try:
+                    used = await anyio.to_thread.run_sync(self.ram_guard.check)
+                except Exception:  # noqa: BLE001 - e.g. Ollama not running; try again later
+                    log.debug("idle RAM guard check failed", exc_info=True)
+                    continue
+                if used is not None:
+                    self.audit.reliability(
+                        action="unload_model",
+                        outcome="unloaded",
+                        reason=f"idle and {used} MB > {self.ram_guard.limit_mb} MB",
+                    )
+
         async with anyio.create_task_group() as tg:
+            if self.ram_guard.enabled:
+                tg.start_soon(ram_guard_loop)
             if self.auto_backup:
                 tg.start_soon(backup_loop)
             tg.start_soon(watch_for_sleep, on_wake)
@@ -120,6 +140,12 @@ class ReliabilityService:
                 yield
             finally:
                 tg.cancel_scope.cancel()
+
+    @property
+    def ram_guard(self) -> RamGuard:
+        if self._ram_guard is None:
+            self._ram_guard = RamGuard()
+        return self._ram_guard
 
     def backup_now(self, reason: str = "owner") -> Path:
         folder = self.backups.backup(label=reason)
@@ -169,9 +195,14 @@ class ReliabilityService:
                 HealthItem(name="Model loaded", ok=None, value="unknown: Ollama is not running"),
             ]
         if status["loaded"]:
-            loaded = HealthItem(
-                name="Model loaded", ok=True, value=f"yes ({status['size_mb'] / 1024:.1f} GB)"
-            )
+            value = f"yes ({status['size_mb'] / 1024:.1f} GB)"
+            used = self.ram_guard.current_mb()
+            if used:
+                value += f"; its process uses {used / 1024:.1f} GB"
+                if self.ram_guard.enabled:
+                    limit = self.ram_guard.limit_mb / 1024
+                    value += f" (unloaded when idle above {limit:.1f} GB)"
+            loaded = HealthItem(name="Model loaded", ok=True, value=value)
         elif self.model.paused:
             loaded = HealthItem(name="Model loaded", ok=None, value="no: paused by you")
         else:

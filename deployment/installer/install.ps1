@@ -118,6 +118,14 @@ if (-not $ollama) {
     } else {
         Info "skipped. Later: ollama pull $Model"
     }
+    # Daily model (2026-11-21): a text-only tag made from $Model's own weights, no download.
+    if ($up -and (Test-Path $VenvPython)) {
+        $tags = $null
+        try { $tags = Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -TimeoutSec 10 } catch { }
+        if ($tags -and @($tags.models | Where-Object { $_.name -eq $Model }).Count -gt 0) {
+            Run "create the text-only model (no download)" { & $VenvPython -m model.serving.text_model }
+        }
+    }
 }
 
 # 5. Token --------------------------------------------------------------------------------

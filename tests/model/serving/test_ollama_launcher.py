@@ -237,3 +237,14 @@ def test_health_page_shows_the_start(tmp_path: Path) -> None:
     )
     item = service._model_items()[0]  # noqa: SLF001
     assert item.name == "Ollama" and item.ok is False and "not installed" in item.value
+
+
+def test_the_started_ollama_gets_bounded_memory_settings() -> None:
+    # Backlog item 1: one slot, one model, small prompt cache, few context checkpoints.
+    config = load_model_config()
+    env = OllamaLauncher(config, probe=lambda: True).environment()
+    assert env["OLLAMA_NUM_PARALLEL"] == "1"
+    assert env["OLLAMA_MAX_LOADED_MODELS"] == "1"
+    assert env["LLAMA_ARG_CACHE_RAM"] == str(config.prompt_cache_mb)
+    assert env["LLAMA_ARG_CTX_CHECKPOINTS"] == str(config.context_checkpoints)
+    assert env["OLLAMA_HOST"] == "127.0.0.1:11434"

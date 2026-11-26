@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -48,6 +49,12 @@ class ModelConfig(BaseModel):
     # Owner decision 2026-11-20: start the installed Ollama when it is down (ollama_launcher).
     ollama_models_dir: str | None = None  # passed to `ollama serve` as OLLAMA_MODELS
     ollama_start_timeout_s: float = Field(default=60.0, gt=0, le=300)
+    # Backlog item 1 (2026-11-21): bounded model RAM (see configs/model.yaml).
+    ollama_num_parallel: int = Field(default=1, ge=1, le=4)
+    prompt_cache_mb: int = Field(default=512, ge=0, le=8192)  # 0 = no prompt cache
+    context_checkpoints: int = Field(default=4, ge=0, le=32)
+    idle_unload_ram_mb: int = Field(default=5300, ge=0)  # private MB; 0 = guard off
+    idle_unload_after_s: float = Field(default=300.0, gt=0)
 
     @field_validator("max_parallel_requests")
     @classmethod
@@ -60,4 +67,8 @@ class ModelConfig(BaseModel):
 def load_model_config(path: Path | None = None) -> ModelConfig:
     with (path or DEFAULT_CONFIG_PATH).open(encoding="utf-8") as f:
         data = yaml.safe_load(f)
+    # A/B runs (eval, benchmark) can try another installed tag without editing the file.
+    override = os.environ.get("HCWMA_OLLAMA_MODEL")
+    if override:
+        data["ollama_model"] = override
     return ModelConfig.model_validate(data)

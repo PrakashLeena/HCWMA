@@ -15,7 +15,7 @@ v1.2 records what was actually built. Where a later section still describes a v1
 
 | # | Area | v1.1 plan | v1.2 as built |
 |---|------|-----------|---------------|
-| D1 | Model and hardware | Quantized Qwen sized to the PC's GPU | Ollama `qwen3.5:4b` Q4_K_M, **CPU only** (i5-1135G7, 16 GB, Iris Xe), thinking off; models in `E:\ollama\models`; HCWMA starts `ollama serve` itself when it is down |
+| D1 | Model and hardware | Quantized Qwen sized to the PC's GPU | Ollama `qwen3.5-text:4b` (the `qwen3.5:4b` Q4_K_M weights without the vision projector, 2026-11-21), **CPU only** (i5-1135G7, 16 GB, Iris Xe), thinking off; models in `E:\ollama\models`; HCWMA starts `ollama serve` itself when it is down |
 | D2 | Routing | Router classifies every request with the model | Plus a **fast path**: card-defined rules route very clear requests with no model call; short replies continue a pending clarification; unmatched requests are not sent to the Tool Builder |
 | D3 | PC access | Files, apps, shell, screen | Files, Recycle Bin, disk usage, code workspace, window UI Automation, selected settings. **No shell or screen-capture tool** |
 | D4 | Tool Builder testing | "A sandbox" | **Windows Sandbox** (network off, VM destroyed), Qwen unloaded during the run; tools start **quarantined**; approval by content hash; any edit re-quarantines |
@@ -677,7 +677,7 @@ The earlier budget of LKR 500,000 is retained only as the ceiling for an optiona
 |-------|------------------------|-------|
 | Language | Python | Primary backend, agents, integrations and ML. |
 | Model development | PyTorch + Hugging Face Transformers | Best for inspecting and experimenting with model implementation. |
-| Model serving | **Ollama `qwen3.5:4b` Q4_K_M on CPU (as built)**; HCWMA starts `ollama serve` itself if it is down | Transformers kept for research only. |
+| Model serving | **Ollama `qwen3.5-text:4b` (`qwen3.5:4b` Q4_K_M weights, no vision projector) on CPU (as built)**; HCWMA starts `ollama serve` itself if it is down | Transformers kept for research only. |
 | Backend API | FastAPI **on localhost** | Authenticated local HCWMA services. |
 | **Desktop app shell** | **PySide6 window (Qt WebEngine) + tray icon (as built)** | **Approval prompts, stop control, start with Windows.** |
 | Agent orchestration | A small custom Python **Router + agent runtime** | Keep policy and tool execution explicit; avoid heavy framework coupling. |
