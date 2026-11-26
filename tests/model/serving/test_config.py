@@ -21,7 +21,7 @@ def _write(tmp_path: Path, **overrides: object) -> Path:
 def test_repo_config_is_valid() -> None:
     config = load_model_config()
     assert config.runtime == "ollama"
-    assert config.ollama_model == "qwen3.5:4b"
+    assert config.ollama_model == "qwen3.5-text:4b"
     assert config.endpoint.base_url == "http://127.0.0.1:11434"
     assert config.max_parallel_requests == 1
     assert config.device == "cpu"

@@ -370,3 +370,17 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
 - Not done (owner decision): a text-only Ollama tag without the vision projector (~0.9 GB less);
   HCWMA does not send images to Qwen today.
 
+## Daily model: text-only Qwen3.5-4B (owner request, decided 2026-11-21)
+
+- `configs/model.yaml` `ollama_model: qwen3.5-text:4b`: the same Q4_K_M weights layer as `qwen3.5:4b`
+  (same file, nothing downloaded or copied), same renderer/parser (chat template, tool-call format) and
+  parameters, without the vision projector. Made by `python -m model.serving.text_model` (the installer
+  runs it after the model pull).
+- Switched because accuracy is not lower (`docs/text_model.md`): routing 194/215 for both, the same cases;
+  tool-call/JSON validity 9/9 for both; same speed; ~1.0 GB less private RAM (5523 -> 4484 MB after 20
+  requests), loads 1.7 s faster.
+- Not built from `Qwen3.5-4B-Base/`: those safetensors are the pre-trained Base model, not the instruct model.
+- `qwen3.5:4b` stays installed; switching back is the one `ollama_model` line. HCWMA cannot send images to
+  Qwen with the text-only model (it does not today).
+- `HCWMA_OLLAMA_MODEL=<tag>` overrides `ollama_model` for A/B runs (eval, benchmark, ram_soak).
+

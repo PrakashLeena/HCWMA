@@ -28,6 +28,8 @@ def _isolated_hcwma_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     # App launching (2026-11-20): the real launcher never opens WhatsApp, Calculator or Notepad
     # during tests (tests use a fake starter).
     monkeypatch.setenv("HCWMA_DISABLE_APP_LAUNCH", "1")
+    # A/B model runs (2026-11-21): tests always see the model named in configs/model.yaml.
+    monkeypatch.delenv("HCWMA_OLLAMA_MODEL", raising=False)
     # Adapters (2026-11-21): a new install starts with every adapter off. Tests of the
     # WhatsApp / Gmail tools expect them on, as on an install that already used them; tests
     # of the on/off rule write their own state.

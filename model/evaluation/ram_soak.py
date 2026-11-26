@@ -36,6 +36,15 @@ def runner_ram_mb() -> tuple[int, int]:
     return mem.working_set_mb, mem.private_mb
 
 
+def _unload_others(backend: OllamaBackend) -> None:
+    """Measure one model alone: unload every other model Ollama holds."""
+    for loaded in backend._get_json("/api/ps").get("models", []):
+        name = loaded.get("name")
+        if name and name != backend.config.ollama_model:
+            for _ in backend._post_lines("/api/generate", {"model": name, "keep_alive": 0}):
+                pass
+
+
 def run(runs: int, label: str, port: int | None = None) -> list[tuple[int, int, int, float]]:
     config = load_model_config()
     if port is not None:  # e.g. a second Ollama started for an A/B measurement
@@ -45,6 +54,7 @@ def run(runs: int, label: str, port: int | None = None) -> list[tuple[int, int, 
         (REPO_ROOT / "agents" / "prompts" / f"{name}.md").read_text(encoding="utf-8")
         for name in PROMPTS
     ]
+    _unload_others(backend)
     rows: list[tuple[int, int, int, float]] = []
     print(f"[{label}] before any request: ws/private MB = {runner_ram_mb()}")
     for i in range(runs):
