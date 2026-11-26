@@ -32,13 +32,32 @@ _REASONS = {
     "network": "could not reach the cloud provider",
     "timeout": "the cloud provider did not answer in time",
     "rate_limit": "the cloud provider's rate limit was reached",
-    "auth": "the cloud provider refused the API key",
+    "auth": "the cloud provider refused the API key (check it on the Model page)",
+    "credits": "the cloud account has no credits or quota left",
     "server": "the cloud provider had an error",
     "bad_request": "the cloud provider refused the request",
     "invalid": "the cloud model's reply could not be read",
     "budget": "this month's cloud budget is used up",
     "no_key": "no cloud API key is saved",
 }
+
+
+class CloudUnavailable(RuntimeError):
+    """A cloud call failed and falling back to the local model is off. The message is safe
+    to show in the chat: the reason only, never the key, prompt or provider's reply."""
+
+    def __init__(self, kind: str, model: str) -> None:
+        self.kind = kind
+        self.model = model
+        super().__init__(
+            f"The cloud model ({model}) did not answer: {_REASONS.get(kind, 'the call failed')}. "
+            'Nothing was run on the local model; turn on "Fall back to local if cloud fails" '
+            "on the Model page to allow that."
+        )
+
+
+class LocalUnavailable(RuntimeError):
+    """The local model could not be started (Ollama down). Safe to show."""
 
 
 def fallback_note(kind: str) -> str:
@@ -75,6 +94,10 @@ class ModelDispatcher:
         self._factory = backend_factory or _default_factory
         self._audit = audit
         self.transport: Any = None  # httpx transport for the model list (tests)
+        # Called before a local call in Hybrid/Cloud mode: starts Ollama only when a local
+        # call really happens (the backend sets it to the Ollama launcher). Raises
+        # LocalUnavailable when it cannot.
+        self.local_ready: Callable[[], None] | None = None
         # Last cloud outcome this run ("ok", "fallback:rate_limit", ...) for the Health page.
         self.last_outcome: str | None = None
         self.last_at: float | None = None
@@ -121,11 +144,18 @@ class ModelDispatcher:
         }
         settings = self.settings.load()
         if settings.target_for(agent) == "local":
+            if settings.mode != "local" and self.local_ready is not None:
+                self.local_ready()
             return self._local_generate(messages, **options)
 
         def fall_back(kind: str, started: float) -> GenerateResult:
+            if not settings.fallback_to_local:
+                self._record(settings, agent, task_id, started, outcome=f"failed:{kind}")
+                raise CloudUnavailable(kind, settings.model)
             self.ledger.add(fallback=True)
             self._record(settings, agent, task_id, started, outcome=f"fallback:{kind}")
+            if self.local_ready is not None:
+                self.local_ready()
             result = self._local_generate(messages, **options)
             return result.model_copy(update={"fallback_note": fallback_note(kind)})
 

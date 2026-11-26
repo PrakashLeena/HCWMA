@@ -149,6 +149,10 @@ class CloudSettings(BaseModel):
     price_input_per_mtok: float = Field(default=0.0, ge=0, le=1000)
     price_output_per_mtok: float = Field(default=0.0, ge=0, le=1000)
     request_timeout_s: float = Field(default=60.0, gt=0, le=600)
+    # Owner decision 2026-11-26: off by default. Off: a failed cloud call is an error shown in
+    # the chat (with the reason) and the local model is never loaded for it. On: the local
+    # model answers instead, with a note.
+    fallback_to_local: bool = False
     # When the owner clicked "I understand" on the data warning (ISO time), else None.
     warning_accepted_at: str | None = None
 
@@ -203,6 +207,12 @@ class CloudSettings(BaseModel):
             return spent_usd >= self.monthly_budget_usd
         # 0: unlimited only when nothing is priced (free credits); else no spending at all.
         return self.price_input_per_mtok > 0 or self.price_output_per_mtok > 0
+
+    @property
+    def cloud_only(self) -> bool:
+        """Cloud mode in effect: nothing may start Ollama or load Qwen ahead of a call
+        (no auto-start, warm-up or reload). Only a fallback the owner turned on may load it."""
+        return self.mode == "cloud" and bool(self.model) and self.warning_accepted_at is not None
 
     def target_for(self, agent: str | None) -> Target:
         """Where a model call for `agent` runs. Unknown or missing agent -> the safe side."""
@@ -271,3 +281,9 @@ class CloudSettingsStore:
                 json.dump(settings.model_dump(), f, indent=1)
             Path(tmp).replace(path)  # atomic
             return settings
+
+
+def cloud_only_now() -> bool:
+    """Cloud mode is in effect right now (read from disk: a change on the Model page applies
+    at once and survives a restart). Missing or damaged settings -> False (Local only)."""
+    return CloudSettingsStore().load().cloud_only

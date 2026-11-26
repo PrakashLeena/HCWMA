@@ -111,6 +111,8 @@ function render() {
   document.querySelectorAll("input[name=mode]").forEach((r) => { r.checked = r.value === s.mode; });
   renderProfiles();
   el("budget").value = s.monthly_budget_usd;
+  el("fallback").checked = !!s.fallback_to_local;
+  el("timeout").value = s.request_timeout_s;
   const u = state.usage;
   const budget = state.budget_unlimited
     ? "no limit (free, unpriced)"
@@ -241,10 +243,15 @@ async function save() {
       mode: mode(),
       agent_overrides: overrides(),
       monthly_budget_usd: Number(el("budget").value || 0),
+      request_timeout_s: Number(el("timeout").value || 60),
+      fallback_to_local: el("fallback").checked,
       accept_warning: accepted,
     });
     render();
-    say("Saved.");
+    say(state.settings.mode === "cloud"
+      ? "Saved. Cloud mode is on now: every model call goes to " + state.settings.model +
+        "; the local model is being unloaded."
+      : "Saved. It applies to the next request.");
   } catch (e) {
     say(e.message);
   } finally {

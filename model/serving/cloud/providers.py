@@ -27,8 +27,19 @@ class CloudError(RuntimeError):
         self.kind = kind  # network | timeout | rate_limit | auth | server | bad_request | invalid
 
 
+_CREDITS = ("credit", "quota", "insufficient", "billing", "payment", "balance")
+
+
 def _error_for(resp: httpx.Response) -> CloudError:
     code = resp.status_code
+    try:
+        body = resp.text[:2000].lower()
+    except Exception:  # noqa: BLE001 - unreadable body: classify by status only
+        body = ""
+    if code == 402 or (code in (400, 403, 429) and any(w in body for w in _CREDITS)):
+        return CloudError(
+            "credits", f"the provider says the account has no credits or quota left (HTTP {code})"
+        )
     if code == 429:
         return CloudError("rate_limit", "the provider's rate limit was reached (HTTP 429)")
     if code in (401, 403):

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -252,3 +253,138 @@ def test_chat_reply_says_which_model_answered(client: TestClient) -> None:
 def test_cloud_page_is_served(client: TestClient) -> None:
     page = client.get("/cloud")
     assert page.status_code == 200 and "What leaves this PC" in page.text
+
+
+class Launcher:
+    """A fake Ollama launcher: counts starts."""
+
+    state = "running"
+    started_by_hcwma = False
+
+    def __init__(self) -> None:
+        self.starts = 0
+
+    def ensure_running(self) -> Any:
+        from model.serving.ollama_launcher import LaunchResult
+
+        self.starts += 1
+        return LaunchResult.model_construct(ok=True)
+
+
+class FailingRouter(Router):
+    async def handle(self, conversation: list[Message]) -> RouterReply:
+        from model.serving.cloud.dispatcher import CloudUnavailable
+
+        raise CloudUnavailable("credits", "cloud-m")
+
+
+def _cloud_app(
+    tmp_path: Path, handler: Router, launcher: Launcher, unloads: list[int], mode: str
+) -> tuple[TestClient, ModelDispatcher]:
+    from model.serving.cloud.settings import CloudSettings
+
+    store = CloudSettingsStore(tmp_path)
+    store.save(
+        CloudSettings.model_validate(
+            {
+                "mode": mode,
+                "profile": "nvidia",
+                "profiles": {
+                    "nvidia": {
+                        "label": "NVIDIA",
+                        "preset": "nvidia",
+                        "base_url": "https://integrate.api.nvidia.com/v1",
+                        "model": "cloud-m",
+                    }
+                },
+                "warning_accepted_at": None if mode == "local" else "2026-11-26T10:00:00+00:00",
+            }
+        )
+    )
+    d = ModelDispatcher(
+        lambda *a, **k: GenerateResult(text="local"),
+        settings=store,
+        keys=MemoryKeyStore({"nvidia": KEY}),
+        ledger=UsageLedger(tmp_path),
+    )
+    app = create_app(
+        handler_factory=handler.factory,
+        token=TOKEN,
+        config=BackendConfig(host="127.0.0.1", port=8765),
+        cloud=d,
+        ollama=launcher,  # type: ignore[arg-type]
+        unload_local=lambda: unloads.append(1),
+    )
+    return TestClient(app, base_url="http://127.0.0.1:8765"), d
+
+
+def test_cloud_mode_never_starts_ollama(tmp_path: Path) -> None:
+    launcher, unloads = Launcher(), []
+    client, d = _cloud_app(tmp_path, Router(), launcher, unloads, "cloud")
+    with client:
+        r = client.post(
+            "/chat", json={"messages": [{"role": "user", "content": "hi"}]}, headers=AUTH
+        )
+        assert r.status_code == 200
+    assert launcher.starts == 0  # not at launch, not per request
+    for _ in range(50):  # the unload runs in a background thread
+        if unloads:
+            break
+        time.sleep(0.02)
+    assert unloads == [1]  # started in Cloud mode: a leftover Qwen is unloaded
+    assert d.local_ready is not None  # a local call (Hybrid agent, allowed fallback) starts it
+
+
+def test_local_mode_still_starts_ollama(tmp_path: Path) -> None:
+    launcher, unloads = Launcher(), []
+    client, _ = _cloud_app(tmp_path, Router(), launcher, unloads, "local")
+    with client:
+        client.post("/chat", json={"messages": [{"role": "user", "content": "hi"}]}, headers=AUTH)
+    assert launcher.starts >= 1
+
+
+def test_switching_to_cloud_unloads_the_local_model(tmp_path: Path) -> None:
+    import time
+
+    launcher, unloads = Launcher(), []
+    client, _ = _cloud_app(tmp_path, Router(), launcher, unloads, "local")
+    with client:
+        r = client.post(
+            "/cloud/settings",
+            json={"mode": "cloud", "monthly_budget_usd": 0, "accept_warning": True},
+            headers=AUTH,
+        )
+        assert r.status_code == 200 and r.json()["settings"]["mode"] == "cloud"
+        for _ in range(50):
+            if unloads:
+                break
+            time.sleep(0.02)
+        assert unloads == [1]
+        # staying in Cloud (another save) does not unload again; Hybrid does not unload
+        client.post(
+            "/cloud/settings",
+            json={"mode": "cloud", "monthly_budget_usd": 0, "fallback_to_local": True},
+            headers=AUTH,
+        )
+        client.post(
+            "/cloud/settings",
+            json={"mode": "hybrid", "monthly_budget_usd": 0, "fallback_to_local": True},
+            headers=AUTH,
+        )
+        time.sleep(0.1)
+    assert unloads == [1]
+    saved = CloudSettingsStore(tmp_path).load()  # survives a restart: it is on disk
+    assert (saved.mode, saved.fallback_to_local) == ("hybrid", True)
+
+
+def test_a_failed_cloud_call_is_shown_with_its_reason(tmp_path: Path) -> None:
+    launcher, unloads = Launcher(), []
+    client, _ = _cloud_app(tmp_path, FailingRouter(), launcher, unloads, "cloud")
+    with client:
+        r = client.post(
+            "/chat", json={"messages": [{"role": "user", "content": "hi"}]}, headers=AUTH
+        )
+    assert r.status_code == 502
+    detail = r.json()["detail"]
+    assert "cloud-m" in detail and "no credits" in detail and "Fall back to local" in detail
+    assert launcher.starts == 0

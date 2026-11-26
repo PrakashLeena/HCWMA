@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass
+from functools import partial
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -151,7 +152,11 @@ class Router:
         if self.memory is None or not due(conversation, self.memory.config.summarize_every_turns):
             return False
         try:
-            text = await summarize(conversation, self._runtime.generate)
+            # The session summary is Memory Librarian's work: in Hybrid mode it runs where
+            # that agent runs (2026-11-26).
+            text = await summarize(
+                conversation, partial(self._runtime.generate, agent="memory_librarian")
+            )
             return (
                 bool(text)
                 and self.memory.save_summary(text, session_id=session_id).entry is not None

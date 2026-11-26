@@ -407,8 +407,16 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   pasted "Bearer " is dropped), model list from the provider's `/models`, Test connection, Remove key.
 - Before sending: protected-path names/contents and secret patterns (API keys, tokens, passwords,
   private keys, card numbers) are redacted.
-- Network error, timeout, rate limit, refused key or monthly budget reached -> the same call runs on
-  the local model, with a note in the chat.
+- Cloud mode (owner bug report 2026-11-26): every model call goes to the active cloud profile (Router,
+  every agent, session summaries). Qwen is never loaded or started ahead of use: no Ollama auto-start at
+  launch, no per-request start, no reload after a sandbox test; switching to Cloud (or starting in Cloud
+  mode) unloads it. The RAM / battery limits for heavy tasks do not apply in Cloud mode; Pause still does.
+- No silent fallback: a failed cloud call (key, credits, rate limit, network, time-out, budget, no key)
+  stops the request and the chat shows the reason. "Fall back to local if cloud fails" on the Model page
+  (default off) lets the local model answer instead, with a note; Ollama is then started only for it.
+- Hybrid: exactly the per-agent table; Ollama starts only when a local agent's call runs. Session
+  summaries count as `memory_librarian`.
+- Mode changes apply to the next call (settings are read per call) and are kept in `cloud.json`.
 - Monthly budget (USD, owner-set prices per million tokens); usage in `<data dir>/cloud_usage.json`.
   Budget 0 = unlimited while the active profile's prices are 0 (free credits); with prices set, 0
   means no cloud spending.

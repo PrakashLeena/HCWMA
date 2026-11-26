@@ -55,7 +55,8 @@ from integrations.adapters.local_data.planner_store import PlannerStore
 from integrations.adapters.local_data.when_parser import describe
 from integrations.generated_tools.review import ReviewRefused, ReviewService
 from model.serving import Message, usage
-from model.serving.cloud.dispatcher import ModelDispatcher
+from model.serving.cloud.dispatcher import CloudUnavailable, LocalUnavailable, ModelDispatcher
+from model.serving.cloud.settings import CloudSettings
 from model.serving.ollama_launcher import OllamaLauncher
 from voice.memory_budget import top_apps_by_ram
 from voice.service import Transcript, VoiceRefused, VoiceService, VoiceStatus
@@ -96,6 +97,21 @@ _SECURITY_HEADERS = {
 }
 
 
+def _unload_local_model() -> None:
+    """Unload Qwen if Ollama has it loaded (after any model call in flight)."""
+    from agents.runtime.model_queue import get_model_queue
+    from model.serving import get_backend
+
+    try:
+        backend = get_backend()
+        with get_model_queue().exclusive():
+            if backend.runtime_info().get("loaded"):
+                backend.unload()
+                logger.info("Cloud mode: local model unloaded")
+    except Exception as exc:  # noqa: BLE001 - Ollama not running: nothing is loaded
+        logger.info("Cloud mode: nothing to unload (%s)", type(exc).__name__)
+
+
 def _audit_logger() -> object:
     from security.audit.audit_logger import get_audit_logger
 
@@ -114,6 +130,7 @@ def create_app(
     ollama: OllamaLauncher | None = None,
     apps: AppsService | None = None,
     cloud: ModelDispatcher | None = None,
+    unload_local: Callable[[], None] | None = None,
 ) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
@@ -126,15 +143,45 @@ def create_app(
 
         return get_dispatcher()
 
+    def mode() -> str:
+        return dispatcher().settings.load().mode
+
+    def ensure_local() -> None:
+        """Start Ollama only when a call really runs on the local model (Hybrid local agent,
+        or a fallback the owner allowed). Never ahead of time in Cloud mode."""
+        if ollama is None:
+            return
+        started = ollama.ensure_running()
+        if not started.ok:
+            raise LocalUnavailable(started.message())
+
+    def on_mode_change(new: CloudSettings, old: CloudSettings) -> None:
+        """Switching to Cloud unloads Qwen at once (in the background, after any call in
+        flight); nothing loads it again while Cloud mode is on."""
+        if new.cloud_only and not old.cloud_only:
+            threading.Thread(
+                target=unload_local or _unload_local_model, name="hcwma-unload", daemon=True
+            ).start()
+
+    if ollama is not None:
+        dispatcher().local_ready = ensure_local
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if reliability is not None:
             # Step 18: before any new request, whatever a crash left running is marked
             # interrupted (never re-run) and its approval prompts are cancelled.
             reliability.recover()
-        if ollama is not None:
+        if dispatcher().settings.load().cloud_only:
+            # Started in Cloud mode: a Qwen left loaded (an Ollama started elsewhere, an
+            # earlier run) is unloaded, never used.
+            threading.Thread(
+                target=unload_local or _unload_local_model, name="hcwma-unload", daemon=True
+            ).start()
+        if ollama is not None and mode() == "local":
             # Owner decision 2026-11-20: start Ollama at HCWMA launch if it is down. In the
             # background, so the window opens at once; a chat meanwhile waits on the same lock.
+            # Hybrid / Cloud (2026-11-26): started only when a local call needs it.
             threading.Thread(target=ollama.ensure_running, name="ollama-start", daemon=True).start()
         if apps is not None:
             # 2026-11-21: app inventory at start (background) and daily; adapters of an
@@ -190,11 +237,11 @@ def create_app(
             refused = reliability.refusal()
             if refused is not None:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=refused)
-        if ollama is not None:
+        if ollama is not None and mode() == "local":
             # Ollama down: start it (once, under a lock) and wait up to 60 s, then go on.
+            # Hybrid / Cloud: started lazily by the first call that runs locally.
             started = await run_in_threadpool(ollama.ensure_running)
-            # Cloud mode (2026-11-26): every call goes to the cloud; Qwen is only the fallback.
-            if not started.ok and dispatcher().settings.load().mode != "cloud":
+            if not started.ok:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=started.message()
                 )
@@ -205,6 +252,13 @@ def create_app(
         except ModelBusy:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=BUSY_MESSAGE
+            ) from None
+        except CloudUnavailable as exc:
+            # Cloud call failed, fallback off: say why in the chat (no key, no prompt text).
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
+        except LocalUnavailable as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
             ) from None
         except ModelPaused:
             raise HTTPException(
@@ -479,7 +533,7 @@ def create_app(
         return FileResponse(WEB_DIR / "tools.html", media_type="text/html")
 
     add_app_routes(app, require_token, apps, reliability, WEB_DIR)
-    add_cloud_routes(app, require_token, dispatcher, WEB_DIR, _audit_logger)
+    add_cloud_routes(app, require_token, dispatcher, WEB_DIR, _audit_logger, on_mode_change)
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:

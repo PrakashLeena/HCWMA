@@ -155,7 +155,7 @@ async function stopEverything() {
 
 // Which model answered (2026-11-26): 🖥 local Qwen, ☁ the owner's cloud model.
 function modelLabel(models) {
-  if (!models || !models.length) return "";
+  if (!models || !models.length) return "⚙ no model (answered by code) · ";
   return models.map((m) => (m.where === "cloud" ? "☁ " : "🖥 ") + (m.model || m.provider))
     .join(" + ") + " · ";
 }

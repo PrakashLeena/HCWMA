@@ -45,6 +45,9 @@ def _dispatcher(
         "price_input_per_mtok": 1.0,
         "price_output_per_mtok": 2.0,
         "request_timeout_s": 2,
+        # These tests cover the fallback the owner can turn on; off (the default) is in
+        # test_cloud_mode.py.
+        "fallback_to_local": True,
     }
     store.save(CloudSettings.model_validate({**base, **settings}))
     local = LocalModel()

@@ -49,6 +49,7 @@ class CloudChange(BaseModel):
     agent_overrides: dict[str, Target] = Field(default_factory=dict)
     monthly_budget_usd: float = Field(ge=0, le=10_000)
     request_timeout_s: float = Field(default=60.0, gt=0, le=600)
+    fallback_to_local: bool = False
     accept_warning: bool = False
 
 
@@ -116,8 +117,11 @@ def add_cloud_routes(
     dispatcher: Callable[[], ModelDispatcher],
     web_dir: Path,
     audit: Callable[[], Any],
+    on_mode_change: Callable[[CloudSettings, CloudSettings], None] | None = None,
 ) -> None:
     def record_mode(new: CloudSettings, old: CloudSettings) -> None:
+        if on_mode_change is not None:
+            on_mode_change(new, old)
         if (new.mode, new.profile, new.model) != (old.mode, old.profile, old.model):
             audit().cloud_call(
                 task_id="-",

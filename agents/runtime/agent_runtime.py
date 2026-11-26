@@ -43,6 +43,7 @@ from integrations.generated_tools.registry import granted_tool_names
 from integrations.mcp.tool_schemas import CallerContext, PermissionTier, ToolResult
 from memory.service import MemoryService
 from model.serving import GenerateResult, Message, usage
+from model.serving.cloud.dispatcher import CloudUnavailable
 from security.audit.audit_logger import AuditLogger
 from security.permissions.config import Limits
 from security.permissions.permission_manager import AgentGrant
@@ -263,14 +264,17 @@ class AgentRuntime:
         start = time.perf_counter()
         try:
             result = await anyio.to_thread.run_sync(call, abandon_on_cancel=True)
-        except BaseException:
+        except BaseException as exc:
             if audit_as is not None:
+                cloud = isinstance(exc, CloudUnavailable)
                 self._audit.model_call(
                     agent=audit_as[0],
                     task_id=audit_as[1],
                     duration_ms=(time.perf_counter() - start) * 1000,
                     timings={},
-                    outcome="failed",
+                    outcome=f"failed:cloud:{exc.kind}" if cloud else "failed",
+                    provider="cloud" if cloud else "local",
+                    model=exc.model if cloud else "",
                 )
             raise
         if audit_as is not None:
@@ -361,6 +365,18 @@ class AgentRuntime:
                         scope.deadline = anyio.current_time() + remaining
 
                 envelope.result = await self._run(card, grant, envelope, budget, owner_wait)
+        except CloudUnavailable as exc:
+            # Cloud mode, fallback off (2026-11-26): the task stops here and the owner sees
+            # why in the chat. The delegation's end is still audited (rule 7).
+            self._audit.delegation(
+                task_id=envelope.task_id,
+                parent_task_id=parent_task_id,
+                from_agent=from_agent,
+                to_agent=to_agent,
+                outcome="failed",
+                reason=f"cloud:{exc.kind}",
+            )
+            raise
         except TimeoutError:
             envelope.result = TaskResult(
                 status="failed",
