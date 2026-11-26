@@ -423,3 +423,12 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   Audit `cloud_call` records provider, model, agent, tokens, cost and outcome; never prompt text.
 - Policy, approvals, allowlists, fast path and the model queue are unchanged: cloud calls also go
   through `model_queue.py`, one at a time.
+- Thinking models (owner decision 2026-11-26, after measuring NVIDIA: all three test models "think"
+  by default; with max_tokens 20 the whole budget went to thinking and the answer was empty):
+  per-profile "Thinking off", default on. Sent as `chat_template_kwargs: {enable_thinking: false}`
+  (OpenAI-compatible) or `thinkingConfig.thinkingBudget: 0` (Gemini); Anthropic never thinks unless
+  asked. A provider that refuses the switch (HTTP 400) is asked again without it, once per model per
+  run. Whenever thinking may be on, max_tokens gets +1024 headroom. An empty answer is an error with
+  its reason ("spent its whole answer budget thinking" / "empty answer"), never passed on.
+- Cloud time-out default 90 s per call (editable on the Model page).
+

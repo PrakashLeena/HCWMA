@@ -38,6 +38,9 @@ _REASONS = {
     "bad_request": "the cloud provider refused the request",
     "invalid": "the cloud model's reply could not be read",
     "budget": "this month's cloud budget is used up",
+    "empty": "the cloud model gave an empty answer",
+    "empty_length": "the cloud model spent its whole answer budget thinking and gave no answer "
+    '(turn on "Thinking off" for this provider on the Model page)',
     "no_key": "no cloud API key is saved",
 }
 
@@ -71,6 +74,7 @@ def _default_factory(settings: CloudSettings, key: str) -> Any:
         model=settings.model,
         api_key=key,
         timeout_s=settings.request_timeout_s,
+        thinking_off=settings.thinking_off,
     )
 
 

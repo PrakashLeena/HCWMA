@@ -55,7 +55,7 @@ function renderProfiles() {
     const name = document.createElement("td");
     name.textContent = (p.active ? "● " : "") + p.label;
     const model = document.createElement("td");
-    model.textContent = p.model || "(no model)";
+    model.textContent = (p.model || "(no model)") + (p.thinking_off === false ? " · thinking on" : " · thinking off");
     const key = document.createElement("td");
     key.textContent = p.key_saved ? "key ends with " + p.key_hint : (p.key_error || "no key");
     const acts = document.createElement("td");
@@ -94,6 +94,7 @@ function edit(id) {
   el("base-url").value = p ? p.base_url : preset.base_url;
   el("base-url").readOnly = id !== "custom";
   el("model").value = p ? p.model : "";
+  el("thinking-off").checked = p ? p.thinking_off !== false : true;
   el("price-in").value = p ? p.price_input_per_mtok : 0;
   el("price-out").value = p ? p.price_output_per_mtok : 0;
   el("key-state").textContent = p && p.key_saved
@@ -169,6 +170,7 @@ function profileBody(activate) {
     model: el("model").value.trim(),
     price_input_per_mtok: Number(el("price-in").value || 0),
     price_output_per_mtok: Number(el("price-out").value || 0),
+    thinking_off: el("thinking-off").checked,
     activate,
   };
 }
@@ -243,7 +245,7 @@ async function save() {
       mode: mode(),
       agent_overrides: overrides(),
       monthly_budget_usd: Number(el("budget").value || 0),
-      request_timeout_s: Number(el("timeout").value || 60),
+      request_timeout_s: Number(el("timeout").value || 90),
       fallback_to_local: el("fallback").checked,
       accept_warning: accepted,
     });

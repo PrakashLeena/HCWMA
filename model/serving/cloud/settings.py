@@ -121,6 +121,10 @@ class Profile(BaseModel):
     model: str = Field(default="", max_length=120, pattern=r"^[A-Za-z0-9._:/@\-]*$")
     price_input_per_mtok: float = Field(default=0.0, ge=0, le=1000)
     price_output_per_mtok: float = Field(default=0.0, ge=0, le=1000)
+    # Ask the model not to "think" before answering (2026-11-26: much faster, and no output
+    # tokens lost to hidden reasoning). Sent as the provider's switch; a provider that
+    # refuses it gets the request again without it, with room for thinking in max_tokens.
+    thinking_off: bool = True
 
     @field_validator("base_url")
     @classmethod
@@ -148,7 +152,8 @@ class CloudSettings(BaseModel):
     # Owner-set prices (USD per million tokens), used for the cost display and the budget.
     price_input_per_mtok: float = Field(default=0.0, ge=0, le=1000)
     price_output_per_mtok: float = Field(default=0.0, ge=0, le=1000)
-    request_timeout_s: float = Field(default=60.0, gt=0, le=600)
+    request_timeout_s: float = Field(default=90.0, gt=0, le=600)
+    thinking_off: bool = True  # mirror of the active profile
     # Owner decision 2026-11-26: off by default. Off: a failed cloud call is an error shown in
     # the chat (with the reason) and the local model is never loaded for it. On: the local
     # model answers instead, with a note.
@@ -190,6 +195,7 @@ class CloudSettings(BaseModel):
                 "model",
                 "price_input_per_mtok",
                 "price_output_per_mtok",
+                "thinking_off",
             ):
                 if key in p:
                     data[key] = p[key]

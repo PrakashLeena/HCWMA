@@ -48,7 +48,9 @@ CONVERSATION = [
 def test_openai_compat_request_and_tool_call() -> None:
     with fake_provider() as fake:
         fake.reply(openai_reply(calls=[("search_files", {"query": "notes"})], usage=(120, 7)))
-        backend = OpenAICompatBackend(base_url=fake.url + "/v1", model="m-1", api_key=KEY)
+        backend = OpenAICompatBackend(
+            base_url=fake.url + "/v1", model="m-1", api_key=KEY, thinking_off=True
+        )
         result = backend.generate(CONVERSATION, tools=TOOLS, max_tokens=64, temperature=0)
     req = fake.last
     assert req["path"] == "/v1/chat/completions"

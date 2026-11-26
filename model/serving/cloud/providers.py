@@ -9,7 +9,9 @@ logged or put into an error message.
 
 from __future__ import annotations
 
+import copy
 import json
+import logging
 import re
 import time
 from typing import Any
@@ -17,6 +19,8 @@ from typing import Any
 import httpx
 
 from model.serving.types import GenerateResult, Message, ToolCall
+
+log = logging.getLogger("hcwma.cloud")
 
 
 class CloudError(RuntimeError):
@@ -47,6 +51,23 @@ def _error_for(resp: httpx.Response) -> CloudError:
     if code >= 500:
         return CloudError("server", f"the provider had an error (HTTP {code})")
     return CloudError("bad_request", f"the provider refused the request (HTTP {code})")
+
+
+# Thinking ("reasoning") models spend output tokens on hidden reasoning before the answer,
+# and those count against max_tokens (2026-11-26 diagnosis: with 20 tokens, all 20 went to
+# thinking and the answer was empty). When thinking stays on, this much is added on top.
+REASONING_HEADROOM = 1024
+# (base URL, model) pairs whose API refused the thinking-off switch: not sent again this run.
+_NO_THINKING_SWITCH: set[tuple[str, str]] = set()
+
+
+def _empty(finish: str | None) -> CloudError:
+    if finish in ("length", "max_tokens", "MAX_TOKENS"):
+        return CloudError(
+            "empty_length",
+            "the model used its whole answer budget (thinking) and gave no answer",
+        )
+    return CloudError("empty", "the model gave an empty answer")
 
 
 def _schema_instruction(schema: dict[str, Any]) -> str:
@@ -98,8 +119,9 @@ class _HttpBackend:
         base_url: str,
         model: str,
         api_key: str,
-        timeout_s: float = 60.0,
+        timeout_s: float = 90.0,
         transport: httpx.BaseTransport | None = None,
+        thinking_off: bool = False,
     ) -> None:
         if not model:
             raise ValueError("no cloud model name is set")
@@ -108,6 +130,40 @@ class _HttpBackend:
         self._key = api_key
         self._timeout = timeout_s
         self._transport = transport
+        self.thinking_off = thinking_off
+
+    def _budget(self, max_tokens: int, switch_sent: bool) -> int:
+        """max_tokens for the request: with thinking possibly on, room for it on top."""
+        return max_tokens if switch_sent else max_tokens + REASONING_HEADROOM
+
+    def _send_switch(self) -> bool:
+        return self.thinking_off and (self.base_url, self.model) not in _NO_THINKING_SWITCH
+
+    def _post_with_switch(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+        add_switch: Any,
+        max_tokens: int,
+        set_budget: Any,
+    ) -> tuple[dict[str, Any], bool]:
+        """Send with the thinking-off switch when wanted; if the API refuses the request
+        (HTTP 400), send once more without it (and with thinking headroom) and remember."""
+        switch = self._send_switch()
+        first = copy.deepcopy(payload)  # the retry must go out without the switch
+        set_budget(first, self._budget(max_tokens, switch))
+        if switch:
+            add_switch(first)
+        try:
+            return self._post(url, first, headers), switch
+        except CloudError as exc:
+            if not switch or exc.kind != "bad_request":
+                raise
+        _NO_THINKING_SWITCH.add((self.base_url, self.model))
+        log.info("thinking-off switch refused by %s; sent without it", self.model)
+        set_budget(payload, self._budget(max_tokens, False))
+        return self._post(url, payload, headers), False
 
     def __repr__(self) -> str:  # never show the key
         return f"{type(self).__name__}(model={self.model!r}, base_url={self.base_url!r})"
@@ -161,10 +217,14 @@ class OpenAICompatBackend(_HttpBackend):
         if seed is not None:
             payload["seed"] = seed
         start = time.perf_counter()
-        data = self._post(
+        data, _ = self._post_with_switch(
             f"{self.base_url}/chat/completions",
             payload,
             {"Authorization": f"Bearer {self._key}"},
+            # NVIDIA NIM, vLLM, SGLang and others: the chat template's thinking switch.
+            lambda p: p.__setitem__("chat_template_kwargs", {"enable_thinking": False}),
+            max_tokens,
+            lambda p, n: p.__setitem__("max_tokens", n),
         )
         total = time.perf_counter() - start
         choices = data.get("choices") or []
@@ -179,6 +239,8 @@ class OpenAICompatBackend(_HttpBackend):
             for tc in msg.get("tool_calls") or []
         ]
         text = msg.get("content") or ""
+        if not text.strip() and not calls:
+            raise _empty(choices[0].get("finish_reason"))
         if response_format is not None:
             text = extract_json(text)
         usage = data.get("usage") or {}
@@ -291,6 +353,8 @@ class AnthropicBackend(_HttpBackend):
                     ToolCall(name=str(block.get("name", "")), arguments=_args(block.get("input")))
                 )
         text = "".join(texts)
+        if not text.strip() and not calls:
+            raise _empty(data.get("stop_reason"))
         if response_format is not None:
             text = extract_json(text)
         usage = data.get("usage") or {}
@@ -389,10 +453,13 @@ class GeminiBackend(_HttpBackend):
                 }
             ]
         start = time.perf_counter()
-        data = self._post(
+        data, _ = self._post_with_switch(
             f"{self.base_url}/v1beta/models/{self.model}:generateContent",
             payload,
             {"x-goog-api-key": self._key},
+            lambda p: p["generationConfig"].__setitem__("thinkingConfig", {"thinkingBudget": 0}),
+            max_tokens,
+            lambda p, n: p["generationConfig"].__setitem__("maxOutputTokens", n),
         )
         total = time.perf_counter() - start
         candidates = data.get("candidates") or []
@@ -409,6 +476,8 @@ class GeminiBackend(_HttpBackend):
             elif "text" in part and not part.get("thought"):
                 texts.append(part.get("text") or "")
         text = "".join(texts)
+        if not text.strip() and not calls:
+            raise _empty(candidates[0].get("finishReason"))
         if response_format is not None:
             text = extract_json(text)
         usage = data.get("usageMetadata") or {}
@@ -507,8 +576,9 @@ def make_cloud_backend(
     base_url: str,
     model: str,
     api_key: str,
-    timeout_s: float = 60.0,
+    timeout_s: float = 90.0,
     transport: httpx.BaseTransport | None = None,
+    thinking_off: bool = False,
 ) -> _HttpBackend:
     classes: dict[str, type[_HttpBackend]] = {
         "openai_compat": OpenAICompatBackend,
@@ -518,7 +588,12 @@ def make_cloud_backend(
     if kind not in classes:
         raise ValueError(f"unknown cloud provider {kind!r}")
     return classes[kind](
-        base_url=base_url, model=model, api_key=api_key, timeout_s=timeout_s, transport=transport
+        base_url=base_url,
+        model=model,
+        api_key=api_key,
+        timeout_s=timeout_s,
+        transport=transport,
+        thinking_off=thinking_off,
     )
 
 

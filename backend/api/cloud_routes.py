@@ -48,7 +48,7 @@ class CloudChange(BaseModel):
     mode: Mode
     agent_overrides: dict[str, Target] = Field(default_factory=dict)
     monthly_budget_usd: float = Field(ge=0, le=10_000)
-    request_timeout_s: float = Field(default=60.0, gt=0, le=600)
+    request_timeout_s: float = Field(default=90.0, gt=0, le=600)
     fallback_to_local: bool = False
     accept_warning: bool = False
 
@@ -62,6 +62,7 @@ class ProfileChange(BaseModel):
     model: str = Field(default="", max_length=120, pattern=r"^[A-Za-z0-9._:/@\-]*$")
     price_input_per_mtok: float = Field(default=0.0, ge=0, le=1000)
     price_output_per_mtok: float = Field(default=0.0, ge=0, le=1000)
+    thinking_off: bool = True
     activate: bool = True
 
 
@@ -205,6 +206,7 @@ def add_cloud_routes(
                 model=body.model,
                 price_input_per_mtok=body.price_input_per_mtok,
                 price_output_per_mtok=body.price_output_per_mtok,
+                thinking_off=body.thinking_off,
             )
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.errors()[0]["msg"]) from None

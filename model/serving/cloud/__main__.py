@@ -36,6 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     conf.add_argument("--preset", choices=sorted(PRESETS))
     conf.add_argument("--model")
     conf.add_argument("--base-url")
+    conf.add_argument("--thinking", choices=["on", "off"], help="off = no hidden reasoning")
     conf.add_argument("--budget", type=float)
     conf.add_argument("--price-in", type=float)
     conf.add_argument("--price-out", type=float)
@@ -85,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
                     "provider": preset.provider,
                     "base_url": args.base_url or (current.base_url if current else preset.base_url),
                     **({"model": args.model} if args.model is not None else {}),
+                    **({"thinking_off": args.thinking == "off"} if args.thinking else {}),
                     **(
                         {"price_input_per_mtok": args.price_in} if args.price_in is not None else {}
                     ),

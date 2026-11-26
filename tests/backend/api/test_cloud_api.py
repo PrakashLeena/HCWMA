@@ -388,3 +388,13 @@ def test_a_failed_cloud_call_is_shown_with_its_reason(tmp_path: Path) -> None:
     detail = r.json()["detail"]
     assert "cloud-m" in detail and "no credits" in detail and "Fall back to local" in detail
     assert launcher.starts == 0
+
+
+def test_thinking_off_is_kept_per_profile(client: TestClient, dispatcher: ModelDispatcher) -> None:
+    _profile(client, "nvidia", model="nvidia/nemotron")
+    assert dispatcher.settings.load().thinking_off is True  # default
+    _profile(client, "groq", model="g", thinking_off=False, activate=False)
+    body = client.get("/cloud/status", headers=AUTH).json()
+    assert {p["id"]: p["thinking_off"] for p in body["profiles"]} == {"nvidia": True, "groq": False}
+    client.post("/cloud/profiles/groq/activate", headers=AUTH)
+    assert dispatcher.settings.load().thinking_off is False
