@@ -34,6 +34,16 @@ class GenerateResult(BaseModel):
     load_s: float = 0.0
     prompt_eval_s: float = 0.0
     eval_s: float = 0.0
+    # Which model answered (2026-11-26, optional cloud LLM): "local" or a cloud provider id.
+    provider: str = "local"
+    model: str = ""
+    cost_usd: float = 0.0
+    # Set when a cloud call failed and the local model answered instead (shown in the chat).
+    fallback_note: str | None = None
+
+    @property
+    def is_cloud(self) -> bool:
+        return self.provider != "local"
 
     @property
     def tokens_per_s(self) -> float:

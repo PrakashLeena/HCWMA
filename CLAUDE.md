@@ -5,7 +5,8 @@ A Router mini agent delegates each request to a specialist sub-agent. All agents
 one local Qwen model, one memory service and one local MCP tool gateway.
 
 You (Claude Code) are the **builder** of HCWMA. At runtime HCWMA uses the local Qwen
-model, not Claude. Never add a dependency on a cloud LLM API.
+model, not Claude. Local model is the default. A cloud LLM may be used only when the owner
+enables it with their own API key. No cloud SDKs; use httpx.
 
 ## Read first
 
@@ -76,6 +77,8 @@ ruff check . && ruff format .   # lint + format
 ollama pull qwen3.5:4b          # local model (needs Ollama on 127.0.0.1:11434; HCWMA starts the installed `ollama serve` itself when it is down)
 python -m model.serving.text_model   # make the daily model qwen3.5-text:4b from qwen3.5:4b's weights, without the vision projector (no download; switch back: ollama_model in configs/model.yaml)
 python -m model.serving.chat    # chat with the model in the terminal
+python -m model.serving.cloud status   # optional cloud model (owner's own key; Local only by default). Also: set-key <provider> (hidden input, keyring only) | delete-key | configure --provider P --model M [--budget --price-in --price-out] | mode local|hybrid|cloud (shows the data warning) | test
+# Cloud model page: http://127.0.0.1:8765/cloud (mode, provider, key, budget, per-agent Hybrid table, Test connection)
 python -m model.evaluation.benchmark --runs 3   # writes docs/benchmarks.md (~10 min on CPU); HCWMA_OLLAMA_MODEL=<tag> tries another installed tag (also eval_routing, ram_soak)
 python -m model.evaluation.ram_soak --runs 20 --label now   # RAM of Ollama's llama-server after each of 20 requests (~3 min on CPU; --out FILE appends the table)
 python -m app.desktop           # the desktop app: starts the backend, opens the window + tray icon (Health, Stop everything, Pause model, plugged-in-only, Start with Windows, Back up now, Quit); approval prompts appear in the window; push-to-talk: hold the talk button or F9; only one HCWMA may run (lock in the data folder)

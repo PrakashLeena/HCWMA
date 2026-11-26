@@ -233,4 +233,12 @@ def test_every_model_call_is_audited_with_its_time(tmp_path: Path) -> None:
         ("echo", delegated.task_id),
     ]
     assert all(r.duration_ms is not None and r.duration_ms >= 0 for r in calls)
-    assert set(calls[0].args) == {"prompt_len", "output_len", "load_s", "prefill_s", "gen_s"}
+    assert set(calls[0].args) == {
+        "prompt_len",
+        "output_len",
+        "load_s",
+        "prefill_s",
+        "gen_s",
+        "provider",
+        "model",
+    }

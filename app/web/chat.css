@@ -153,3 +153,6 @@ select {
 .msg.user.voice::before { content: "\1F3A4  "; }
 
 [hidden] { display: none !important; }
+
+/* 2026-11-26: a cloud call fell back to the local model */
+.msg.note { align-self: center; font-size: 0.85em; font-style: italic; opacity: 0.8; background: transparent; }

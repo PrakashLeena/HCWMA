@@ -153,6 +153,13 @@ async function stopEverything() {
   }
 }
 
+// Which model answered (2026-11-26): 🖥 local Qwen, ☁ the owner's cloud model.
+function modelLabel(models) {
+  if (!models || !models.length) return "";
+  return models.map((m) => (m.where === "cloud" ? "☁ " : "🖥 ") + (m.model || m.provider))
+    .join(" + ") + " · ";
+}
+
 function addMessage(kind, text, meta) {
   const div = document.createElement("div");
   div.className = "msg " + kind;
@@ -227,10 +234,13 @@ async function send(text, voice) {
     addMessage(
       "assistant",
       body.reply,
-      (body.agents.length ? "router → " + body.agents.join(" → ") : "router") +
+      modelLabel(body.models) +
+        (body.agents.length ? "router → " + body.agents.join(" → ") : "router") +
         " · " + body.status + (body.stopped_by ? " (stopped: " + body.stopped_by + ")" : "") +
         " · " + body.tool_calls + " tool calls · " + body.total_s + " s",
     );
+    // e.g. "Answered by the local model: the cloud provider's rate limit was reached."
+    for (const note of body.notes || []) addMessage("note", note);
     if (voice) speak(body.reply);
   } catch {
     pending.remove();

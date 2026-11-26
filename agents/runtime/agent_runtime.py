@@ -42,7 +42,7 @@ from agents.runtime.task_envelope import (
 from integrations.generated_tools.registry import granted_tool_names
 from integrations.mcp.tool_schemas import CallerContext, PermissionTier, ToolResult
 from memory.service import MemoryService
-from model.serving import GenerateResult, Message
+from model.serving import GenerateResult, Message, usage
 from security.audit.audit_logger import AuditLogger
 from security.permissions.config import Limits
 from security.permissions.permission_manager import AgentGrant
@@ -239,6 +239,7 @@ class AgentRuntime:
         tools: list[dict[str, Any]] | None = None,
         *,
         audit_as: tuple[str, str] | None = None,
+        agent: str | None = None,
         **kwargs: Any,
     ) -> GenerateResult:
         """All inference goes through the shared queue (rule 3), off the event loop.
@@ -248,7 +249,17 @@ class AgentRuntime:
         into Router, agent model calls and tool time afterwards.
         """
         kwargs.setdefault("max_tokens", self._max_tokens)
-        call = partial(self._queue.generate, messages, tools=tools, **kwargs)
+        # `agent` picks local or cloud in Hybrid mode (2026-11-26); the queue drops it for a
+        # backend that does not take it.
+        who = agent or (audit_as[0] if audit_as else None)
+        call = partial(
+            self._queue.generate,
+            messages,
+            tools=tools,
+            agent=who,
+            task_id=audit_as[1] if audit_as else None,
+            **kwargs,
+        )
         start = time.perf_counter()
         try:
             result = await anyio.to_thread.run_sync(call, abandon_on_cancel=True)
@@ -274,7 +285,10 @@ class AgentRuntime:
                     "prefill_s": round(result.prompt_eval_s, 2),
                     "gen_s": round(result.eval_s, 2),
                 },
+                provider=result.provider,
+                model=result.model,
             )
+        usage.record(result)  # which model answered, for the chat reply
         return result
 
     async def delegate(

@@ -35,6 +35,7 @@ from agents.router.router import RouterReply
 from agents.runtime.model_lock import BUSY_MESSAGE, ModelBusy, check_free
 from agents.runtime.model_queue import PAUSED_MESSAGE, ModelPaused
 from backend.api.apps_routes import add_app_routes
+from backend.api.cloud_routes import add_cloud_routes
 from backend.apps_service import AppsService
 from backend.auth.token import token_matches
 from backend.config import BackendConfig
@@ -53,7 +54,8 @@ from backend.schemas.chat import ChatRequest, ChatResponse, HealthResponse
 from integrations.adapters.local_data.planner_store import PlannerStore
 from integrations.adapters.local_data.when_parser import describe
 from integrations.generated_tools.review import ReviewRefused, ReviewService
-from model.serving import Message
+from model.serving import Message, usage
+from model.serving.cloud.dispatcher import ModelDispatcher
 from model.serving.ollama_launcher import OllamaLauncher
 from voice.memory_budget import top_apps_by_ram
 from voice.service import Transcript, VoiceRefused, VoiceService, VoiceStatus
@@ -94,6 +96,12 @@ _SECURITY_HEADERS = {
 }
 
 
+def _audit_logger() -> object:
+    from security.audit.audit_logger import get_audit_logger
+
+    return get_audit_logger()
+
+
 def create_app(
     handler_factory: HandlerFactory,
     token: str,
@@ -105,9 +113,18 @@ def create_app(
     voice: VoiceService | None = None,
     ollama: OllamaLauncher | None = None,
     apps: AppsService | None = None,
+    cloud: ModelDispatcher | None = None,
 ) -> FastAPI:
     if not token:
         raise ValueError("the backend needs a non-empty API token")
+
+    def dispatcher() -> ModelDispatcher:
+        """The model dispatcher the model queue uses (local or the owner's cloud model)."""
+        if cloud is not None:
+            return cloud
+        from agents.runtime.model_queue import get_dispatcher
+
+        return get_dispatcher()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -176,13 +193,15 @@ def create_app(
         if ollama is not None:
             # Ollama down: start it (once, under a lock) and wait up to 60 s, then go on.
             started = await run_in_threadpool(ollama.ensure_running)
-            if not started.ok:
+            # Cloud mode (2026-11-26): every call goes to the cloud; Qwen is only the fallback.
+            if not started.ok and dispatcher().settings.load().mode != "cloud":
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=started.message()
                 )
         try:
             check_free()  # a sandbox tool test holds the model (build step 13)
-            reply = await http.app.state.handler.handle(conversation)
+            with usage.collect() as used:
+                reply = await http.app.state.handler.handle(conversation)
         except ModelBusy:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=BUSY_MESSAGE
@@ -211,6 +230,8 @@ def create_app(
             stopped_by=reply.stopped_by,
             task_id=reply.task_id,
             total_s=round(time.perf_counter() - start, 2),
+            models=used.models,
+            notes=used.notes,
         )
 
     # --- build step 9: approval prompts and the stop control -------------------------------
@@ -458,6 +479,7 @@ def create_app(
         return FileResponse(WEB_DIR / "tools.html", media_type="text/html")
 
     add_app_routes(app, require_token, apps, reliability, WEB_DIR)
+    add_cloud_routes(app, require_token, dispatcher, WEB_DIR, _audit_logger)
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:

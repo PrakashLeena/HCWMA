@@ -121,7 +121,7 @@ def test_health_page_reports_every_check(client: TestClient, parts: Any) -> None
     report = client.get("/health/details", headers=AUTH).json()
     names = [item["name"] for item in report["items"]]
     assert names == [
-        "Ollama", "Model loaded", "RAM free", "Disk free", "Power", "Gmail login",
+        "Ollama", "Model loaded", "Cloud model", "RAM free", "Disk free", "Power", "Gmail login",
         "WhatsApp linked", "Last backup",
     ]  # fmt: skip
     by_name = {i["name"]: i for i in report["items"]}

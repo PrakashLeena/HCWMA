@@ -180,6 +180,17 @@ class ReliabilityService:
 
     # ---------- health page ----------
 
+    def _cloud_item(self) -> HealthItem:
+        """Mode and provider status of the optional cloud model (2026-11-26). No network."""
+        try:
+            from agents.runtime.model_queue import get_dispatcher
+            from model.serving.cloud.dispatcher import health_value
+
+            ok, value = health_value(get_dispatcher())
+        except Exception as exc:  # noqa: BLE001 - shown as "could not check"
+            ok, value = None, f"could not check ({type(exc).__name__})"
+        return HealthItem(name="Cloud model", ok=ok, value=value)
+
     def _model_items(self) -> list[HealthItem]:
         try:
             status = self.model.status()
@@ -220,6 +231,7 @@ class ReliabilityService:
         found = run_probes(self._probes)
         snap = self.snapshot()
         items = self._model_items()
+        items.append(self._cloud_item())
         ram_ok = snap.free_ram_mb >= settings.min_free_ram_mb
         disk_ok = snap.free_disk_gb >= settings.min_free_disk_gb
         items.append(

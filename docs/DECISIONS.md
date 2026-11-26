@@ -384,3 +384,26 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   Qwen with the text-only model (it does not today).
 - `HCWMA_OLLAMA_MODEL=<tag>` overrides `ollama_model` for A/B runs (eval, benchmark, ram_soak).
 
+## Optional cloud LLM (owner decision, 2026-11-26)
+
+- CLAUDE.md rule changed from "Never add a dependency on a cloud LLM API" to: "Local model is the
+  default. A cloud LLM may be used only when the owner enables it with their own API key. No cloud
+  SDKs; use httpx."
+- Backends behind `model/serving/` (`model/serving/cloud/`): OpenAI-compatible (base URL + model:
+  OpenAI, Groq, OpenRouter, DeepSeek), Anthropic, Google Gemini. Native tool calling; the same
+  Pydantic `ToolCall` validation as the local model.
+- Modes (cloud page `/cloud`): Local only (default), Hybrid, Cloud. Hybrid default: router, coding,
+  debugging, web_research, image_editing, tool_builder, echo -> cloud; communication,
+  memory_librarian, documents_study, file_system, planner, system_settings, app_automation -> local.
+  Per-agent override (Hybrid only).
+- Leaving Local only needs an owner click on a warning that lists what leaves the PC.
+- API key only in the OS credential store (keyring, service `hcwma`, user `cloud_api_key:<provider>`);
+  never in files, logs, audit or Git.
+- Before sending: protected-path names/contents and secret patterns (API keys, tokens, passwords,
+  private keys, card numbers) are redacted.
+- Network error, timeout, rate limit, refused key or monthly budget reached -> the same call runs on
+  the local model, with a note in the chat.
+- Monthly budget (USD, owner-set prices per million tokens); usage in `<data dir>/cloud_usage.json`.
+  Audit `cloud_call` records provider, model, agent, tokens, cost and outcome; never prompt text.
+- Policy, approvals, allowlists, fast path and the model queue are unchanged: cloud calls also go
+  through `model_queue.py`, one at a time.

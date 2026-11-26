@@ -1,0 +1,9 @@
+.cloud .modes label { display: block; margin: 0.3rem 0; }
+.cloud .grid { display: grid; grid-template-columns: minmax(10rem, 16rem) 1fr; gap: 0.5rem 1rem; align-items: center; max-width: 52rem; }
+.cloud .grid input, .cloud .grid select { width: 100%; box-sizing: border-box; }
+.cloud .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.cloud .row input { flex: 1 1 14rem; }
+.cloud .actions { margin: 1.5rem 0; }
+.cloud #warning h3 { margin-top: 0; }
+.cloud #warning li { margin: 0.25rem 0; }
+@media (max-width: 600px) { .cloud .grid { grid-template-columns: 1fr; } }
