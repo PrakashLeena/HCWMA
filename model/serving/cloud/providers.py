@@ -509,3 +509,50 @@ def make_cloud_backend(
     return classes[kind](
         base_url=base_url, model=model, api_key=api_key, timeout_s=timeout_s, transport=transport
     )
+
+
+def fetch_models(
+    kind: str,
+    *,
+    base_url: str,
+    api_key: str,
+    timeout_s: float = 20.0,
+    transport: httpx.BaseTransport | None = None,
+) -> list[str]:
+    """The provider's model list (GET .../models). Uses no tokens; the key is a header only."""
+    base = base_url.rstrip("/")
+    if kind == "anthropic":
+        url, headers = (
+            f"{base}/v1/models?limit=1000",
+            {
+                "x-api-key": api_key,
+                "anthropic-version": AnthropicBackend.API_VERSION,
+            },
+        )
+    elif kind == "gemini":
+        url, headers = f"{base}/v1beta/models?pageSize=1000", {"x-goog-api-key": api_key}
+    else:
+        url, headers = f"{base}/models", {"Authorization": f"Bearer {api_key}"}
+    try:
+        with httpx.Client(timeout=timeout_s, transport=transport, follow_redirects=False) as c:
+            resp = c.get(url, headers=headers)
+    except httpx.TimeoutException:
+        raise CloudError("timeout", "the provider did not answer in time") from None
+    except httpx.HTTPError as exc:
+        raise CloudError(
+            "network", f"could not reach the provider ({type(exc).__name__})"
+        ) from None
+    if resp.status_code != 200:
+        raise _error_for(resp)
+    try:
+        data = resp.json()
+    except ValueError:
+        raise CloudError("invalid", "the provider's model list was not JSON") from None
+    ids: list[str] = []
+    if kind == "gemini":
+        for m in data.get("models") or []:
+            if "generateContent" in (m.get("supportedGenerationMethods") or []):
+                ids.append(str(m.get("name", "")).removeprefix("models/"))
+    else:
+        ids = [str(m.get("id", "")) for m in data.get("data") or [] if isinstance(m, dict)]
+    return sorted({i for i in ids if i})

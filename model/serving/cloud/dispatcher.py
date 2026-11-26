@@ -74,6 +74,7 @@ class ModelDispatcher:
         self._redactor = redactor or Redactor()
         self._factory = backend_factory or _default_factory
         self._audit = audit
+        self.transport: Any = None  # httpx transport for the model list (tests)
         # Last cloud outcome this run ("ok", "fallback:rate_limit", ...) for the Health page.
         self.last_outcome: str | None = None
         self.last_at: float | None = None
@@ -130,10 +131,10 @@ class ModelDispatcher:
 
         start = time.perf_counter()
         month = self.ledger.this_month()
-        if settings.monthly_budget_usd <= 0 or month.cost_usd >= settings.monthly_budget_usd:
+        if settings.budget_blocks(month.cost_usd):
             return fall_back("budget", start)
         try:
-            key = self.keys.get(settings.provider)
+            key = self.keys.get(settings.key_id)
         except KeyStoreError:
             key = None
         if not key:
@@ -194,7 +195,7 @@ class ModelDispatcher:
         if not settings.model:
             return {"ok": False, "detail": "set a model name first"}
         try:
-            key = self.keys.get(settings.provider)
+            key = self.keys.get(settings.key_id)
         except KeyStoreError as exc:
             return {"ok": False, "detail": str(exc)}
         if not key:
@@ -234,19 +235,44 @@ def health_value(dispatcher: ModelDispatcher) -> tuple[bool | None, str]:
         return True, "off (Local only)"
     mode = {"hybrid": "Hybrid", "cloud": "Cloud"}[settings.mode]
     try:
-        key = bool(dispatcher.keys.get(settings.provider))
+        key = bool(dispatcher.keys.get(settings.key_id))
     except KeyStoreError:
         key = False
     month = dispatcher.ledger.this_month()
     parts = [
-        f"{mode}: {settings.provider} {settings.model or '(no model set)'}",
+        f"{mode}: {settings.key_id} {settings.model or '(no model set)'}",
         "key saved" if key else "NO API KEY",
-        f"${month.cost_usd:.2f} of ${settings.monthly_budget_usd:.2f} this month, "
+        f"${month.cost_usd:.2f} of "
+        + (
+            f"${settings.monthly_budget_usd:.2f}"
+            if settings.monthly_budget_usd > 0
+            else ("$0.00" if settings.budget_blocks(0) else "unlimited (free, unpriced)")
+        )
+        + " this month, "
         f"{month.calls} calls, {month.fallbacks} fallbacks",
     ]
-    ok: bool | None = key and month.cost_usd < settings.monthly_budget_usd
+    ok: bool | None = key and not settings.budget_blocks(month.cost_usd)
     if dispatcher.last_outcome is not None:
         parts.append(f"last call: {dispatcher.last_outcome}")
         if dispatcher.last_outcome.startswith("fallback"):
             ok = False if ok else ok
     return ok, "; ".join(parts)
+
+
+def list_models(dispatcher: ModelDispatcher, profile_id: str) -> list[str]:
+    """The provider's model ids for a saved profile (one GET; no tokens are used)."""
+    from model.serving.cloud.providers import fetch_models
+
+    settings = dispatcher.settings.load()
+    profile = settings.profiles.get(profile_id)
+    if profile is None:
+        raise CloudError("bad_request", "unknown profile")
+    try:
+        key = dispatcher.keys.get(profile_id)
+    except KeyStoreError as exc:
+        raise CloudError("auth", str(exc)) from None
+    if not key:
+        raise CloudError("auth", "no API key saved for this profile")
+    return fetch_models(
+        profile.provider, base_url=profile.base_url, api_key=key, transport=dispatcher.transport
+    )

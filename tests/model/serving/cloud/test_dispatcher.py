@@ -250,3 +250,36 @@ def test_test_connection(tmp_path: Path) -> None:
     assert r["ok"] is False and r["kind"] == "auth"
     d2, _, _ = _dispatcher(tmp_path / "b", None, key=None)
     assert d2.test_connection()["ok"] is False
+
+
+def test_a_zero_budget_with_zero_prices_is_unlimited(tmp_path: Path) -> None:
+    with fake_provider() as fake:
+        fake.reply(openai_reply(text="free", usage=(5000, 5000)))
+        d, local, _ = _dispatcher(
+            tmp_path, fake, monthly_budget_usd=0, price_input_per_mtok=0, price_output_per_mtok=0
+        )
+        result = d.generate(HI, agent="router")
+    assert result.provider == "openai_compat" and local.calls == 0
+    assert "unlimited" in health_value(d)[1]
+
+
+def test_a_zero_budget_with_prices_allows_no_spending(tmp_path: Path) -> None:
+    with fake_provider() as fake:
+        d, local, _ = _dispatcher(tmp_path, fake, monthly_budget_usd=0)
+        result = d.generate(HI, agent="router")
+    assert fake.requests == [] and local.calls == 1
+    assert "budget" in (result.fallback_note or "")
+
+
+def test_old_settings_become_a_profile(tmp_path: Path) -> None:
+    from model.serving.cloud.settings import CloudSettings
+
+    s = CloudSettings.model_validate(
+        {
+            "provider": "openai_compat",
+            "base_url": "https://integrate.api.nvidia.com/v1",
+            "model": "m",
+        }
+    )
+    assert s.profile == "openai_compat" and s.key_id == "openai_compat"
+    assert s.profiles["openai_compat"].base_url == "https://integrate.api.nvidia.com/v1"

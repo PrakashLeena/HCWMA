@@ -7,3 +7,4 @@
 .cloud #warning h3 { margin-top: 0; }
 .cloud #warning li { margin: 0.25rem 0; }
 @media (max-width: 600px) { .cloud .grid { grid-template-columns: 1fr; } }
+.cloud td.act { display: flex; gap: 0.4rem; flex-wrap: wrap; }

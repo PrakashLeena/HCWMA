@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HCWMA — cloud model</title>
+  <title>HCWMA — model</title>
   <link rel="stylesheet" href="/static/chat.css">
   <link rel="stylesheet" href="/static/health.css">
   <link rel="stylesheet" href="/static/cloud.css">
 </head>
 <body>
   <header>
-    <h1>Cloud model</h1>
+    <h1>Model</h1>
     <span id="status" class="status">loading…</span>
     <a class="link" href="/status">Health</a>
     <a class="link" href="/">Back to chat</a>
@@ -36,50 +36,60 @@
       <button id="cancel" type="button" class="quiet">Keep Local only</button>
     </section>
 
-    <h2>Provider</h2>
+    <h2>Your providers</h2>
+    <table id="profiles"><tbody></tbody></table>
+    <p id="no-profiles" class="muted" hidden>No provider saved yet. Add one below.</p>
+
+    <h2 id="edit-title">Add or change a provider</h2>
     <div class="grid">
-      <label for="provider">Provider</label>
-      <select id="provider">
-        <option value="openai_compat">OpenAI-compatible (OpenAI, Groq, OpenRouter, DeepSeek…)</option>
-        <option value="anthropic">Anthropic</option>
-        <option value="gemini">Google Gemini</option>
-      </select>
+      <label for="preset">Provider</label>
+      <select id="preset"></select>
       <label for="base-url">Base URL</label>
       <input id="base-url" type="url" autocomplete="off" spellcheck="false">
-      <label for="model">Model</label>
-      <input id="model" type="text" autocomplete="off" spellcheck="false" placeholder="model name from your provider">
       <label for="key">API key</label>
       <div class="row">
-        <input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your key">
+        <input id="key" type="password" autocomplete="off" spellcheck="false"
+               placeholder="paste your key (nvapi-…, sk-…, gsk_…)">
         <button id="save-key" type="button">Save key</button>
         <button id="delete-key" type="button" class="quiet">Remove key</button>
       </div>
       <span></span><span id="key-state" class="muted"></span>
-    </div>
-    <p class="muted">The key is kept only in the Windows credential store. It is never written to a
-      file, a log or the audit log, and this page never shows it again.</p>
-
-    <h2>Budget</h2>
-    <div class="grid">
-      <label for="budget">Monthly budget (US$)</label>
-      <input id="budget" type="number" min="0" step="0.5">
+      <label for="model">Model</label>
+      <div class="row">
+        <select id="model-list" hidden></select>
+        <input id="model" type="text" autocomplete="off" spellcheck="false"
+               placeholder="pick from the list or type a model id">
+        <button id="load-models" type="button" class="quiet">Load models</button>
+      </div>
       <label for="price-in">Price, input (US$ per million tokens)</label>
       <input id="price-in" type="number" min="0" step="0.01">
       <label for="price-out">Price, output (US$ per million tokens)</label>
       <input id="price-out" type="number" min="0" step="0.01">
     </div>
-    <p class="muted">Copy the prices from your provider's price page; the cost shown and the budget
-      use them. With prices at 0 the budget is never reached.</p>
+    <div class="row actions">
+      <button id="save-profile" type="button">Save provider and use it</button>
+      <button id="test" type="button" class="quiet">Test connection</button>
+    </div>
+    <p class="muted">Keys are kept only in the Windows credential store, one per provider. Each
+      save is read back before it says "saved". A key is never written to a file, a log or the
+      audit log, and this page only ever shows its last 4 characters.</p>
+
+    <h2>Budget</h2>
+    <div class="grid">
+      <label for="budget">Monthly budget (US$)</label>
+      <input id="budget" type="number" min="0" step="0.5">
+    </div>
+    <p class="muted">0 = unlimited while the active provider's prices are 0 (free credits). With
+      prices set, the budget is counted from them and 0 means no cloud spending.</p>
     <p id="usage"></p>
 
     <h2>Agents in Hybrid mode</h2>
     <table id="agents"><tbody></tbody></table>
 
     <div class="row actions">
-      <button id="save" type="button">Save</button>
-      <button id="test" type="button" class="quiet">Test connection</button>
-      <span id="result" class="muted"></span>
+      <button id="save" type="button">Save mode, budget and agents</button>
     </div>
+    <p id="result" class="muted" role="status"></p>
   </main>
   <script src="/static/cloud.js"></script>
 </body>

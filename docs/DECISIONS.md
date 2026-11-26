@@ -397,13 +397,21 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   memory_librarian, documents_study, file_system, planner, system_settings, app_automation -> local.
   Per-agent override (Hybrid only).
 - Leaving Local only needs an owner click on a warning that lists what leaves the PC.
-- API key only in the OS credential store (keyring, service `hcwma`, user `cloud_api_key:<provider>`);
-  never in files, logs, audit or Git.
+- API key only in the OS credential store; never in files, logs, audit or Git. One key per provider
+  profile, service `HCWMA-cloud-<profile>`, user `api_key` (fix 2026-11-26: the first version used
+  service `hcwma`, which Windows treats as the same target as Gmail's `HCWMA` entry; a later Gmail
+  write displaced the key). Every save is read back; "saved" only when the same key comes back.
+- The Model page (`/cloud`, "Model" in the chat header) is the main way to manage it, no terminal:
+  provider presets (NVIDIA, Groq, OpenAI, OpenRouter, DeepSeek, Anthropic, Gemini, Custom base URL),
+  saved provider profiles with one-click switching, key field (shows only "ends with …XXXX"; a
+  pasted "Bearer " is dropped), model list from the provider's `/models`, Test connection, Remove key.
 - Before sending: protected-path names/contents and secret patterns (API keys, tokens, passwords,
   private keys, card numbers) are redacted.
 - Network error, timeout, rate limit, refused key or monthly budget reached -> the same call runs on
   the local model, with a note in the chat.
 - Monthly budget (USD, owner-set prices per million tokens); usage in `<data dir>/cloud_usage.json`.
+  Budget 0 = unlimited while the active profile's prices are 0 (free credits); with prices set, 0
+  means no cloud spending.
   Audit `cloud_call` records provider, model, agent, tokens, cost and outcome; never prompt text.
 - Policy, approvals, allowlists, fast path and the model queue are unchanged: cloud calls also go
   through `model_queue.py`, one at a time.
