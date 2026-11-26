@@ -83,7 +83,8 @@ def test_model_call_record_holds_numbers_only(tmp_path: Path) -> None:
         "t",
         1234.57,
     )
-    assert rec.args == {"prompt_len": 900, "prefill_s": 3.5}  # never text
+    # never text; which model answered (2026-11-26) is the only string
+    assert rec.args == {"prompt_len": 900, "prefill_s": 3.5, "provider": "local", "model": ""}
 
 
 def test_document_and_file_content_is_logged_as_a_length_only() -> None:

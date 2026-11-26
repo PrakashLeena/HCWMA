@@ -111,6 +111,7 @@ class OllamaBackend:
             load_s=final.get("load_duration", 0) / _NS,
             prompt_eval_s=final.get("prompt_eval_duration", 0) / _NS,
             eval_s=final.get("eval_duration", 0) / _NS,
+            model=self.config.ollama_model,
         )
 
     def load(self) -> float:

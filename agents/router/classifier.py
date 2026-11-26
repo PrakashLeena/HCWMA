@@ -88,6 +88,7 @@ class Classifier:
             temperature=0,
             seed=0,  # fixed seed: the same request always routes the same way
             audit_as=None if task_id is None else ("router", task_id),
+            agent="router",  # Hybrid mode: the Router's model (2026-11-26)
         )
         return self.check(result.text)
 

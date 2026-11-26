@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from model.serving.usage import ModelUse
+
 MAX_TURNS = 100
 MAX_TURN_CHARS = 20000
 
@@ -41,6 +43,10 @@ class ChatResponse(BaseModel):
     stopped_by: str | None = None
     task_id: str
     total_s: float
+    # Which model answered (2026-11-26): local Qwen and/or the owner's cloud model.
+    models: list[ModelUse] = Field(default_factory=list)
+    # e.g. "Answered by the local model: the cloud provider's rate limit was reached."
+    notes: list[str] = Field(default_factory=list)
 
 
 class HealthResponse(BaseModel):

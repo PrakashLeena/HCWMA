@@ -209,7 +209,10 @@ def model_released(
         try:
             yield was_loaded
         finally:
-            if was_loaded:
+            from model.serving.cloud.settings import cloud_only_now
+
+            # Cloud mode (2026-11-26): Qwen is not reloaded; nothing may load it ahead of use.
+            if was_loaded and not cloud_only_now():
                 backend.load()
 
 

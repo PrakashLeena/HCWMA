@@ -36,7 +36,10 @@ Fix what you can, then re-run. Never mark a check PASS without actually running 
     when unapproved.
 12. **Limits.** Delegation depth and step budget are enforced in code, with a test.
 13. **Quarantine.** Nothing in `integrations/generated/` is callable while `quarantined`.
-14. **No cloud LLM.** No import of a hosted LLM SDK and no call to a remote model API.
+14. **Cloud LLM only as the owner allows.** No import of a hosted LLM SDK. Remote model calls
+    exist only in `model/serving/cloud/` (httpx), run only when the owner turned the cloud model
+    on (Local only is the default), and their tests use a fake server on 127.0.0.1 (owner
+    decision 2026-11-26).
 
 ## Report
 

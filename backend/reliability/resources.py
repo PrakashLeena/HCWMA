@@ -74,14 +74,21 @@ def low_resource_warnings(snap: ResourceSnapshot, settings: AppSettings) -> list
 
 
 def heavy_task_refusal(
-    snap: ResourceSnapshot, settings: AppSettings, *, model_paused: bool = False
+    snap: ResourceSnapshot,
+    settings: AppSettings,
+    *,
+    model_paused: bool = False,
+    check_resources: bool = True,
 ) -> str | None:
-    """Why a new heavy task must not start now, or None if it may."""
+    """Why a new heavy task must not start now, or None if it may. `check_resources=False`
+    (Cloud mode): only the owner's pause counts."""
     if model_paused:
         return (
             'Not started: the model is paused. Choose "Resume model" in the HCWMA tray menu, '
             "then ask again."
         )
+    if not check_resources:
+        return None
     warnings = low_resource_warnings(snap, settings)
     if warnings:
         return "Not started: the PC is low on resources. " + " ".join(warnings)

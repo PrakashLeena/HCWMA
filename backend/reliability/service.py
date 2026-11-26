@@ -166,6 +166,17 @@ class ReliabilityService:
         return self._snapshot()
 
     def refusal(self) -> str | None:
+        from model.serving.cloud.settings import cloud_only_now
+
+        if cloud_only_now():
+            # Cloud mode (2026-11-26): no request loads Qwen, so the RAM / battery limits for
+            # heavy (local model) tasks do not apply. Pause still stops every model call.
+            return heavy_task_refusal(
+                self.snapshot(),
+                AppSettings(),
+                model_paused=self.model.paused,
+                check_resources=False,
+            )
         return heavy_task_refusal(
             self.snapshot(), self.settings.load(), model_paused=self.model.paused
         )
@@ -179,6 +190,17 @@ class ReliabilityService:
         self.audit.reliability(action="resume_model", outcome="resumed")
 
     # ---------- health page ----------
+
+    def _cloud_item(self) -> HealthItem:
+        """Mode and provider status of the optional cloud model (2026-11-26). No network."""
+        try:
+            from agents.runtime.model_queue import get_dispatcher
+            from model.serving.cloud.dispatcher import health_value
+
+            ok, value = health_value(get_dispatcher())
+        except Exception as exc:  # noqa: BLE001 - shown as "could not check"
+            ok, value = None, f"could not check ({type(exc).__name__})"
+        return HealthItem(name="Cloud model", ok=ok, value=value)
 
     def _model_items(self) -> list[HealthItem]:
         try:
@@ -220,6 +242,7 @@ class ReliabilityService:
         found = run_probes(self._probes)
         snap = self.snapshot()
         items = self._model_items()
+        items.append(self._cloud_item())
         ram_ok = snap.free_ram_mb >= settings.min_free_ram_mb
         disk_ok = snap.free_disk_gb >= settings.min_free_disk_gb
         items.append(

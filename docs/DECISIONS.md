@@ -384,3 +384,51 @@ the 5 GB limit, so HCWMA refuses new requests until space is freed on C: (owner 
   Qwen with the text-only model (it does not today).
 - `HCWMA_OLLAMA_MODEL=<tag>` overrides `ollama_model` for A/B runs (eval, benchmark, ram_soak).
 
+## Optional cloud LLM (owner decision, 2026-11-26)
+
+- CLAUDE.md rule changed from "Never add a dependency on a cloud LLM API" to: "Local model is the
+  default. A cloud LLM may be used only when the owner enables it with their own API key. No cloud
+  SDKs; use httpx."
+- Backends behind `model/serving/` (`model/serving/cloud/`): OpenAI-compatible (base URL + model:
+  OpenAI, Groq, OpenRouter, DeepSeek), Anthropic, Google Gemini. Native tool calling; the same
+  Pydantic `ToolCall` validation as the local model.
+- Modes (cloud page `/cloud`): Local only (default), Hybrid, Cloud. Hybrid default: router, coding,
+  debugging, web_research, image_editing, tool_builder, echo -> cloud; communication,
+  memory_librarian, documents_study, file_system, planner, system_settings, app_automation -> local.
+  Per-agent override (Hybrid only).
+- Leaving Local only needs an owner click on a warning that lists what leaves the PC.
+- API key only in the OS credential store; never in files, logs, audit or Git. One key per provider
+  profile, service `HCWMA-cloud-<profile>`, user `api_key` (fix 2026-11-26: the first version used
+  service `hcwma`, which Windows treats as the same target as Gmail's `HCWMA` entry; a later Gmail
+  write displaced the key). Every save is read back; "saved" only when the same key comes back.
+- The Model page (`/cloud`, "Model" in the chat header) is the main way to manage it, no terminal:
+  provider presets (NVIDIA, Groq, OpenAI, OpenRouter, DeepSeek, Anthropic, Gemini, Custom base URL),
+  saved provider profiles with one-click switching, key field (shows only "ends with …XXXX"; a
+  pasted "Bearer " is dropped), model list from the provider's `/models`, Test connection, Remove key.
+- Before sending: protected-path names/contents and secret patterns (API keys, tokens, passwords,
+  private keys, card numbers) are redacted.
+- Cloud mode (owner bug report 2026-11-26): every model call goes to the active cloud profile (Router,
+  every agent, session summaries). Qwen is never loaded or started ahead of use: no Ollama auto-start at
+  launch, no per-request start, no reload after a sandbox test; switching to Cloud (or starting in Cloud
+  mode) unloads it. The RAM / battery limits for heavy tasks do not apply in Cloud mode; Pause still does.
+- No silent fallback: a failed cloud call (key, credits, rate limit, network, time-out, budget, no key)
+  stops the request and the chat shows the reason. "Fall back to local if cloud fails" on the Model page
+  (default off) lets the local model answer instead, with a note; Ollama is then started only for it.
+- Hybrid: exactly the per-agent table; Ollama starts only when a local agent's call runs. Session
+  summaries count as `memory_librarian`.
+- Mode changes apply to the next call (settings are read per call) and are kept in `cloud.json`.
+- Monthly budget (USD, owner-set prices per million tokens); usage in `<data dir>/cloud_usage.json`.
+  Budget 0 = unlimited while the active profile's prices are 0 (free credits); with prices set, 0
+  means no cloud spending.
+  Audit `cloud_call` records provider, model, agent, tokens, cost and outcome; never prompt text.
+- Policy, approvals, allowlists, fast path and the model queue are unchanged: cloud calls also go
+  through `model_queue.py`, one at a time.
+- Thinking models (owner decision 2026-11-26, after measuring NVIDIA: all three test models "think"
+  by default; with max_tokens 20 the whole budget went to thinking and the answer was empty):
+  per-profile "Thinking off", default on. Sent as `chat_template_kwargs: {enable_thinking: false}`
+  (OpenAI-compatible) or `thinkingConfig.thinkingBudget: 0` (Gemini); Anthropic never thinks unless
+  asked. A provider that refuses the switch (HTTP 400) is asked again without it, once per model per
+  run. Whenever thinking may be on, max_tokens gets +1024 headroom. An empty answer is an error with
+  its reason ("spent its whole answer budget thinking" / "empty answer"), never passed on.
+- Cloud time-out default 90 s per call (editable on the Model page).
+

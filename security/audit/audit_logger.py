@@ -81,6 +81,7 @@ class AuditRecord(BaseModel):
         "memory",
         "generated_tool",
         "model_call",
+        "cloud_call",
         "recovery",
         "reliability",
         "app_access",
@@ -266,6 +267,8 @@ class AuditLogger:
         duration_ms: float,
         timings: dict[str, float | int],
         outcome: str = "ok",
+        provider: str = "local",
+        model: str = "",
     ) -> AuditRecord:
         """One inference through the model queue, for the time split of a request
         (`python -m agents.router.timing`). `timings` holds numbers only (prompt and output
@@ -274,7 +277,43 @@ class AuditLogger:
             event="model_call",
             task_id=task_id,
             agent=agent,
-            args={k: v for k, v in timings.items() if isinstance(v, (int, float))},
+            args={
+                **{k: v for k, v in timings.items() if isinstance(v, (int, float))},
+                "provider": provider[:40],
+                "model": model[:80],
+            },
+            outcome=outcome,
+            duration_ms=round(duration_ms, 2),
+        )
+        self.write(record)
+        return record
+
+    def cloud_call(
+        self,
+        *,
+        task_id: str,
+        agent: str,
+        provider: str,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        cost_usd: float,
+        outcome: str,
+        duration_ms: float,
+    ) -> AuditRecord:
+        """One call to the owner's cloud model, or a fallback to the local one (2026-11-26).
+        Provider, model, token counts and cost only: never the prompt, the reply or the key."""
+        record = AuditRecord(
+            event="cloud_call",
+            task_id=task_id,
+            agent=agent,
+            args={
+                "provider": provider[:40],
+                "model": model[:80],
+                "prompt_tokens": int(prompt_tokens),
+                "completion_tokens": int(completion_tokens),
+                "cost_usd": round(float(cost_usd), 6),
+            },
             outcome=outcome,
             duration_ms=round(duration_ms, 2),
         )

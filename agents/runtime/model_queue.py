@@ -6,6 +6,7 @@ Every inference call in HCWMA goes through `ModelQueue.generate`. Requests beyon
 
 from __future__ import annotations
 
+import inspect
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -15,6 +16,7 @@ from typing import Any
 
 from agents.runtime.model_lock import check_free
 from model.serving import GenerateResult, Message, get_backend, load_model_config
+from model.serving.cloud.dispatcher import ModelDispatcher
 
 GenerateFn = Callable[..., GenerateResult]
 
@@ -33,6 +35,9 @@ class ModelQueue:
         if max_parallel < 1:
             raise ValueError("max_parallel must be >= 1")
         self._generate = generate_fn
+        # The cloud dispatcher (2026-11-26) picks local or cloud per agent; plain backends
+        # (and test doubles) do not take the agent and task id, so they are not passed on.
+        self._takes_agent = _accepts(generate_fn, "agent")
         self._max_parallel = max_parallel
         self._slots = threading.Semaphore(max_parallel)
         self._fifo = threading.Lock()  # keeps waiting callers in arrival order
@@ -49,8 +54,13 @@ class ModelQueue:
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 512,
+        *,
+        agent: str | None = None,
+        task_id: str | None = None,
         **kwargs: Any,
     ) -> GenerateResult:
+        if self._takes_agent:
+            kwargs.update({k: v for k, v in (("agent", agent), ("task_id", task_id)) if v})
         check_free()  # a sandbox test is running: do not start (or reload) the model
         if self.paused:
             raise ModelPaused
@@ -97,7 +107,21 @@ class ModelQueue:
                     self._slots.release()
 
 
+def _accepts(fn: Callable[..., Any], name: str) -> bool:
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(p.name == name or p.kind is p.VAR_KEYWORD for p in params)
+
+
+@lru_cache(maxsize=1)
+def get_dispatcher() -> ModelDispatcher:
+    """Local Qwen, or the owner's cloud model when they turned it on (2026-11-26)."""
+    return ModelDispatcher(get_backend().generate)
+
+
 @lru_cache(maxsize=1)
 def get_model_queue() -> ModelQueue:
     config = load_model_config()
-    return ModelQueue(get_backend().generate, max_parallel=config.max_parallel_requests)
+    return ModelQueue(get_dispatcher().generate, max_parallel=config.max_parallel_requests)
